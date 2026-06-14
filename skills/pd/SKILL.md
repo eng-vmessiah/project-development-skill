@@ -7,7 +7,7 @@ license: MIT
 metadata:
   hermes:
     tags: [project-development, pipeline, orchestration, brainstorming, planning, spec, workflow]
-    related_skills: [ai-regression-testing, clean-code, ddd-development, humanizer, requesting-code-review, systematic-debugging, test-driven-development, writing-clearly-and-concisely, writing-plans]
+    related_skills: [ai-optimization, ai-regression-testing, clean-code, ddd-development, design-patterns, humanizer, requesting-code-review, systematic-debugging, test-driven-development, writing-clearly-and-concisely, writing-plans]
 ---
 
 # Project Development (PD) — Development Pipeline
@@ -125,6 +125,163 @@ Wave 4 (Verification):
 2. **Waves execute sequentially** — Wave 2 starts after Wave 1 completes
 3. **Parallel within wave** — use `delegate_task` for tasks in same wave
 4. **Fresh context each** — each subagent gets clean context
+
+## Multi-Agent Orchestration Patterns
+
+### Agent Roles
+
+| Role | Purpose | When to Use |
+|------|---------|-------------|
+| **Orchestrator** | Coordinates agents, manages state | Main session |
+| **Worker** | Executes specific tasks | Parallel execution |
+| **Reviewer** | Validates work | Quality checks |
+| **Specialist** | Domain expertise | Complex problems |
+
+### Agent Collaboration Patterns
+
+#### Pattern 1: Supervisor-Worker
+```
+Orchestrator
+├── Worker A (task 1)
+├── Worker B (task 2)
+└── Worker C (task 3)
+```
+
+**Use when:** Tasks are independent, can run in parallel.
+
+```python
+# Supervisor-worker pattern
+delegate_task(
+    tasks=[
+        {"goal": "Implement auth module", "toolsets": ["terminal", "file"]},
+        {"goal": "Implement API routes", "toolsets": ["terminal", "file"]},
+        {"goal": "Write tests", "toolsets": ["terminal", "file"]}
+    ]
+)
+```
+
+#### Pattern 2: Pipeline
+```
+Agent A ──► Agent B ──► Agent C ──► Result
+```
+
+**Use when:** Output of one agent feeds into next.
+
+```python
+# Pipeline pattern
+result_a = delegate_task("Research requirements")
+result_b = delegate_task(f"Design based on: {result_a}")
+result_c = delegate_task(f"Implement based on: {result_b}")
+```
+
+#### Pattern 3: Review Loop
+```
+Worker ──► Reviewer ──► Fix ──► Reviewer ──► Done
+```
+
+**Use when:** Quality is critical, need validation.
+
+```python
+# Review loop pattern
+work = delegate_task("Implement feature")
+review = delegate_task(f"Review this code:\n{work}")
+
+if review.contains_issues:
+    fixes = delegate_task(f"Fix issues:\n{review.issues}")
+    final_review = delegate_task(f"Verify fixes:\n{fixes}")
+```
+
+#### Pattern 4: Swarm (Specialist)
+```
+Orchestrator
+├── Python Expert
+├── TypeScript Expert
+└── DevOps Expert
+```
+
+**Use when:** Different domains need specialized knowledge.
+
+```python
+# Swarm pattern
+delegate_task(
+    tasks=[
+        {"goal": "Optimize Python backend", "toolsets": ["terminal", "file"]},
+        {"goal": "Refactor React components", "toolsets": ["terminal", "file"]},
+        {"goal": "Setup CI/CD pipeline", "toolsets": ["terminal", "file"]}
+    ],
+    role="orchestrator"
+)
+```
+
+### Agent Policies
+
+Control what agents can do:
+
+```yaml
+# Agent policy examples
+policies:
+  # Safety
+  approve_shell:
+    type: function
+    handler: ask_before_shell_commands
+  
+  # Cost control
+  budget:
+    type: function
+    handler: max_cost_usd
+    params:
+      limit: 5.00
+  
+  # Tool limits
+  tool_calls:
+    type: function
+    handler: max_tool_calls
+    params:
+      limit: 50
+```
+
+### Agent Communication
+
+#### Via Context Passing
+```python
+# Pass context between agents
+agent_a_result = delegate_task("Analyze codebase")
+agent_b_result = delegate_task(
+    f"Based on this analysis:\n{agent_a_result}\n\nImplement improvements"
+)
+```
+
+#### Via Shared State Files
+```python
+# Agents read/write to shared files
+delegate_task("Write analysis to /tmp/analysis.md")
+delegate_task("Read /tmp/analysis.md and implement recommendations")
+```
+
+### Agent Quality Gates
+
+Before claiming completion, agents must verify:
+
+```python
+# Quality gate checklist
+quality_checklist = """
+- [ ] Code compiles/runs
+- [ ] Tests pass
+- [ ] No lint errors
+- [ ] Follows style guide
+- [ ] Meets requirements
+"""
+```
+
+### Anti-Patterns in Multi-Agent
+
+| Pattern | Problem |
+|---------|---------|
+| Too many agents | Coordination overhead |
+| No clear roles | Confusion, duplication |
+| Blocking dependencies | Sequential bottleneck |
+| No quality gates | Low-quality output |
+| Ignoring cost | Budget overruns |
 
 ### Parallel Execution with delegate_task
 
