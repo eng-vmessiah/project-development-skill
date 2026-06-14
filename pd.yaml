@@ -1,0 +1,82 @@
+# PD Configuration
+# Place this file in your project root or ~/.pd.yaml
+
+# Phases configuration
+phases:
+  - id: 0
+    name: Setup
+    description: Initialize worktree and project
+  - id: 1
+    name: Brainstorming
+    description: Understand the problem
+  - id: 2
+    name: Planning
+    description: Decide the approach
+  - id: 3
+    name: Structure
+    description: Organize the work
+  - id: 4
+    name: Coding
+    description: Implement the solution
+  - id: 5
+    name: Testing
+    description: Verify correctness
+  - id: 6
+    name: Validation
+    description: Confirm value
+  - id: 7
+    name: Merge
+    description: Deliver results
+
+# Directory structure
+directories:
+  spec: .spec
+  state: STATE.md
+  templates: templates
+  backend: backend
+  frontend: frontend
+  tests: tests
+
+# Required files per phase
+required_files:
+  0: []  # Setup - no required files
+  1: [SPEC.md]  # Brainstorming
+  2: [PLAN.md]  # Planning
+  3: [CONTEXT.md]  # Structure
+  4: []  # Coding - tasks tracked in STATE.md
+  5: [tests/]  # Testing
+  6: [VERIFICATION.md]  # Validation
+  7: []  # Merge
+
+# Hooks configuration
+hooks:
+  # Run before each phase advance
+  before_advance: []
+  # Run after each phase advance
+  after_advance: []
+  # Run before checkpoint
+  before_checkpoint: []
+  # Run after checkpoint
+  after_checkpoint: []
+  # Run before verify
+  before_verify: []
+  # Run after verify
+  after_verify: []
+
+# Validation rules
+validation:
+  # Require all requirements to be checked before merge
+  require_all_requirements: true
+  # Require tests before merge
+  require_tests: true
+  # Require VERIFICATION.md before merge
+  require_verification: true
+
+# Output settings
+output:
+  # Show timestamps in status
+  show_timestamps: true
+  # Show checkpoint history
+  show_checkpoints: true
+  # Color output
+  color: true
