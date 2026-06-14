@@ -19,6 +19,10 @@ A comprehensive skill ecosystem for AI-assisted software development. Works with
 | **systematic-debugging** | Root cause analysis | 10k |
 | **humanizer** | Remove AI slop from text | 1k |
 | **writing-clearly-and-concisely** | Clear, forceful prose | 3k |
+| **writing-plans** | Implementation planning | 7k |
+| **plan** | Plan mode | 9k |
+| **spike** | Throwaway experiments | 9k |
+| **subagent-driven-development** | Parallel execution via subagents | 12k |
 
 ## Quick Install
 
