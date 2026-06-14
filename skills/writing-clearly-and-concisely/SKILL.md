@@ -1,5 +1,8 @@
 ---
 name: writing-clearly-and-concisely
+version: 1.0.0
+author: ISIS
+license: MIT
 description: Write clear, forceful prose for humans. Based on Strunk's Elements of Style. Use for documentation, commit messages, error messages, reports, UI text, or any writing a human will read. Covers active voice, omitting needless words, concrete language, and AI writing patterns to avoid.
 metadata:
   hermes:

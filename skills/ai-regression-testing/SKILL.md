@@ -1,5 +1,8 @@
 ---
 name: ai-regression-testing
+version: 1.0.0
+author: ISIS
+license: MIT
 description: Regression testing patterns for AI-assisted development. Sandbox/production path parity, response shape contracts, data completeness, and patterns to catch AI blind spots.
 ---
 

@@ -1,5 +1,8 @@
 ---
 name: humanizer
+version: 1.0.0
+author: ISIS
+license: MIT
 description: Remove signs of AI-generated writing from text. Detects and fixes 24 patterns including inflated symbolism, promotional language, superficial -ing analyses, em dash overuse, rule of three, AI vocabulary words, and excessive hedging. Based on Wikipedia's comprehensive "Signs of AI writing" guide.
 metadata:
   hermes:
