@@ -4,21 +4,21 @@ A comprehensive skill ecosystem for AI-assisted software development. Works with
 
 ## What's Included
 
-| Skill | Description |
-|-------|-------------|
-| **pd** | Master orchestrator — full development pipeline |
-| **clean-code** | Writing maintainable, readable code |
-| **ddd-development** | Domain-Driven Design patterns |
-| **test-driven-development** | TDD workflow and patterns |
-| **requesting-code-review** | Pre-commit verification |
-| **systematic-debugging** | Root cause analysis |
-| **ai-regression-testing** | Testing patterns for AI code |
-| **humanizer** | Remove AI slop from text |
-| **writing-clearly-and-concisely** | Clear, forceful prose |
-| **writing-plans** | Implementation planning |
-| **subagent-driven-development** | Parallel execution |
-| **plan** | Plan mode |
-| **spike** | Throwaway experiments |
+| Skill | Description | Size |
+|-------|-------------|------|
+| **pd** | Master orchestrator — full development pipeline | 34k |
+| **clean-code** | Writing maintainable, readable code | 16k |
+| **ddd-development** | Domain-Driven Design patterns | 15k |
+| **design-patterns** | GoF 23 patterns + decision trees | 19k |
+| **auth-patterns** | JWT, OAuth, RBAC, sessions | 11k |
+| **ai-optimization** | Prompt/code optimization with reflection | 13k |
+| **ai-regression-testing** | Testing patterns for AI code | 4k |
+| **service-composition** | Worker-Function-Trigger patterns | 18k |
+| **test-driven-development** | TDD workflow and patterns | 10k |
+| **requesting-code-review** | Pre-commit verification | 8k |
+| **systematic-debugging** | Root cause analysis | 10k |
+| **humanizer** | Remove AI slop from text | 1k |
+| **writing-clearly-and-concisely** | Clear, forceful prose | 3k |
 
 ## Quick Install
 
@@ -84,14 +84,18 @@ Phase 7: Merge & Deploy
 
 ```
                          pd (master)
-                        ↙ ↘ ↘ ↘ ↘
-           clean-code ←→ ddd-development
-                ↕              ↕
+                        ↙ ↘ ↘ ↘ ↘ ↘
+           clean-code ←→ ddd-development ←→ design-patterns
+                ↕              ↕                    ↕
   test-driven-development ←→ requesting-code-review
                 ↕
         systematic-debugging
                 
   humanizer ←→ writing-clearly-and-concisely
+  
+  ai-optimization ←→ ai-regression-testing
+  
+  auth-patterns ←→ service-composition
 ```
 
 ## Philosophy
@@ -100,6 +104,17 @@ Phase 7: Merge & Deploy
 - **Evidence-based completion** — No claims without fresh verification
 - **Wave-based execution** — Fresh context for heavy work
 - **Bug-driven coverage** — Test where bugs were found
+
+## Templates
+
+The `pd` skill includes templates for:
+- `TASK.md` — Task definition
+- `CHECKPOINT.md` — Progress checkpoint
+- `STATUS.md` — Project status
+
+These are installed to:
+- Hermes: `~/.hermes/skills/software-development/pd/templates/`
+- OpenCode: `~/.config/opencode/skills/pd/templates/`
 
 ## License
 
@@ -110,5 +125,7 @@ MIT
 Inspired by:
 - **Clean Code** — Robert C. Martin
 - **Domain-Driven Design** — Eric Evans, Vaughn Vernon
+- **Design Patterns (GoF)** — Gamma, Helm, Johnson, Vlissides
+- **GEPA** — Reflective optimization patterns
+- **iii** — Service composition primitives
 - **Verification patterns** — Evidence-based validation
-- **Wave-based execution** — Fresh context subagents

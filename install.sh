@@ -41,7 +41,30 @@ if [ -d "$HOME/.config/opencode" ]; then
     for skill_dir in "$SKILLS_DIR"/*/; do
         skill_name=$(basename "$skill_dir")
         mkdir -p "$OPENCODE_DIR/$skill_name"
-        cp "$skill_dir/SKILL.md" "$OPENCODE_DIR/$skill_name/"
+        
+        # Copy SKILL.md and remove metadata.hermes section
+        python3 -c "
+import re
+
+with open('$skill_dir/SKILL.md', 'r') as f:
+    content = f.read()
+
+# Remove metadata.hermes section
+content = re.sub(
+    r'(metadata:\n  hermes:\n    tags: \[.*?\]\n    related_skills: \[.*?\]\n)',
+    '',
+    content
+)
+
+with open('$OPENCODE_DIR/$skill_name/SKILL.md', 'w') as f:
+    f.write(content)
+"
+        
+        # Copy templates if they exist
+        if [ -d "$skill_dir/templates" ]; then
+            mkdir -p "$OPENCODE_DIR/$skill_name/templates"
+            cp -r "$skill_dir/templates"* "$OPENCODE_DIR/$skill_name/templates/"
+        fi
     done
     
     INSTALLED+=("OpenCode")
@@ -55,7 +78,24 @@ if [ -d "$HOME/.claude" ]; then
     
     for skill_dir in "$SKILLS_DIR"/*/; do
         skill_name=$(basename "$skill_dir")
-        cp "$skill_dir/SKILL.md" "$CLAUDE_DIR/$skill_name.md"
+        
+        # Copy SKILL.md and remove metadata.hermes section
+        python3 -c "
+import re
+
+with open('$skill_dir/SKILL.md', 'r') as f:
+    content = f.read()
+
+# Remove metadata.hermes section
+content = re.sub(
+    r'(metadata:\n  hermes:\n    tags: \[.*?\]\n    related_skills: \[.*?\]\n)',
+    '',
+    content
+)
+
+with open('$CLAUDE_DIR/$skill_name.md', 'w') as f:
+    f.write(content)
+"
     done
     
     INSTALLED+=("Claude")
@@ -80,3 +120,8 @@ fi
 echo ""
 echo "📚 Available skills:"
 ls -1 "$SKILLS_DIR" | sed 's/^/   • /'
+
+echo ""
+echo "🔧 Usage:"
+echo "   Hermes/OpenCode: skill_view(name='pd')"
+echo "   Claude: /pd"
