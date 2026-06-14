@@ -7,7 +7,7 @@ license: MIT
 metadata:
   hermes:
     tags: [ddd, domain-driven-design, modeling, architecture, patterns]
-    related_skills: [clean-code, karpathy-guidelines, pd, plan, systematic-debugging, writing-plans]
+    related_skills: [clean-code, pd, design-patterns, database-patterns, auth-patterns]
 ---
 
 # Domain-Driven Development (DDD)
@@ -415,10 +415,17 @@ When implementing a new domain feature:
 - [ ] Bounded Context boundaries are clearly defined
 
 ## References
-
 - Evans, E. (2015). *DDD Reference* — Definitions and Pattern Summaries
 - Vernon, V. (2013). *Implementing Domain-Driven Design* — Addison-Wesley
 - Avram, F. (2006). *Domain-Driven Design Quickly* — InfoQ
 
 **Support files:**
 - `references/patterns-summary.md` — Full pattern catalog extracted from all 3 books, decision trees, Vernon's Aggregate rules, anti-patterns table
+
+## Related Skills
+
+- **clean-code** — Naming, functions, and error handling apply directly to DDD building blocks.
+- **pd** — Master orchestrator. DDD design happens during Phase 1 (Brainstorming) and Phase 2 (Planning).
+- **design-patterns** — GoF patterns like Repository (Factory + Strategy), Factory for Aggregate Roots, Observer for Domain Events.
+- **database-patterns** — Schema design, indexing, and migration patterns for persisting Aggregates.
+- **auth-patterns** — Authentication and authorization. Model permissions within Bounded Contexts.

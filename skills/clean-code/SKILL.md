@@ -7,7 +7,7 @@ license: MIT
 metadata:
   hermes:
     tags: [clean-code, refactoring, naming, testing, code-quality, craftsmanship]
-    related_skills: [ddd-development, karpathy-guidelines, pd, requesting-code-review, systematic-debugging, test-driven-development]
+    related_skills: [ddd-development, pd, requesting-code-review, systematic-debugging, test-driven-development, design-patterns, performance-patterns]
 ---
 
 # Clean Code
@@ -440,8 +440,17 @@ When writing or reviewing code:
 - [ ] Abstraction level is consistent within functions
 
 ## References
-
 - Martin, R.C. (2008). *Clean Code: A Handbook of Agile Software Craftsmanship* — Prentice Hall
 - Beck, K. (2008). *Implementation Patterns* — Addison-Wesley
 - Fowler, M. (1999). *Refactoring: Improving the Design of Existing Code* — Addison-Wesley
 - Martin, R.C. (2017). *Clean Architecture* — Prentice Hall
+
+## Related Skills
+
+- **ddd-development** — Domain-Driven Design patterns. Apply when business logic is complex and needs rich modeling.
+- **pd** — Master orchestrator for the full development pipeline. Clean code is enforced across all PD phases.
+- **requesting-code-review** — Pre-commit verification. Review checks that clean code principles are followed.
+- **systematic-debugging** — Root-cause debugging. Clean code makes bugs easier to trace and fix.
+- **test-driven-development** — TDD discipline. Tests drive clean interfaces and small functions.
+- **design-patterns** — GoF patterns. Use Strategy, Factory, and Decorator instead of complex conditionals and inheritance.
+- **performance-patterns** — Caching, profiling, and optimization strategies. Apply when code needs speed or resource efficiency.

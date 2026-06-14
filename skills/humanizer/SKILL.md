@@ -7,7 +7,7 @@ description: Remove signs of AI-generated writing from text. Detects and fixes 2
 metadata:
   hermes:
     tags: [writing, humanizer, ai-patterns, documentation]
-    related_skills: [pd, writing-clearly-and-concisely]
+    related_skills: [writing-clearly-and-concisely, pd, documentation-patterns]
 ---
 
 # Humanizer: Remove AI Writing Patterns
@@ -182,16 +182,8 @@ def detect_ai_patterns(text: str) -> list:
 
 ## Integration with Skills
 
-### writing-clearly-and-concisely
-- This skill focuses on removing AI-isms
-- writing-clearly-and-concisely focuses on clarity principles
-- Use both for best results
+## Related Skills
 
-### clean-code
-- Apply humanizer to code comments
-- Apply to documentation and README files
-- Apply to commit messages
-
-### pd
-- Use when writing SPEC.md, PLAN.md, and other docs
-- Use when reviewing generated documentation
+- **writing-clearly-and-concisely** — Clarity principles (active voice, omit needless words). Use both skills together for best results.
+- **pd** — Master orchestrator. Apply humanizer to SPEC.md, PLAN.md, and all generated documentation.
+- **documentation-patterns** — Documentation structure and conventions. Apply humanizer to README, ADRs, and API docs.

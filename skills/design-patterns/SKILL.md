@@ -7,7 +7,7 @@ license: MIT
 metadata:
   hermes:
     tags: [design-patterns, architecture, gof, oop, refactoring]
-    related_skills: [clean-code, ddd-development, pd, systematic-debugging]
+    related_skills: [clean-code, ddd-development, pd, service-composition, api-design]
 ---
 
 # Design Patterns — GoF Reference
@@ -584,8 +584,15 @@ START
 ---
 
 ## References
-
 - Gamma, E., Helm, R., Johnson, R., & Vlissides, J. (1994). *Design Patterns: Elements of Reusable Object-Oriented Software*. Addison-Wesley.
 - Tushaar Gangarapu. *Design Patterns GoF*. (Source for this skill)
 - Refactoring.Guru: https://refactoring.guru/design-patterns
 - SourceMaking: https://sourcemaking.com/design_patterns
+
+## Related Skills
+
+- **clean-code** — Small functions, clear names, and SRP make patterns easier to apply correctly.
+- **ddd-development** — Repository, Factory, and Observer patterns are core DDD tactical building blocks.
+- **pd** — Reference patterns during planning (Phase 2) and coding (Phase 4).
+- **service-composition** — Worker-Function-Trigger patterns compose services using Strategy and Observer.
+- **api-design** — Façade and Adapter patterns shape clean API boundaries.

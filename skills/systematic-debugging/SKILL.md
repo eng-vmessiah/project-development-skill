@@ -8,7 +8,7 @@ platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [debugging, troubleshooting, problem-solving, root-cause, investigation]
-    related_skills: [clean-code, ddd-development, pd, plan, subagent-driven-development, test-driven-development]
+    related_skills: [test-driven-development, clean-code, pd, monitoring-observability]
 ---
 
 # Systematic Debugging
@@ -365,3 +365,10 @@ From debugging sessions:
 - New bugs introduced: Near zero vs common
 
 **No shortcuts. No guessing. Systematic always wins.**
+
+## Related Skills
+
+- **test-driven-development** — Write a failing test reproducing the bug, then follow TDD to fix it. The test proves the fix and prevents regression.
+- **clean-code** — Clean code is easier to debug. Small functions and clear names make root cause tracing faster.
+- **pd** — Master orchestrator. Debugging fits into the PD pipeline when bugs are found during development.
+- **monitoring-observability** — Logging, metrics, and tracing help diagnose production issues systematically.

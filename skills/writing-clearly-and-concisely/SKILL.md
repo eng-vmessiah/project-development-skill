@@ -7,7 +7,7 @@ description: Write clear, forceful prose for humans. Based on Strunk's Elements 
 metadata:
   hermes:
     tags: [writing, documentation, style, clarity]
-    related_skills: [clean-code, humanizer, pd]
+    related_skills: [humanizer, pd, documentation-patterns]
 ---
 
 # Writing Clearly and Concisely
@@ -250,17 +250,8 @@ def detect_passive(text: str) -> list:
 
 ## Integration with Skills
 
-### humanizer
-- Use both skills together for best results
-- humanizer focuses on AI-isms
-- This skill focuses on clarity principles
+## Related Skills
 
-### clean-code
-- Apply to code comments
-- Apply to documentation
-- Apply to commit messages
-
-### pd
-- Use when writing SPEC.md, PLAN.md
-- Use when reviewing documentation
-- Use for commit messages
+- **humanizer** — Remove AI writing patterns (puffery, rule of three, em dash overuse). Use both skills together for best results.
+- **pd** — Master orchestrator. Apply clarity principles to SPEC.md, PLAN.md, commit messages, and all documentation.
+- **documentation-patterns** — Documentation structure and conventions. Apply clarity principles to README, ADRs, and API docs.

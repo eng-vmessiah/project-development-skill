@@ -7,7 +7,7 @@ license: MIT
 metadata:
   hermes:
     tags: [ai, optimization, prompts, evolutionary, reflection, gepa]
-    related_skills: [ai-regression-testing, clean-code, design-patterns, humanizer]
+    related_skills: [pd, subagent-driven-development, clean-code]
 ---
 
 # AI Optimization Patterns
@@ -455,6 +455,13 @@ START
 ---
 
 ## References
+- OpenAI Cookbook - Self-Evolving Agents: https://cookbook.openai.com/examples/partners/self_evolving_agents/autonomous_agent_retraining
+
+## Related Skills
+
+- **pd** — Master orchestrator. Optimization patterns improve prompts and code across the PD pipeline.
+- **subagent-driven-development** — Optimize agent prompts and dispatching strategies for better subagent performance.
+- **clean-code** — Optimize code for readability and structure using AI-guided reflection.
 
 - GEPA (Genetic-Pareto): https://github.com/gepa-ai/gepa
 - DSPy: https://dspy.ai/

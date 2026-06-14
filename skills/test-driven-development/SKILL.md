@@ -8,7 +8,7 @@ platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [testing, tdd, development, quality, red-green-refactor]
-    related_skills: [clean-code, pd, systematic-debugging, plan, subagent-driven-development]
+    related_skills: [clean-code, pd, systematic-debugging, requesting-code-review, ai-regression-testing]
 ---
 
 # Test-Driven Development (TDD)
@@ -341,3 +341,11 @@ Otherwise → not TDD
 ```
 
 No exceptions without the user's explicit permission.
+
+## Related Skills
+
+- **clean-code** — Small functions, clear names, and F.I.R.S.T. principles make tests reliable and maintainable.
+- **pd** — Master orchestrator. TDD is enforced in every coding task across all PD phases.
+- **systematic-debugging** — Write a failing test reproducing the bug, then follow TDD to fix it. The test proves the fix.
+- **requesting-code-review** — Pre-commit verification checks that tests exist and pass before committing.
+- **ai-regression-testing** — Regression testing patterns for AI-assisted development. Prevents AI blind spots.

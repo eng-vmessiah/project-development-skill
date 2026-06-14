@@ -8,7 +8,7 @@ platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [planning, design, implementation, workflow, documentation]
-    related_skills: [clean-code, ddd-development, pd, subagent-driven-development, test-driven-development, requesting-code-review]
+    related_skills: [pd, clean-code, subagent-driven-development]
 ---
 
 # Writing Implementation Plans
@@ -293,5 +293,10 @@ Verification steps
 DRY, YAGNI, TDD
 Frequent commits
 ```
-
 **A good plan makes implementation obvious.**
+
+## Related Skills
+
+- **pd** — Master orchestrator. Writing plans is Phase 2 of the PD pipeline.
+- **clean-code** — DRY, YAGNI, and small functions are core plan writing principles.
+- **subagent-driven-development** — Executes the plans created by this skill via fresh subagents with two-stage review.

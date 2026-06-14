@@ -8,7 +8,7 @@ platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [spike, prototype, experiment, feasibility, throwaway, exploration, research, planning, mvp, proof-of-concept]
-    related_skills: [sketch, subagent-driven-development, plan]
+    related_skills: [pd, writing-plans]
 ---
 
 # Spike
@@ -195,3 +195,8 @@ Propose 2-4 candidates as Given/When/Then. Let the user pick.
 ## Attribution
 
 Adapted from the GSD (Get Shit Done) project's `/gsd-spike` workflow — MIT © 2025 Lex Christopherson ([gsd-build/get-shit-done](https://github.com/gsd-build/get-shit-done)). The full GSD system offers persistent spike state, MANIFEST tracking, and integration with a broader spec-driven development pipeline; install with `npx get-shit-done-cc --hermes --global`.
+
+## Related Skills
+
+- **pd** — Master orchestrator. Spikes feed validated ideas into the PD pipeline for full implementation.
+- **writing-plans** — After a spike validates an approach, use writing-plans to create the implementation plan.

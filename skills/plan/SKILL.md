@@ -8,7 +8,7 @@ platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [planning, plan-mode, implementation, workflow, design, documentation]
-    related_skills: [subagent-driven-development, test-driven-development, requesting-code-review]
+    related_skills: [pd, writing-plans]
 ---
 
 # Plan Mode
@@ -334,5 +334,10 @@ Verification steps
 DRY, YAGNI, TDD
 Frequent commits
 ```
+**A good plan makes implementation obvious.**
 
+## Related Skills
+
+- **pd** — Master orchestrator. Plan mode is an alternative entry point to the PD pipeline.
+- **writing-plans** — Detailed plan writing methodology. Use for comprehensive implementation plans with TDD.
 **A good plan makes implementation obvious.**

@@ -8,7 +8,7 @@ platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [code-review, security, verification, quality, pre-commit, auto-fix]
-    related_skills: [clean-code, pd, subagent-driven-development, plan, test-driven-development, github-code-review]
+    related_skills: [test-driven-development, clean-code, pd, ai-regression-testing, security-checklist]
 ---
 
 # Pre-Commit Code Verification
@@ -278,3 +278,11 @@ tests exist, tests pass, no regressions.
 - **No test framework found** — skip regression check, reviewer verdict still runs
 - **Lint tools not installed** — skip that check silently, don't fail
 - **Auto-fix introduces new issues** — counts as a new failure, cycle continues
+
+## Related Skills
+
+- **test-driven-development** — This pipeline verifies TDD discipline was followed — tests exist, tests pass, no regressions.
+- **clean-code** — Review checks naming, function size, error handling, and code smells against clean code principles.
+- **pd** — Master orchestrator. Code review is Phase 6 of the PD pipeline.
+- **ai-regression-testing** — Regression testing patterns. Prevents AI blind spots in generated code.
+- **security-checklist** — Security review patterns. Validates auth, authorization, and data protection.

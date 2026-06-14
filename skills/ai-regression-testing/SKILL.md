@@ -4,6 +4,10 @@ version: 1.0.0
 author: ISIS
 license: MIT
 description: Regression testing patterns for AI-assisted development. Sandbox/production path parity, response shape contracts, data completeness, and patterns to catch AI blind spots.
+metadata:
+  hermes:
+    tags: [testing, regression, ai, quality, contracts]
+    related_skills: [test-driven-development, systematic-debugging, requesting-code-review, pd]
 ---
 
 # AI Regression Testing
@@ -111,3 +115,10 @@ it('restores previous state on API failure', async () => {
 - Write tests for code that never had a bug
 - Trust AI self-review as substitute for automated tests
 - Aim for coverage % — aim for regression prevention
+
+## Related Skills
+
+- **test-driven-development** — TDD discipline. Write failing tests before fixes to prove the bug exists and prevent regression.
+- **systematic-debugging** — Root-cause debugging. Regression tests are created after finding the root cause.
+- **requesting-code-review** — Pre-commit verification. Regression tests are checked as part of the quality gate.
+- **pd** — Master orchestrator. Regression testing is part of Phase 5 (Testing) in the PD pipeline.

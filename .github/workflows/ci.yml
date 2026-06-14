@@ -24,11 +24,21 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest pyyaml
+        pip install pytest pytest-cov pyyaml
     
-    - name: Run tests
+    - name: Run tests with coverage
       run: |
-        pytest tests/ -v
+        pytest tests/ -v --tb=short --junitxml=test-results-${{ matrix.python-version }}.xml --cov=scripts --cov-report=xml:coverage-${{ matrix.python-version }}.xml
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-py${{ matrix.python-version }}
+        path: |
+          test-results-${{ matrix.python-version }}.xml
+          coverage-${{ matrix.python-version }}.xml
+        retention-days: 30
   
   validate-skills:
     runs-on: ubuntu-latest
@@ -43,8 +53,53 @@ jobs:
     
     - name: Validate skills
       run: |
-        chmod +x scripts/validate.sh
-        ./scripts/validate.sh
+        # Check all skills have required sections
+        echo "Validating skill files..."
+        FAILED=0
+        
+        for skill in skills/*/SKILL.md; do
+          echo -n "Checking $skill... "
+          
+          # Check for overview
+          if ! grep -q "## Overview\|# " "$skill"; then
+            echo "❌ Missing overview"
+            FAILED=1
+            continue
+          fi
+          
+          # Check for when to use
+          if ! grep -q "## When to Use\|# When to Use" "$skill"; then
+            echo "❌ Missing 'When to Use'"
+            FAILED=1
+            continue
+          fi
+          
+          echo "✅"
+        done
+        
+        if [ $FAILED -eq 1 ]; then
+          echo "❌ Skill validation failed"
+          exit 1
+        fi
+        
+        echo "✅ All skills validated"
+    
+    - name: Check skill sizes
+      run: |
+        echo "Skill file sizes:"
+        for skill in skills/*/SKILL.md; do
+          SIZE=$(wc -c < "$skill")
+          NAME=$(basename $(dirname "$skill"))
+          printf "  %-35s %6d bytes\n" "$NAME" "$SIZE"
+        done
+        
+        # Warn if any skill exceeds 20KB
+        LARGE=$(find skills -name "SKILL.md" -size +20k)
+        if [ -n "$LARGE" ]; then
+          echo ""
+          echo "⚠️  Warning: Large skill files detected:"
+          echo "$LARGE"
+        fi
   
   lint:
     runs-on: ubuntu-latest
@@ -72,25 +127,27 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Check documentation
+    - name: Validate documentation
       run: |
-        # Check all skills have required sections
-        for skill in skills/*/SKILL.md; do
-          echo "Checking $skill..."
-          
-          # Check for overview
-          if ! grep -q "## Overview\|# " "$skill"; then
-            echo "❌ Missing overview in $skill"
+        # Check required files exist
+        REQUIRED_FILES="README.md CONTRIBUTING.md CHANGELOG.md LICENSE ROADMAP.md"
+        
+        echo "Checking required documentation files..."
+        for file in $REQUIRED_FILES; do
+          if [ -f "$file" ]; then
+            echo "  ✅ $file"
+          else
+            echo "  ❌ $file (missing)"
             exit 1
           fi
-          
-          # Check for when to use
-          if ! grep -q "## When to Use" "$skill"; then
-            echo "❌ Missing 'When to Use' in $skill"
-            exit 1
-          fi
-          
-          echo "✅ $skill is valid"
         done
         
-        echo "✅ All documentation is valid"
+        # Check README has skill table
+        if grep -q "| Skill |" README.md; then
+          echo "  ✅ README.md has skill table"
+        else
+          echo "  ❌ README.md missing skill table"
+          exit 1
+        fi
+        
+        echo "✅ Documentation validated"

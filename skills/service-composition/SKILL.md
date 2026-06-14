@@ -7,7 +7,7 @@ license: MIT
 metadata:
   hermes:
     tags: [services, composition, event-driven, distributed, workers, triggers]
-    related_skills: [design-patterns, ddd-development, pd, systematic-debugging]
+    related_skills: [design-patterns, monitoring-observability, deployment-patterns, pd]
 ---
 
 # Service Composition Patterns
@@ -626,7 +626,14 @@ def discover_services(query=None):
 ---
 
 ## References
+- Workers Catalog: https://workers.iii.dev/
+
+## Related Skills
+
+- **design-patterns** — Strategy, Observer, and Factory patterns are used in service composition for routing and event handling.
+- **monitoring-observability** — Logging, metrics, and tracing across distributed service compositions.
+- **deployment-patterns** — CI/CD and deployment strategies for shipping composed services.
+- **pd** — Master orchestrator. Service composition patterns are designed during architecture phases.
 
 - iii Framework: https://github.com/iii-hq/iii
 - iii Architecture Patterns: https://github.com/iii-hq/iii/tree/main/skills/iii-architecture-patterns
-- Workers Catalog: https://workers.iii.dev/

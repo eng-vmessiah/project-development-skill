@@ -8,7 +8,7 @@ platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [delegation, subagent, implementation, workflow, parallel]
-    related_skills: [writing-plans, requesting-code-review, test-driven-development]
+    related_skills: [pd, writing-plans, ai-optimization]
 ---
 
 # Subagent-Driven Development
@@ -396,3 +396,9 @@ When the orchestration involves significant context usage, long review loops, or
 - **`references/gates-taxonomy.md`** — The four canonical gate types (Pre-flight, Revision, Escalation, Abort) with behavior, recovery, and examples. Load when designing or reviewing any workflow that has validation checkpoints — use the vocabulary explicitly so each gate has defined entry, failure behavior, and resumption rules.
 
 Both references adapted from gsd-build/get-shit-done (MIT © 2025 Lex Christopherson).
+
+## Related Skills
+
+- **pd** — Master orchestrator. Subagent-driven development is the execution engine for PD's coding phases.
+- **writing-plans** — Creates the implementation plans that this skill executes task-by-task.
+- **ai-optimization** — Optimize agent prompts and strategies used in subagent dispatching.

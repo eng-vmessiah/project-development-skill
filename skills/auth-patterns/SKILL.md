@@ -7,7 +7,7 @@ license: MIT
 metadata:
   hermes:
     tags: [auth, security, jwt, oauth, rbac, sessions, api-keys]
-    related_skills: [clean-code, design-patterns, security-review]
+    related_skills: [security-checklist, clean-code, ddd-development, pd]
 ---
 
 # Auth Patterns
@@ -361,27 +361,15 @@ async def verify_api_key(
 
 ---
 
-## Integration with Skills
 
-### design-patterns
-- **Strategy:** Swap auth methods (JWT, OAuth, Session)
-- **Factory:** Create auth providers
-- **Decorator:** Add auth checks to routes
-- **Proxy:** Access control
+## Related Skills
 
-### clean-code
-- Single responsibility for auth functions
-- Clear naming for permissions
-- Explicit error handling
-
-### security-review
-- This skill provides the patterns
-- security-review validates the implementation
-
----
+- **security-checklist** — Comprehensive security review. Validates auth implementation against OWASP guidelines.
+- **clean-code** — Single responsibility for auth functions, clear naming for permissions, explicit error handling.
+- **ddd-development** — Model permissions and roles within Bounded Contexts. Use Value Objects for credentials.
+- **pd** — Master orchestrator. Auth patterns are designed during brainstorming and implemented in coding phases.
 
 ## References
-
 - OWASP Authentication Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html
 - JWT.io: https://jwt.io/
 - OAuth 2.0 RFC 6749: https://datatracker.ietf.org/doc/html/rfc6749

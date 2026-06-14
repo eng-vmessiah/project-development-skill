@@ -7,7 +7,7 @@ license: MIT
 metadata:
   hermes:
     tags: [project-development, pipeline, orchestration, brainstorming, planning, spec, workflow]
-    related_skills: [ai-optimization, ai-regression-testing, clean-code, ddd-development, design-patterns, humanizer, requesting-code-review, systematic-debugging, test-driven-development, writing-clearly-and-concisely, writing-plans]
+    related_skills: [clean-code, ddd-development, design-patterns, test-driven-development, systematic-debugging, requesting-code-review, writing-plans, subagent-driven-development, ai-regression-testing, service-composition, humanizer, writing-clearly-and-concisely, api-design, database-patterns, security-checklist, monitoring-observability, recipes, performance-patterns, deployment-patterns, documentation-patterns]
 ---
 
 # Project Development (PD) — Development Pipeline
@@ -1175,3 +1175,25 @@ PD Phase 6 (Review):
 - [ ] Tests follow `test-driven-development`
 - [ ] CHECKPOINT.md created
 - [ ] All changes committed
+
+## Related Skills
+
+- **clean-code** — Writing maintainable, readable code. Applied during Phase 4 (Coding) and enforced across all phases.
+- **ddd-development** — Domain-Driven Design patterns for modeling complex business domains. Use when the feature involves rich business logic.
+- **design-patterns** — GoF patterns and architecture decisions. Reference during planning and coding phases.
+- **test-driven-development** — RED-GREEN-REFACTOR discipline. Enforced in every coding task.
+- **systematic-debugging** — Root-cause debugging when bugs are found during development.
+- **requesting-code-review** — Pre-commit verification pipeline. Used in Phase 6 (Review).
+- **writing-plans** — Creating bite-sized implementation plans. Core of Phase 2 (Planning).
+- **subagent-driven-development** — Executing plans via fresh subagents with two-stage review.
+- **ai-regression-testing** — Regression testing patterns for AI-assisted development.
+- **service-composition** — Service integration patterns for distributed architectures.
+- **humanizer** — Remove AI writing patterns from documentation and specs.
+- **writing-clearly-and-concisely** — Clear prose for documentation, commit messages, and specs.
+- **api-design** — RESTful API design patterns and conventions.
+- **database-patterns** — Database schema design, indexing, and query optimization.
+- **security-checklist** — Security review patterns for authentication, authorization, and data protection.
+- **monitoring-observability** — Logging, metrics, and tracing patterns for production systems.
+- **performance-patterns** — Caching, profiling, and optimization strategies.
+- **deployment-patterns** — CI/CD, blue-green deployments, and release strategies.
+- **documentation-patterns** — README structure, ADRs, and documentation-as-code.
