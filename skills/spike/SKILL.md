@@ -10,6 +10,12 @@ metadata:
     tags: [spike, prototype, experiment, feasibility, throwaway, exploration, research, planning, mvp, proof-of-concept]
     related_skills: [pd, writing-plans]
 ---
+## When to Use
+
+- When the task matches this skill's purpose
+- When explicitly requested by the user
+
+
 
 # Spike
 

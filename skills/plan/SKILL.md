@@ -71,6 +71,12 @@ Assume the implementer is a skilled developer but knows almost nothing about the
 
 **Core principle:** A good plan makes implementation obvious. If someone has to guess, the plan is incomplete.
 
+## When to Use
+
+- When the task matches this skill's purpose
+- When explicitly requested by the user
+
+
 ## When a Full Implementation Plan Helps
 
 **Always use before:**

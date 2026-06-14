@@ -8,7 +8,6 @@ Manages state, validates progress, and enforces the PD pipeline.
 
 import argparse
 import json
-import os
 import shutil
 import subprocess
 import sys
@@ -795,8 +794,8 @@ class PD:
         else:
             print(f"✅ Initialized feature: {feature_name}")
             print(f"📁 Created: {feature_dir}")
-            print(f"📝 Created: SPEC.md, PLAN.md, CONTEXT.md, STATE.md")
-            print(f"📂 Created: backend/, frontend/, tests/")
+            print("📝 Created: SPEC.md, PLAN.md, CONTEXT.md, STATE.md")
+            print("📂 Created: backend/, frontend/, tests/")
 
     # ── command: status ──────────────────────────────────────────────────
 
@@ -855,10 +854,9 @@ class PD:
             spec = feature_dir / "SPEC.md"
             if spec.exists():
                 content = spec.read_text()
-                has_reqs = "- [ ]" in content or "- [x]" in content
                 # Check not just template placeholders
-                lines = [l for l in content.splitlines() if l.strip().startswith("- [")]
-                real_reqs = [l for l in lines if "Requirement" not in l and l.strip() != "- [ ] "]
+                lines = [ln for ln in content.splitlines() if ln.strip().startswith("- [")]
+                real_reqs = [ln for ln in lines if "Requirement" not in ln and ln.strip() != "- [ ] "]
                 _add("SPEC.md requirements", len(real_reqs) > 0,
                      f"{len(real_reqs)} real requirements found")
             else:
@@ -868,11 +866,9 @@ class PD:
             plan = feature_dir / "PLAN.md"
             if plan.exists():
                 content = plan.read_text()
-                task_lines = [l for l in content.splitlines()
-                              if l.strip().startswith("- [") and "Task" not in l]
                 # Better: just count any `- [ ]` or `- [x]` that aren't pure templates
-                all_tasks = [l for l in content.splitlines()
-                             if l.strip().startswith("- [")]
+                all_tasks = [ln for ln in content.splitlines()
+                             if ln.strip().startswith("- [")]
                 _add("PLAN.md tasks", len(all_tasks) > 0,
                      f"{len(all_tasks)} tasks found")
             else:
@@ -905,7 +901,7 @@ class PD:
             if ctx.exists():
                 content = ctx.read_text()
                 has_decisions = "## Decisions" in content and len(
-                    [l for l in content.splitlines() if l.strip().startswith("- ")]) > 1
+                    [ln for ln in content.splitlines() if ln.strip().startswith("- ")]) > 1
                 _add("CONTEXT.md decisions", has_decisions,
                      "Has decisions" if has_decisions else "No decisions recorded")
             else:
@@ -943,7 +939,7 @@ class PD:
         if current_phase < len(phases) - 1:
             next_phase = phases[current_phase + 1]
             print(f"\n📌 Next phase: {next_phase['name']}")
-            print(f"   Run 'pd advance' to move to next phase")
+            print("   Run 'pd advance' to move to next phase")
 
     # ── command: checkpoint ──────────────────────────────────────────────
 
@@ -1044,8 +1040,8 @@ class PD:
                     "to_phase_name": next_phase["name"],
                 }, indent=2))
             else:
-                print(_cyan(f"🔍 Dry run — would advance from phase {current} "
-                           f"({phases[current]['name']}) → {current + 1} ({next_phase['name']})"))
+                print(_cyan(f"🔍 Dry run — would advance from phase {current} "                          f"({phases[current]['name']}) \u2192 {current + 1} ({next_phase['name']})"))
+
             return
 
         # Run before hooks
@@ -1257,7 +1253,7 @@ class PD:
         if state.state["phase"] < total_phases - 1:
             next_phase = phases[state.state["phase"] + 1]
             report_lines.append(f"- Advance to phase {next_phase['id']}: {next_phase['name']}")
-            report_lines.append(f"- Run `pd advance` to proceed")
+            report_lines.append("- Run `pd advance` to proceed")
         else:
             report_lines.append("- Feature is at the final phase!")
             report_lines.append("- Run `pd verify` to confirm completion")

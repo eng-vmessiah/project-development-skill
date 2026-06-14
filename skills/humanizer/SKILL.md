@@ -9,6 +9,12 @@ metadata:
     tags: [writing, humanizer, ai-patterns, documentation]
     related_skills: [writing-clearly-and-concisely, pd, documentation-patterns]
 ---
+## When to Use
+
+- When the task matches this skill's purpose
+- When explicitly requested by the user
+
+
 
 # Humanizer: Remove AI Writing Patterns
 
