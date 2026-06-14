@@ -16,6 +16,12 @@ metadata:
 
 Secure authentication and authorization following industry best practices.
 
+## When to Use
+
+- When the task matches this skill's purpose
+- When explicitly requested by the user
+
+
 ## Authentication Methods
 
 | Method | Use Case | Stateless |

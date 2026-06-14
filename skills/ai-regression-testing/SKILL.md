@@ -9,6 +9,12 @@ metadata:
     tags: [testing, regression, ai, quality, contracts]
     related_skills: [test-driven-development, systematic-debugging, requesting-code-review, pd]
 ---
+## When to Use
+
+- When the task matches this skill's purpose
+- When explicitly requested by the user
+
+
 
 # AI Regression Testing
 
