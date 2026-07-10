@@ -1,15 +1,15 @@
 ---
 name: spike
-description: "Disposable experiments to validate an idea before committing to a build. Validate feasibility, compare approaches, surface unknowns."
-version: 1.1.0
-author: Hermes Agent (adapted from gsd-build/get-shit-done, mattpocock/skills writing-great-skills)
+description: "Disposable experiments to validate an idea before committing to a build. Validate feasibility, compare approaches, surface unknowns. Also covers quick prototypes to answer a single design question (logic or UI)."
+version: 1.2.0
+author: Hermes Agent (adapted from gsd-build/get-shit-done, mattpocock/skills)
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [spike, prototype, disposable, feasibility, exploration, proof-of-concept]
-    related_skills: [sketch, subagent-driven-development, plan]
-argument-hint: "What idea needs a disposable experiment?"
+    tags: [spike, prototype, disposable, feasibility, exploration, proof-of-concept, design, ui]
+    related_skills: [sketch, subagent-driven-development, plan, prototype]
+argument-hint: "What needs a spike or quick prototype?"
 ---
 
 # Spike
@@ -34,15 +34,22 @@ If `gsd-spike` shows up as a sibling skill (installed via `npx get-shit-done-cc 
 
 ## Core method
 
-Regardless of scale, every spike follows this loop:
+### 0. Quick prototype mode (pergunta única)
 
-```
-decompose  →  research  →  build  →  verdict
-   ↑__________________________________________↓
-                  iterate on findings
-```
+Se o usuário já sabe exatamente **uma** pergunta que quer responder — sem decomposição em múltiplos spikes — use a via rápida:
 
-### 1. Decompose
+1. **Identifique a pergunta.** Qual decisão de design esse prototype vai responder?
+2. **Pick a branch:**
+   - **"Does this logic / state model feel right?"** → build um terminal app interativo que exercita a state machine
+   - **"What should this look like?"** → gere várias variações radicais de UI (ver "Modo UI" no Build)
+3. **Build rápido.** Um arquivo, um comando pra rodar. Sem persistência, sem polimento.
+4. **Capture.** Veredito no README.md, commit num branch descartável. A resposta é o que importa, não o código.
+
+Pule direto pro Build — não precisa de Research nem Decompose.
+
+---
+
+### 1. Decompose (modo completo, múltiplas perguntas)
 
 Break the user's idea into **2-5 independent feasibility questions**. Each question is one spike. Present them as a table with Given/When/Then framing:
 
@@ -112,6 +119,15 @@ spikes/
 2. A minimal HTML page that demonstrates the behavior
 3. A small web server with one endpoint
 4. A unit test that exercises the question with recognizable assertions
+
+#### Modo UI (variações visuais)
+
+Quando a pergunta é de **design de interface** ("o que deveria aparecer aqui?", "qual layout funciona melhor?"):
+
+1. Gere **2-4 variações radicalmente diferentes** da mesma interface
+2. Disponibilize via URL search param ou bottom bar flutuante pra alternar entre elas
+3. Cada variação testa uma hipótese de design diferente
+4. **Não se preocupe com polimento** — o objetivo é comparar abordagens, não entregar pixel perfect
 
 **Depth over speed.** Never declare "it works" after one happy-path run. Test edge cases. Follow surprising findings. The verdict is only trustworthy when the investigation was honest.
 
@@ -189,6 +205,17 @@ If spikes already exist and the user says "what should I spike next?", walk the 
 - **Alternative approaches** — different angles for PARTIAL or INVALIDATED spikes
 
 Propose 2-4 candidates as Given/When/Then. Let the user pick.
+
+## Regras do Prototype (throwaway)
+
+Independente do modo (spike completo ou quick prototype), estas regras sempre valem:
+
+1. **Throwaway desde o início.** Nomeie o código pra que qualquer um veja que é prototype, não produção
+2. **Um comando pra rodar.** O usuário deve conseguir executar sem pensar
+3. **Sem persistência.** Estado vive em memória. Só persista se a pergunta do spike for especificamente sobre persistência
+4. **Sem polimento.** Sem testes, sem tratamento de erro além do mínimo pra rodar, sem abstrações
+5. **Superfície o estado.** Após cada ação, mostre o estado completo relevante pra que o usuário veja o que mudou
+6. **Capture quando pronto.** Decisão validada → implementa no código real. O prototype vira branch descartável. O veredito fica no README.md
 
 ## Output
 
