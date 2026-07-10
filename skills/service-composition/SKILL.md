@@ -1,22 +1,28 @@
 ---
 name: service-composition
-description: "Service composition patterns — Worker-Function-Trigger, live catalogs, event-driven architectures, agentic pipelines. Use when designing service integration, event flows, or distributed systems."
-version: 1.0.0
-author: ISIS
+description: "Wire services together: Worker-Function-Trigger primitives for event-driven, agentic, and distributed systems."
+version: 1.1.0
+author: ISIS (adapted from iii framework, mattpocock/skills writing-great-skills)
 license: MIT
+platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [services, composition, event-driven, distributed, workers, triggers]
-    related_skills: [design-patterns, monitoring-observability, deployment-patterns, pd]
+    tags: [services, composition, event-driven, distributed, workers, triggers, wire]
+    related_skills: [design-patterns, ddd-development, pd, debugging-discipline]
+argument-hint: "What service architecture needs wiring?"
 ---
 
 # Service Composition Patterns
+
+**Leading word: wire** — services aren't built, they're wired. Three primitives (Worker, Function, Trigger) connect independent services without tight coupling or shared code.
 
 ## Overview
 
 Compose, extend, and observe services using three primitives: Worker, Function, Trigger.
 
 **Based on:** iii framework patterns for zero-integration service composition.
+
+**Completion criterion:** You have selected a pattern, identified which worker owns each function, and specified what triggers each function — nothing depends on another service's internals.
 
 ## When to Use
 
@@ -626,14 +632,7 @@ def discover_services(query=None):
 ---
 
 ## References
-- Workers Catalog: https://workers.iii.dev/
-
-## Related Skills
-
-- **design-patterns** — Strategy, Observer, and Factory patterns are used in service composition for routing and event handling.
-- **monitoring-observability** — Logging, metrics, and tracing across distributed service compositions.
-- **deployment-patterns** — CI/CD and deployment strategies for shipping composed services.
-- **pd** — Master orchestrator. Service composition patterns are designed during architecture phases.
 
 - iii Framework: https://github.com/iii-hq/iii
 - iii Architecture Patterns: https://github.com/iii-hq/iii/tree/main/skills/iii-architecture-patterns
+- Workers Catalog: https://workers.iii.dev/

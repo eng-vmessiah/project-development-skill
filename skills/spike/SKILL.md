@@ -1,25 +1,24 @@
 ---
 name: spike
-description: "Throwaway experiments to validate an idea before build."
-version: 1.0.0
-author: Hermes Agent (adapted from gsd-build/get-shit-done)
+description: "Disposable experiments to validate an idea before committing to a build. Validate feasibility, compare approaches, surface unknowns."
+version: 1.1.0
+author: Hermes Agent (adapted from gsd-build/get-shit-done, mattpocock/skills writing-great-skills)
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [spike, prototype, experiment, feasibility, throwaway, exploration, research, planning, mvp, proof-of-concept]
-    related_skills: [pd, writing-plans]
+    tags: [spike, prototype, disposable, feasibility, exploration, proof-of-concept]
+    related_skills: [sketch, subagent-driven-development, plan]
+argument-hint: "What idea needs a disposable experiment?"
 ---
-## When to Use
-
-- When the task matches this skill's purpose
-- When explicitly requested by the user
-
-
 
 # Spike
 
-Use this skill when the user wants to **feel out an idea** before committing to a real build — validating feasibility, comparing approaches, or surfacing unknowns that no amount of research will answer. Spikes are disposable by design. Throw them away once they've paid their debt.
+**Leading word: disposable** — a spike exists to be thrown away. If you catch yourself cleaning it up for production, you've missed the point. The value is the verdict, not the code.
+
+Use this when the user wants to **feel out an idea** before committing to a real build — validating feasibility, comparing approaches, or surfacing unknowns that no amount of research will answer.
+
+**Completion criterion:** You have a verdict (VALIDATED / PARTIAL / INVALIDATED) per spike, captured in its README.md, with evidence and a recommendation.
 
 Load this when the user says things like "let me try this", "I want to see if X works", "spike this out", "before I commit to Y", "quick prototype of Z", "is this even possible?", or "compare A vs B".
 
@@ -201,8 +200,3 @@ Propose 2-4 candidates as Given/When/Then. Let the user pick.
 ## Attribution
 
 Adapted from the GSD (Get Shit Done) project's `/gsd-spike` workflow — MIT © 2025 Lex Christopherson ([gsd-build/get-shit-done](https://github.com/gsd-build/get-shit-done)). The full GSD system offers persistent spike state, MANIFEST tracking, and integration with a broader spec-driven development pipeline; install with `npx get-shit-done-cc --hermes --global`.
-
-## Related Skills
-
-- **pd** — Master orchestrator. Spikes feed validated ideas into the PD pipeline for full implementation.
-- **writing-plans** — After a spike validates an approach, use writing-plans to create the implementation plan.

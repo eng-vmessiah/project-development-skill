@@ -1,22 +1,22 @@
 ---
 name: ai-optimization
-description: "AI-powered optimization patterns — prompt tuning, code improvement, agent architecture discovery. Use when optimizing prompts, improving AI outputs, or finding better configurations."
-version: 1.0.0
-author: ISIS
+description: "Evolve prompts, code, and configurations through reflective optimization with AI feedback."
+version: 1.1.0
+author: ISIS (adapted from GEPA, mattpocock/skills writing-great-skills)
 license: MIT
+platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [ai, optimization, prompts, evolutionary, reflection, gepa]
-    related_skills: [pd, subagent-driven-development, clean-code]
+    tags: [ai, optimization, evolve, reflection, prompts, genetic]
+    related_skills: [ai-regression-testing, clean-code, humanizer]
+argument-hint: "What prompt, code, or config needs to evolve?"
 ---
 
 # AI Optimization Patterns
 
-## Overview
+**Leading word: evolve** — traditional optimization just picks winners. Reflective evolution understands *why* a candidate failed and uses that understanding to guide the next generation. ASI (Actionable Side Information) is the gradient.
 
-Optimize any text parameter — prompts, code, agent architectures, configurations — using LLM-based reflection and evolutionary search.
-
-**Based on:** GEPA (Genetic-Pareto) framework and reflective optimization patterns.
+**Completion criterion:** You have a measurable improvement on your target metric with a documented before/after comparison, and the optimization trace shows genuine learning (not random search).
 
 ## When to Use
 
@@ -454,16 +454,38 @@ START
 
 ---
 
+## AI Regression Testing
+
+Testing patterns designed for AI-assisted code generation — where the same model writes and reviews code, creating systematic blind spots. See `references/ai-regression-testing.md` for full guide covering:
+
+- **Bug-driven coverage** — test where bugs were found, not 100% coverage
+- **Response shape contracts** — define required fields per endpoint, test all return them
+- **Data query completeness** — verify new fields appear in queries, not just responses
+- **Optimistic update rollback** — test state restoration on API failure
+- **Key anti-patterns** — state mutation before response, `as any`/`@ts-ignore`, SELECT * drift
+
+## Evaluation-Driven Development
+
+Pipeline for evaluating Hermes Agent and AI-calling code with real LLM calls (no mocking). See `references/eval-driven-dev.md` for the full workflow:
+
+- **Golden datasets** — realistic inputs with expected outputs
+- **LLM-as-judge** — semantic evaluators for non-deterministic outputs
+- **Runnable execution** — invoke Hermes Agent as real user, capture traces
+- **Scoring & reporting** — per-criterion scores, SQLite persistence, Discord notifications
+
 ## References
-- OpenAI Cookbook - Self-Evolving Agents: https://cookbook.openai.com/examples/partners/self_evolving_agents/autonomous_agent_retraining
-
-## Related Skills
-
-- **pd** — Master orchestrator. Optimization patterns improve prompts and code across the PD pipeline.
-- **subagent-driven-development** — Optimize agent prompts and dispatching strategies for better subagent performance.
-- **clean-code** — Optimize code for readability and structure using AI-guided reflection.
 
 - GEPA (Genetic-Pareto): https://github.com/gepa-ai/gepa
 - DSPy: https://dspy.ai/
 - Reflective Prompt Optimization: https://arxiv.org/abs/2507.19457
 - OpenAI Cookbook - Self-Evolving Agents: https://cookbook.openai.com/examples/partners/self_evolving_agents/autonomous_agent_retraining
+
+---
+
+## Development Practice References
+
+The following skills were consolidated into ai-optimization as reference documentation:
+
+- **[code-quality](references/code-quality.md)** — Three pillars: Clean Code principles, GoF Design Patterns (creational/structural/behavioral), Domain-Driven Design (bounded contexts, aggregates, repositories)
+- **[karpathy-guidelines](references/karpathy-guidelines.md)** — 4 behavioral guidelines for LLM coding: Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution
+- **[systematic-debugging](references/systematic-debugging.md)** — 4-phase root cause debugging: Iron Law (NO FIXES WITHOUT ROOT CAUSE), investigation → reproduction → hypothesis → verification

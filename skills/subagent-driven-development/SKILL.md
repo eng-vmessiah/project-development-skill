@@ -1,23 +1,22 @@
 ---
 name: subagent-driven-development
-description: "Execute plans via delegate_task subagents (2-stage review)."
-version: 1.1.0
-author: ISIS
+description: "Fresh-start execution: dispatch a clean subagent per task with two-stage review (spec then quality)."
+version: 1.2.0
+author: Hermes Agent (adapted from obra/superpowers, mattpocock/skills writing-great-skills)
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [delegation, subagent, implementation, workflow, parallel]
-    related_skills: [pd, writing-plans, ai-optimization]
+    tags: [delegation, subagent, fresh-start, parallel, quality]
+    related_skills: [writing-plans, requesting-code-review, test-driven-development]
+argument-hint: "What plan needs fresh-start execution?"
 ---
 
 # Subagent-Driven Development
 
-## Overview
+**Leading word: fresh-start** — each subagent is born knowing nothing about this project. That's the point. Clean context catches what accumulated state misses. The cost of one more subagent call is cheaper than the cost of context-polluted code.
 
-Execute implementation plans by dispatching fresh subagents per task with systematic two-stage review.
-
-**Core principle:** Fresh subagent per task + two-stage review (spec then quality) = high quality, fast iteration.
+**Completion criterion:** Every task passed both reviews (spec compliance → code quality), and a final integration review found no cross-task issues.
 
 ## When to Use
 
@@ -282,52 +281,6 @@ If a subagent encounters bugs during implementation:
 3. Write regression test
 4. Resume implementation
 
-## Parallel Execution (Multiple Independent Tasks)
-
-When tasks are **fully independent** (no shared files, no dependencies), fire all subagents at once instead of sequentially:
-
-```python
-delegate_task(
-    tasks=[
-        {"goal": "Task A...", "context": "...", "toolsets": ["terminal", "file"]},
-        {"goal": "Task B...", "context": "...", "toolsets": ["terminal", "file"]},
-        {"goal": "Task C...", "context": "...", "toolsets": ["terminal", "file"]},
-    ]
-)
-```
-
-**When to parallelize:**
-- Tasks touch different files/directories
-- No output of Task A is input for Task B
-- User says "faz os 3 em paralelo" or similar
-
-**When NOT to parallelize:**
-- Tasks modify the same file (race condition)
-- Task B depends on Task A's output
-- Tasks need shared state or coordination
-
-**⚠️ PITFALL:** Parallel subagents each get their own context. They CANNOT see each other's work until all complete. If tasks need to coordinate, use sequential execution instead.
-
-**Results format:** `delegate_task` with `tasks=` returns a list of results indexed by `task_index`. Check `status` for "completed" or "timeout".
-
-## Resource Evaluation Pattern
-
-When user shares a repo, article, or tool and asks "o que podemos aproveitar?":
-
-1. **Clone/download** the resource to `/tmp/`
-2. **Scan** structure (README, directory layout, key files)
-3. **Map** against existing projects/stack
-4. **Classify** each component: ⭐⭐⭐ Direct impact, ⭐⭐ Adaptable, ⭐ Nice-to-have
-5. **Recommend** priorities with reasoning
-6. **Execute** top priorities (parallel if independent)
-
-```bash
-# Quick clone for evaluation
-git clone --depth 1 <repo> /tmp/eval-repo
-ls /tmp/eval-repo/
-cat /tmp/eval-repo/README.md | head -100
-```
-
 ## Example Workflow
 
 ```
@@ -396,9 +349,3 @@ When the orchestration involves significant context usage, long review loops, or
 - **`references/gates-taxonomy.md`** — The four canonical gate types (Pre-flight, Revision, Escalation, Abort) with behavior, recovery, and examples. Load when designing or reviewing any workflow that has validation checkpoints — use the vocabulary explicitly so each gate has defined entry, failure behavior, and resumption rules.
 
 Both references adapted from gsd-build/get-shit-done (MIT © 2025 Lex Christopherson).
-
-## Related Skills
-
-- **pd** — Master orchestrator. Subagent-driven development is the execution engine for PD's coding phases.
-- **writing-plans** — Creates the implementation plans that this skill executes task-by-task.
-- **ai-optimization** — Optimize agent prompts and strategies used in subagent dispatching.

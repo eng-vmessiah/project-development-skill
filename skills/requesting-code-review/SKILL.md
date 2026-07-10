@@ -1,22 +1,24 @@
 ---
 name: requesting-code-review
-description: "Pre-commit review: security scan, quality gates, auto-fix."
-version: 2.0.0
-author: ISIS
+description: "Fresh-eyes verification: pre-commit security scan, quality gates, two-axis review, auto-fix loop."
+version: 2.1.0
+author: ISIS (adapted from mattpocock/skills code-review, writing-great-skills)
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [code-review, security, verification, quality, pre-commit, auto-fix]
-    related_skills: [test-driven-development, clean-code, pd, ai-regression-testing, security-checklist]
+    tags: [code-review, security, verification, quality, pre-commit, fresh-eyes, review]
+    related_skills: [clean-code, pd, subagent-driven-development, test-driven-development]
+argument-hint: "What code needs a fresh-eyes review?"
 ---
 
 # Pre-Commit Code Verification
 
-Automated verification pipeline before code lands. Static scans, baseline-aware
-quality gates, an independent reviewer subagent, and an auto-fix loop.
+**Leading word: fresh-eyes** — no agent should verify its own work. Fresh context finds what you miss. The reviewer never saw the code before; the fix agent never reviewed it.
 
-**Core principle:** No agent should verify its own work. Fresh context finds what you miss.
+Automated verification pipeline before code lands. Static scans, baseline-aware quality gates, an independent reviewer subagent, and an auto-fix loop.
+
+**Completion criterion:** Either the change passes all gates (verified commit created) or the remaining issues are surfaced to the user with specific evidence and a suggested undo path.
 
 ## When to Use
 
@@ -122,12 +124,66 @@ Quick scan before dispatching the reviewer:
 - [ ] No commented-out code
 - [ ] New code has tests (if test suite exists)
 
-## Step 5 — Independent reviewer subagent
+## Step 5 — Independent review (choose axis)
 
-Call `delegate_task` directly — it is NOT available inside execute_code or scripts.
+**Two-axis review** (preferred for non-trivial changes): split into parallel sub-agents for Standards and Spec. Prevents one axis from masking the other — a change can follow every standard but implement the wrong thing (Standards pass, Spec fail), or do exactly what was asked but break conventions (Spec pass, Standards fail).
 
-The reviewer gets ONLY the diff and static scan results. No shared context with
-the implementer. Fail-closed: unparseable response = fail.
+**Single reviewer** (fine for small/obvious changes): one sub-agent checks everything together.
+
+Choose based on complexity. For anything beyond a 3-file, 100-line change, prefer two-axis.
+
+### Option A — Two-axis review (recommended for non-trivial changes)
+
+Spawn **two parallel sub-agents** via `delegate_task`:
+
+**Standards sub-agent** — checks against documented coding standards + smell baseline:
+```python
+delegate_task(
+    goal="""You are a Standards reviewer. Report per file/hunk:
+(a) every place the diff violates a documented coding standard (cite the standard)
+(b) any code smell you spot (name it, quote the hunk)
+
+SMELL BASELINE (always apply unless a documented repo standard overrides):
+- Mysterious Name — name doesn't reveal purpose
+- Duplicated Code — same logic shape in multiple hunks
+- Feature Envy — method reaches into another object's data more than its own
+- Data Clumps — same fields/params travelling together
+- Primitive Obsession — primitive standing in for a domain concept
+- Repeated Switches — same switch/if-cascade on same type recurring
+- Shotgun Surgery — one logical change forces edits across many files
+- Divergent Change — one file edited for several unrelated reasons
+- Speculative Generality — abstraction for needs the spec doesn't have
+- Message Chains — long a.b().c().d() navigation
+- Middle Man — mostly delegates onward
+- Refused Bequest — subclass overrides most of what it inherits
+
+Each smell is a judgement call, not a hard violation. Skip what tooling enforces.
+Under 300 words. Return as JSON:
+{"passed": bool, "findings": [{"type": "violation|smell", "detail": "..."}], "summary": "..."}""",
+    context="Standards review against coding standards + code smells.",
+    toolsets=["terminal"]
+)
+```
+
+**Spec sub-agent** — checks against originating issue/PRD:
+```python
+delegate_task(
+    goal="""You are a Spec compliance reviewer. Report:
+(a) requirements the spec asked for that are missing or partial
+(b) behaviour in the diff that wasn't asked for (scope creep)
+(c) requirements that look implemented but implementation looks wrong
+
+Quote the spec line for each finding. If no spec is available, report "no spec".
+Under 300 words. Return as JSON:
+{"passed": bool, "findings": [{"type": "missing|wrong|creep", "detail": "..."}], "summary": "..."}""",
+    context="Spec compliance review against requirements.",
+    toolsets=["terminal"]
+)
+```
+
+Present results under `## Standards` and `## Spec` headings separately. Never merge or rerank findings.
+
+### Option B — Single reviewer (fine for small changes)
 
 ```python
 delegate_task(
@@ -278,11 +334,3 @@ tests exist, tests pass, no regressions.
 - **No test framework found** — skip regression check, reviewer verdict still runs
 - **Lint tools not installed** — skip that check silently, don't fail
 - **Auto-fix introduces new issues** — counts as a new failure, cycle continues
-
-## Related Skills
-
-- **test-driven-development** — This pipeline verifies TDD discipline was followed — tests exist, tests pass, no regressions.
-- **clean-code** — Review checks naming, function size, error handling, and code smells against clean code principles.
-- **pd** — Master orchestrator. Code review is Phase 6 of the PD pipeline.
-- **ai-regression-testing** — Regression testing patterns. Prevents AI blind spots in generated code.
-- **security-checklist** — Security review patterns. Validates auth, authorization, and data protection.

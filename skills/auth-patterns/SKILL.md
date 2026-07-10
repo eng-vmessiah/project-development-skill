@@ -1,26 +1,22 @@
 ---
 name: auth-patterns
-description: "Authentication and authorization patterns — JWT, OAuth 2.0, RBAC, sessions, API keys. Use when implementing auth, protecting routes, or managing sessions."
-version: 1.0.0
-author: ISIS
+description: "Guard your API: JWT, OAuth 2.0, RBAC, sessions, and API key patterns for secure authentication and authorization."
+version: 1.1.0
+author: ISIS (adapted from OWASP, mattpocock/skills writing-great-skills)
 license: MIT
+platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [auth, security, jwt, oauth, rbac, sessions, api-keys]
-    related_skills: [security-checklist, clean-code, ddd-development, pd]
+    tags: [auth, security, guard, jwt, oauth, rbac, sessions]
+    related_skills: [clean-code, service-composition, requesting-code-review]
+argument-hint: "What needs a guard?"
 ---
 
 # Auth Patterns
 
-## Overview
+**Leading word: guard** — every endpoint is a door. Auth is the guard that checks credentials before letting anyone through. JWT, OAuth, sessions, API keys — they're just different uniforms the guard recognizes.
 
-Secure authentication and authorization following industry best practices.
-
-## When to Use
-
-- When the task matches this skill's purpose
-- When explicitly requested by the user
-
+**Completion criterion:** Every protected endpoint has at least one auth guard layer, passwords are hashed (bcrypt, rounds ≥ 12), tokens expire, and the security checklist is fully checked.
 
 ## Authentication Methods
 
@@ -367,15 +363,27 @@ async def verify_api_key(
 
 ---
 
+## Integration with Skills
 
-## Related Skills
+### design-patterns
+- **Strategy:** Swap auth methods (JWT, OAuth, Session)
+- **Factory:** Create auth providers
+- **Decorator:** Add auth checks to routes
+- **Proxy:** Access control
 
-- **security-checklist** — Comprehensive security review. Validates auth implementation against OWASP guidelines.
-- **clean-code** — Single responsibility for auth functions, clear naming for permissions, explicit error handling.
-- **ddd-development** — Model permissions and roles within Bounded Contexts. Use Value Objects for credentials.
-- **pd** — Master orchestrator. Auth patterns are designed during brainstorming and implemented in coding phases.
+### clean-code
+- Single responsibility for auth functions
+- Clear naming for permissions
+- Explicit error handling
+
+### security-review
+- This skill provides the patterns
+- security-review validates the implementation
+
+---
 
 ## References
+
 - OWASP Authentication Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html
 - JWT.io: https://jwt.io/
 - OAuth 2.0 RFC 6749: https://datatracker.ietf.org/doc/html/rfc6749

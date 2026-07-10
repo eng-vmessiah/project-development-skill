@@ -1,23 +1,22 @@
 ---
 name: test-driven-development
-description: "TDD: enforce RED-GREEN-REFACTOR, tests before code."
-version: 1.1.0
-author: ISIS
+description: "Red-first: write the failing test, watch it fail, then code. Enforces RED-GREEN-REFACTOR with no shortcuts."
+version: 1.2.0
+author: ISIS (adapted from mattpocock/skills tdd, writing-great-skills)
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [testing, tdd, development, quality, red-green-refactor]
-    related_skills: [clean-code, pd, systematic-debugging, requesting-code-review, ai-regression-testing]
+    tags: [testing, tdd, red-green-refactor, discipline, red-first]
+    related_skills: [writing-plans, pd, subagent-driven-development, requesting-code-review]
+argument-hint: "What behavior needs a red-first test?"
 ---
 
 # Test-Driven Development (TDD)
 
-## Overview
+**Leading word: red** — the whole point is watching it fail first. If you didn't see RED, you don't know if the test tests the right thing. Green is just the confirmation that you fixed what RED proved was broken.
 
-Write the test first. Watch it fail. Write minimal code to pass.
-
-**Core principle:** If you didn't watch the test fail, you don't know if it tests the right thing.
+**Completion criterion:** Every new line of production code has a test that failed before it existed, and you watched it fail.
 
 **Violating the letter of the rules is violating the spirit of the rules.**
 
@@ -341,11 +340,3 @@ Otherwise → not TDD
 ```
 
 No exceptions without the user's explicit permission.
-
-## Related Skills
-
-- **clean-code** — Small functions, clear names, and F.I.R.S.T. principles make tests reliable and maintainable.
-- **pd** — Master orchestrator. TDD is enforced in every coding task across all PD phases.
-- **systematic-debugging** — Write a failing test reproducing the bug, then follow TDD to fix it. The test proves the fix.
-- **requesting-code-review** — Pre-commit verification checks that tests exist and pass before committing.
-- **ai-regression-testing** — Regression testing patterns for AI-assisted development. Prevents AI blind spots.

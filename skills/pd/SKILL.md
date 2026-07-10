@@ -1,16 +1,19 @@
 ---
 name: pd
-description: "Use when starting any software development project or feature. Orchestrates the full development pipeline: brainstorming → planning → .spec/ structure → coding → testing → review. Routes to appropriate sub-skills at each phase."
-version: 1.0.0
-author: ISIS
+description: "Bomb-proof development pipeline: brainstorm → spec → plan → code → test → review. Master orchestrator for software projects."
+version: 1.1.0
+author: ISIS (adapted from gsd-build, mattpocock/skills writing-great-skills)
 license: MIT
 metadata:
   hermes:
-    tags: [project-development, pipeline, orchestration, brainstorming, planning, spec, workflow]
-    related_skills: [clean-code, ddd-development, design-patterns, test-driven-development, systematic-debugging, requesting-code-review, writing-plans, subagent-driven-development, ai-regression-testing, service-composition, humanizer, writing-clearly-and-concisely, api-design, database-patterns, security-checklist, monitoring-observability, recipes, performance-patterns, deployment-patterns, documentation-patterns]
+    tags: [project-development, pipeline, orchestration, bomb-proof, workflow]
+    related_skills: [writing-plans, test-driven-development, requesting-code-review, subagent-driven-development, debugging-discipline, spike]
+argument-hint: "What feature or project needs the full pipeline?"
 ---
 
-# Project Development (PD) — Development Pipeline
+# Project Development (PD) — Bomb-Proof Pipeline
+
+**Leading word: bomb-proof** — same as writing-plans. A plan so thorough no implementer has to guess. Phases gate on completion criteria; each phase proves readiness for the next.
 
 ## Overview
 
@@ -19,26 +22,9 @@ PD is the **master orchestrator** for software development. It guides you throug
 **Inspired by:** brainstorming, planning, verification patterns + Context Rot, Wave-Based Execution, STATE.md persistence
 **Adapted for:** Hermes Agent + OpenCode + Claude Code
 
-## When to Use
+**Multi-platform reference:** See `references/multi-platform-skill-development.md` for sync scripts, attribution patterns, and repo structure.
 
-- Starting a new project or feature
-- User says: "quero criar", "vamos implementar", "nova feature"
-- Any coding task that needs planning before implementation
-- Multi-file features, cross-cutting refactors, work spanning hours/sessions
-
-## When NOT to Use (Quick/Fast Tasks)
-
-**Skip the full pipeline if:**
-- Task can be fully specified in a single, short prompt
-- Completed in one agent turn without clarification
-- Variable rename, typo fix, missing import
-- Simple bug fix with obvious cause
-
-**Use these instead:**
-- `/pd-quick` — ad-hoc work (<2 min)
-- `/pd-fast` — small changes (<10 min)
-
-**Rule of thumb:** If the task needs research, involves files you haven't read recently, or depends on decisions not yet settled → use the full pipeline.
+**CLI tool reference:** See `references/cli-tool-architecture.md` for CLI commands, config, hooks, and testing patterns.
 
 ## 🚨 BLOCKER — DO NOT CODE FIRST
 
@@ -49,7 +35,65 @@ PD is the **master orchestrator** for software development. It guides you throug
 
 **There are NO exceptions.** Even "simple" tasks need a brief design.
 
----
+## CLI Commands
+
+The PD CLI manages state and validates progress. Use it to track your workflow:
+
+```bash
+# Initialize a new feature
+pd init <feature-name>
+
+# Check current status
+pd status
+
+# Validate progress
+pd validate
+pd validate --deep    # Content validation (checks SPEC/PLAN/VERIFICATION)
+
+# Create checkpoint
+pd checkpoint --note "Completed Phase 2"
+
+# Verify before completing
+pd verify
+
+# Advance to next phase
+pd advance
+pd advance --dry-run   # Preview without changing state
+pd advance --force     # Skip validation
+
+# Mark task as complete
+pd complete-task "Implemented user model"
+
+# List all features
+pd list
+
+# Delete/archive a feature
+pd delete <feature-name> --archive
+
+# Show checkpoint timeline
+pd history
+
+# Generate progress report
+pd report
+
+# Show changes since last checkpoint
+pd diff
+
+# Generate shell completions
+pd completion bash   # or zsh, fish
+```
+
+### Global Flags
+
+```bash
+-f, --feature    # Target specific feature (default: most recent)
+--json           # JSON output for all commands
+--dry-run        # Preview without changing state
+--force          # Skip confirmations and validation
+--no-color       # Disable colored output
+```
+
+**State is persisted in `.spec/<feature>/STATE.json` + `STATE.md`** — the CLI reads and updates both files.
 
 ## The Prime Directive
 
@@ -58,6 +102,19 @@ NO SPECIFICATION + PLAN, NO CODE
 ```
 
 If you haven't completed brainstorming and planning, you cannot write code.
+
+## When NOT to Use (Skip the pipeline if:)
+
+Task fits in one short prompt, completed in one turn without clarification. Variable rename, typo fix, missing import, simple bug with obvious cause.
+
+**Rule of thumb:** Needs research? Files you haven't read? Decisions unsettled? Use the pipeline. Otherwise, skip.
+
+## When to Use
+
+- Starting a new project or feature
+- User says: "quero criar", "vamos implementar", "nova feature"
+- Coding task needing planning before implementation
+- Multi-file features, cross-cutting refactors, work spanning hours/sessions
 
 ## Context Rot
 
@@ -540,6 +597,8 @@ feature/
 STATE.md is the **navigation layer** that carries context across sessions. It records exactly where the project is in the pipeline.
 
 **Every workflow reads STATE.md first, writes back when done.**
+
+> **Note:** The CLI maintains a dual backend — STATE.json (structured, used by the CLI for reliable parsing) alongside STATE.md (human-readable). On first load of existing features, auto-migrates from STATE.md → STATE.json.
 
 ### Directory Layout
 
@@ -1101,6 +1160,21 @@ mv .spec/01-feature-name .spec/archive/01-feature-name-$(date +%Y%m%d)
 
 ---
 
+## Planning Templates & References
+
+### Implementation Plan Templates
+
+Two plan formats supported — see `references/create-implementation-plan.md`:
+
+| Format | When to Use | Structure |
+|--------|-------------|-----------|
+| **ISIS** (`PLAN.md` + checkpoints) | Features in Hermes/ISIS ecosystem | `plans/<feature>/PLAN.md` |
+| **nexus-vellum** (`plan.md` + `checkpoints.md`) | Projects with own plan format | `plans/active/<feature>/plan.md` |
+
+### Bite-Sized Task Writing
+
+Detailed guidance on task granularity (2-5 min each), plan document structure, and TDD-oriented planning — see `references/writing-plans.md`.
+
 ## Routing to Sub-Skills
 
 | Phase | Skill to Load | When |
@@ -1113,6 +1187,14 @@ mv .spec/01-feature-name .spec/archive/01-feature-name-$(date +%Y%m%d)
 | Testing | `test-driven-development` | Writing tests |
 | Debugging | `systematic-debugging` | Tests failing |
 | Review | `requesting-code-review` | Before commit |
+| API Design | `api-design` | Designing endpoints, REST patterns |
+| Database | `database-patterns` | Migrations, indexing, queries |
+| Security | `security-checklist` | Auth, OWASP, secrets |
+| Monitoring | `monitoring-observability` | Logging, metrics, alerts |
+| Deployment | `deployment-patterns` | CI/CD, feature flags |
+| Performance | `performance-patterns` | Caching, profiling |
+| Documentation | `documentation-patterns` | READMEs, ADRs, API docs |
+| Recipes | `recipes` | Step-by-step combining skills |
 | Parallel | `delegate_task` | Backend + Frontend simultaneously |
 
 ---
@@ -1165,6 +1247,32 @@ PD Phase 6 (Review):
 
 5. **Mixing phases.** Don't code before planning is complete.
 
+6. **STATE.md format mismatch.** The parser must handle both `## Phase: 1` and `## Phase\\n1` formats. Always verify STATE.md is readable after generation. See `references/cli-tool-architecture.md` for details.
+
+7. **CI validation requires "When to Use" on ALL skills.** When building or modifying skills, every SKILL.md MUST have a `## When to Use` section. CI validation will fail without it. Check all skills before pushing: `grep -L "When to Use" skills/*/SKILL.md`.
+
+8. **argparse global flags don't inherit to subparsers.** When building Python CLIs with argparse, flags defined on the main parser are NOT available in subcommand parsers. Use `parents=[global_parent]` when creating subparsers:
+   ```python
+   global_parent = argparse.ArgumentParser(add_help=False)
+   global_parent.add_argument("--json", action="store_true")
+   parser = argparse.ArgumentParser(parents=[global_parent])
+   subparsers = parser.add_subparsers(dest="command")
+   sub = subparsers.add_parser("status", parents=[global_parent])  # MUST include parent
+   ```
+   Without `parents=`, the subparser rejects the flag with "unrecognized arguments".
+
+9. **Subagent timeout leaves dirty state.** When a subagent times out (600s default), it may have partially modified files or changed the working directory. After a timeout: (a) check which files were modified, (b) verify the working directory is valid, (c) handle remaining work manually or dispatch a new subagent. The terminal tool can break if the CWD was changed to a deleted temp directory — use `execute_code` with explicit `os.chdir()` as a workaround.
+
+10. **pytest capsys captures ALL stdout.** When testing CLI output, earlier commands (init, checkpoint) print messages that mix with the command under test. For JSON output tests, use a helper that extracts the FIRST valid JSON block from captured output, not the entire string:
+    ```python
+    def extract_json(captured_out):
+        lines = captured_out.strip().split("\n")
+        for i, line in enumerate(lines):
+            if line.strip().startswith("{") or line.strip().startswith("["):
+                return json.loads("\n".join(lines[i:]))
+        return None
+    ```
+
 ## Verification Checklist
 
 - [ ] SPEC.md exists and is approved
@@ -1175,25 +1283,4 @@ PD Phase 6 (Review):
 - [ ] Tests follow `test-driven-development`
 - [ ] CHECKPOINT.md created
 - [ ] All changes committed
-
-## Related Skills
-
-- **clean-code** — Writing maintainable, readable code. Applied during Phase 4 (Coding) and enforced across all phases.
-- **ddd-development** — Domain-Driven Design patterns for modeling complex business domains. Use when the feature involves rich business logic.
-- **design-patterns** — GoF patterns and architecture decisions. Reference during planning and coding phases.
-- **test-driven-development** — RED-GREEN-REFACTOR discipline. Enforced in every coding task.
-- **systematic-debugging** — Root-cause debugging when bugs are found during development.
-- **requesting-code-review** — Pre-commit verification pipeline. Used in Phase 6 (Review).
-- **writing-plans** — Creating bite-sized implementation plans. Core of Phase 2 (Planning).
-- **subagent-driven-development** — Executing plans via fresh subagents with two-stage review.
-- **ai-regression-testing** — Regression testing patterns for AI-assisted development.
-- **service-composition** — Service integration patterns for distributed architectures.
-- **humanizer** — Remove AI writing patterns from documentation and specs.
-- **writing-clearly-and-concisely** — Clear prose for documentation, commit messages, and specs.
-- **api-design** — RESTful API design patterns and conventions.
-- **database-patterns** — Database schema design, indexing, and query optimization.
-- **security-checklist** — Security review patterns for authentication, authorization, and data protection.
-- **monitoring-observability** — Logging, metrics, and tracing patterns for production systems.
-- **performance-patterns** — Caching, profiling, and optimization strategies.
-- **deployment-patterns** — CI/CD, blue-green deployments, and release strategies.
-- **documentation-patterns** — README structure, ADRs, and documentation-as-code.
+- [ ] STATE.json exists and is valid

@@ -1,37 +1,34 @@
 ---
 name: writing-plans
-description: "Write implementation plans: bite-sized tasks, paths, code."
-version: 1.1.0
-author: ISIS
+description: "Write bomb-proof implementation plans: bite-sized tasks, exact paths, complete code, verification steps. Use before every multi-step implementation or delegation."
+version: 1.2.0
+author: Hermes Agent (adapted from obra/superpowers, mattpocock/skills writing-great-skills)
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [planning, design, implementation, workflow, documentation]
-    related_skills: [pd, clean-code, subagent-driven-development]
+    tags: [planning, design, implementation, workflow, bomb-proof]
+    related_skills: [subagent-driven-development, test-driven-development, requesting-code-review]
+argument-hint: "What feature or change needs a bomb-proof plan?"
 ---
 
 # Writing Implementation Plans
 
+**Leading word: bomb-proof** — a plan so detailed the implementer never has to guess. Every path, every file, every command spelled out. If someone has to fill in a blank, the plan is not bomb-proof yet.
+
 ## Overview
 
-Write comprehensive implementation plans assuming the implementer has zero context for the codebase and questionable taste. Document everything they need: which files to touch, complete code, testing commands, docs to check, how to verify. Give them bite-sized tasks. DRY. YAGNI. TDD. Frequent commits.
+Write bomb-proof implementation plans. Assume the implementer has zero context for the codebase and questionable taste. Document everything: which files to touch, complete code, testing commands, docs to check, how to verify. Bite-sized tasks. DRY. YAGNI. TDD. Frequent commits.
 
-Assume the implementer is a skilled developer but knows almost nothing about the toolset or problem domain. Assume they don't know good test design very well.
+Assume the implementer is a skilled developer who knows almost nothing about this toolset or problem domain, and doesn't know good test design very well.
 
 **Core principle:** A good plan makes implementation obvious. If someone has to guess, the plan is incomplete.
 
 ## When to Use
 
-**Always use before:**
-- Implementing multi-step features
-- Breaking down complex requirements
-- Delegating to subagents via subagent-driven-development
+Use before every multi-step implementation. Simple if the feature seems trivial — assumptions cause bugs, and future you needs the breadcrumb trail.
 
-**Don't skip when:**
-- Feature seems simple (assumptions cause bugs)
-- You plan to implement it yourself (future you needs guidance)
-- Working alone (documentation matters)
+**Completion criterion:** You have a `.md` file in `docs/plans/` with numbered tasks, each specifying exact file paths, complete code, and verification steps.
 
 ## Bite-Sized Task Granularity
 
@@ -133,11 +130,9 @@ git commit -m "feat: add specific feature"
 
 ### Step 1: Understand Requirements
 
-Read and understand:
-- Feature requirements
-- Design documents or user description
-- Acceptance criteria
-- Constraints
+**Read:** feature requirements, design docs, acceptance criteria, constraints.
+**Check:** what's ambiguous? what's missing?
+**Completion criterion:** You can state the goal in one sentence and list 3+ acceptance criteria.
 
 ### Step 2: Explore the Codebase
 
@@ -157,6 +152,8 @@ search_files("*.py", target="files", path="tests/")
 read_file("src/app.py")
 ```
 
+**Completion criterion:** You know which files exist, where similar patterns live, and what the testing convention looks like.
+
 ### Step 3: Design Approach
 
 Decide:
@@ -165,22 +162,27 @@ Decide:
 - Dependencies needed
 - Testing strategy
 
-### Step 4: Write Tasks
+**Completion criterion:** You can draw the data flow on a napkin — input → transformation → output, and which files own each step.
 
-Create tasks in order:
+### Step 4: Write Tasks in Order
+
 1. Setup/infrastructure
 2. Core functionality (TDD for each)
 3. Edge cases
 4. Integration
 5. Cleanup/documentation
 
-### Step 5: Add Complete Details
+**Completion criterion:** Each task is 2-5 minutes of work, has exact file paths, and starts with a failing test.
 
-For each task, include:
+### Step 5: Complete Every Detail
+
+For each task:
 - **Exact file paths** (not "the config file" but `src/config/settings.py`)
 - **Complete code examples** (not "add validation" but the actual code)
 - **Exact commands** with expected output
 - **Verification steps** that prove the task works
+
+**Completion criterion:** You can copy-paste any task's code and commands into a terminal — nothing left to figure out.
 
 ### Step 6: Review the Plan
 
@@ -293,10 +295,11 @@ Verification steps
 DRY, YAGNI, TDD
 Frequent commits
 ```
+
 **A good plan makes implementation obvious.**
 
-## Related Skills
+---
 
-- **pd** — Master orchestrator. Writing plans is Phase 2 of the PD pipeline.
-- **clean-code** — DRY, YAGNI, and small functions are core plan writing principles.
-- **subagent-driven-development** — Executes the plans created by this skill via fresh subagents with two-stage review.
+## References
+
+- [`mattpocock/skills` debugging-discipline references/mattpocock-skills.md] — leading words, completion criteria, progressive disclosure principles used in this skill.
