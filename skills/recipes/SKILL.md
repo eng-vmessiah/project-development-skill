@@ -2,7 +2,6 @@
 name: recipes
 description: "Practical recipes combining multiple skills — create APIs, debug production issues, refactor legacy code, add authentication, set up projects, and optimize performance. Each recipe is a step-by-step guide with exact commands and expected outputs."
 version: 1.0.0
-author: ISIS
 license: MIT
 metadata:
   hermes:

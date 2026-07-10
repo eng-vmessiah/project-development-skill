@@ -2,7 +2,6 @@
 name: documentation-patterns
 description: "Documentation patterns — README structure, API docs, ADRs, code comments, changelogs, contributing guidelines. Use when writing, organizing, or improving project documentation."
 version: 1.0.0
-author: ISIS
 license: MIT
 metadata:
   hermes:

@@ -2,7 +2,6 @@
 name: performance-patterns
 description: "Performance optimization patterns — caching, lazy loading, profiling, memory management, database queries, frontend performance. Use when optimizing speed, reducing resource usage, or fixing performance bottlenecks."
 version: 1.0.0
-author: ISIS
 license: MIT
 metadata:
   hermes:

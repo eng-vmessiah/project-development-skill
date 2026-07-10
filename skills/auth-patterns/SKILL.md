@@ -2,7 +2,6 @@
 name: auth-patterns
 description: "Guard your API: JWT, OAuth 2.0, RBAC, sessions, and API key patterns for secure authentication and authorization."
 version: 1.1.0
-author: ISIS (adapted from OWASP, mattpocock/skills writing-great-skills)
 license: MIT
 platforms: [linux, macos, windows]
 metadata:

@@ -2,7 +2,6 @@
 name: ddd-development
 description: "Use when designing or refactoring code with Domain-Driven Design patterns. Covers strategic (Bounded Contexts, Context Maps) and tactical (Entities, Value Objects, Aggregates, Repositories, Services, Events, Modules, Factories) design with decision trees and code examples."
 version: 1.0.0
-author: ISIS
 license: MIT
 metadata:
   hermes:

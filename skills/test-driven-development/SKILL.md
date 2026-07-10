@@ -2,7 +2,6 @@
 name: test-driven-development
 description: "Red-first: write the failing test, watch it fail, then code. Enforces RED-GREEN-REFACTOR with no shortcuts."
 version: 1.2.0
-author: ISIS (adapted from mattpocock/skills tdd, writing-great-skills)
 license: MIT
 platforms: [linux, macos, windows]
 metadata:

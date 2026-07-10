@@ -2,7 +2,6 @@
 name: service-composition
 description: "Wire services together: Worker-Function-Trigger primitives for event-driven, agentic, and distributed systems."
 version: 1.1.0
-author: ISIS (adapted from iii framework, mattpocock/skills writing-great-skills)
 license: MIT
 platforms: [linux, macos, windows]
 metadata:

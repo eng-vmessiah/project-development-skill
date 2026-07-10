@@ -2,7 +2,6 @@
 name: plan
 description: "Bomb-proof plan mode: write an actionable markdown plan, no execution. Bite-sized tasks, exact paths, complete code."
 version: 2.1.0
-author: ISIS (adapted from mattpocock/skills writing-great-skills)
 license: MIT
 platforms: [linux, macos, windows]
 metadata:

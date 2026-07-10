@@ -2,7 +2,6 @@
 name: database-patterns
 description: "Database patterns — migrations, indexing, N+1 prevention, connection pooling, transactions, repository pattern, CQRS, soft delete, audit trails, and query optimization. Use when designing or working with database layers."
 version: 1.0.0
-author: ISIS
 license: MIT
 metadata:
   hermes:

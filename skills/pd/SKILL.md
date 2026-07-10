@@ -2,7 +2,6 @@
 name: pd
 description: "Bomb-proof development pipeline: brainstorm → spec → plan → code → test → review. Master orchestrator for software projects."
 version: 1.1.0
-author: ISIS (adapted from gsd-build, mattpocock/skills writing-great-skills)
 license: MIT
 metadata:
   hermes:

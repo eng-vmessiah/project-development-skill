@@ -2,7 +2,6 @@
 name: ai-optimization
 description: "Evolve prompts, code, and configurations through reflective optimization with AI feedback."
 version: 1.1.0
-author: ISIS (adapted from GEPA, mattpocock/skills writing-great-skills)
 license: MIT
 platforms: [linux, macos, windows]
 metadata:

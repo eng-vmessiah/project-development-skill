@@ -2,7 +2,6 @@
 name: design-patterns
 description: "Design patterns reference — GoF 23 patterns, decision trees, anti-patterns, and practical examples. Use when designing architecture, choosing abstractions, or refactoring code."
 version: 1.0.0
-author: ISIS
 license: MIT
 metadata:
   hermes:

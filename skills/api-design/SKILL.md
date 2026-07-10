@@ -2,7 +2,6 @@
 name: api-design
 description: "REST API design patterns — resource naming, HTTP semantics, status codes, versioning, pagination, error handling, rate limiting, and OpenAPI specs. Use when designing or reviewing REST APIs."
 version: 1.0.0
-author: ISIS
 license: MIT
 metadata:
   hermes:

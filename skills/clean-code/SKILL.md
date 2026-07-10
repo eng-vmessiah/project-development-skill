@@ -2,7 +2,6 @@
 name: clean-code
 description: "Use when writing, reviewing, or refactoring code for readability and maintainability. Covers naming, functions, comments, error handling, classes, testing, and common code smells with concrete rules and anti-patterns."
 version: 1.0.0
-author: ISIS
 license: MIT
 metadata:
   hermes:

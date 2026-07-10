@@ -2,7 +2,6 @@
 name: security-checklist
 description: "Security checklist covering OWASP Top 10, input validation, authentication bypass, secrets management, CORS, CSP, injection prevention, XSS, CSRF, rate limiting, password hashing, session management, and dependency scanning. Use when building or auditing secure applications."
 version: 1.0.0
-author: ISIS
 license: MIT
 metadata:
   hermes:

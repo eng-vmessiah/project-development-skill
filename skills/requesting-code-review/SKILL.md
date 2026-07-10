@@ -2,7 +2,6 @@
 name: requesting-code-review
 description: "Fresh-eyes verification: pre-commit security scan, quality gates, two-axis review, auto-fix loop."
 version: 2.1.0
-author: ISIS (adapted from mattpocock/skills code-review, writing-great-skills)
 license: MIT
 platforms: [linux, macos, windows]
 metadata:

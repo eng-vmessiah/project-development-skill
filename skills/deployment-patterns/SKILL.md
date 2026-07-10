@@ -2,7 +2,6 @@
 name: deployment-patterns
 description: "Deployment patterns — blue-green, canary, rolling updates, feature flags, CI/CD, container orchestration. Use when designing deployment pipelines, release strategies, or production operations."
 version: 1.0.0
-author: ISIS
 license: MIT
 metadata:
   hermes:

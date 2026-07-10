@@ -2,7 +2,6 @@
 name: monitoring-observability
 description: "Monitoring and observability — structured logging, metrics, distributed tracing, health checks, alerting, dashboards, and SLI/SLO/SLA concepts. Use when setting up observability for applications or services."
 version: 1.0.0
-author: ISIS
 license: MIT
 metadata:
   hermes:
