@@ -1,6 +1,8 @@
 # Prompt final — Primeiro caso: transformar o PD em uma fleet de subagents
 
-> Este é o prompt de execução para iniciar a implementação em uma sessão nova, a partir da branch de planejamento. Ele assume que o executor deve ler o repositório antes de alterar qualquer arquivo.
+> Este é o prompt histórico de execução para iniciar a implementação em uma sessão nova, a partir da branch de planejamento. Ele assume que o executor deve ler o repositório antes de alterar qualquer arquivo.
+>
+> **Estado real (R3, 2026-07-17):** as remediações locais T1–T13, R1/R2 e matching de role/capabilities estão implementadas; a suíte atual tem **278 testes passando**. A evidência fresca está em [`.spec/pd-fleet-orchestration/VERIFICATION.md`](../.spec/pd-fleet-orchestration/VERIFICATION.md). Ainda assim, este documento não autoriza declarar PASS sem verification gate: R14/R18 permanecem PARTIAL por caveats documentados, `validation_commands` são declarativos, timestamps/paths podem variar na saída bruta e não há provider externo por default. O histórico T14/T15/T16/T17 abaixo é preservado deliberadamente.
 
 ## Papel
 
@@ -62,23 +64,28 @@ Produza ou atualize SPEC/PLAN do próprio caso com:
 
 Submeta o plano a um `grill` antes da implementação.
 
+**Gate G1 obrigatório:** registre `gate_id`, owner, status, decisão e evidência no estado. Não inicie código enquanto houver `BLOCKER` ou `HIGH` aberto, ou decisão humana pendente.
+
 ### Wave 2 — Fundação
 Implemente primeiro schemas, templates e validação determinística. Inclua testes para DAG, dependências inválidas, ciclos, paths conflitantes, transições inválidas e critérios ausentes.
 
-### Wave 3 — Observabilidade e coordenação
+### Wave 3 — Estado e inspeção
 Adicione ao CLI a capacidade de inspecionar fleet, waves, tasks elegíveis, blockers e checkpoints/resume. O modo read-only deve ser útil antes de qualquer dispatcher.
 
-### Wave 4 — Dispatcher/adapters mínimos
+### Wave 4 — Orquestração local e adapters mínimos
 Implemente apenas a abstração necessária para representar despacho/relatório de subagent. Não acople o core a um provedor específico. Registre input, output, status, tentativa e evidência.
 
-### Wave 5 — Gates
-Formalize review, grill, smoke test e evidence gate. Falhas devem interromper a progressão e apontar a task responsável.
+### Wave 5 — Gates e exemplo executável
+Formalize review, grill, smoke test e evidence gate. Falhas devem interromper a progressão e apontar a task responsável. Execute o exemplo local da própria evolução do PD sem credenciais externas.
 
-### Wave 6 — Prompt refinement
-Crie o contrato/template de prompt refinement de entrada e saída. O prompt produzido deve conter goal, contexto, escopo, restrições, waves, dependências, critérios de aceitação e validação.
+### Wave 6 — Review pós-código e prompt refinement
+Execute spec compliance review, code quality review e adversarial grill. Em seguida crie o contrato/template de prompt refinement de entrada e saída. O prompt produzido deve conter goal, contexto, escopo, restrições, waves, dependências, critérios de aceitação e validação.
 
-### Wave 7 — Primeiro caso completo
-Use a própria evolução do PD como exemplo executável em `examples/`, com tasks paralelas reais ou simuladas, outputs, blockers e verificação. O exemplo deve mostrar o caminho completo sem depender de credenciais externas.
+### Wave 7 — Smoke e evidence gate
+Execute build, testes, CLI, migração, resume e o exemplo completo. Gere `VERIFICATION.md` com evidências frescas.
+
+### Wave 8 — Closeout
+Atualize estado, changelog e relatório. Salve o prompt refinado de continuação. Não faça merge automaticamente.
 
 ## Fleet inicial
 
@@ -105,6 +112,7 @@ Use estes papéis, sem multiplicar agentes desnecessariamente:
 - [ ] O exemplo da própria evolução do PD é executável e testado.
 - [ ] A documentação explica As-Is, To-Be, migração, paralelismo e contratos.
 - [ ] O prompt refinado final é salvo como artefato e pode iniciar uma nova sessão.
+- [ ] O verification gate foi executado com comandos frescos, owner/decisão/evidência registrados; sem esse gate, o status permanece `PARTIAL`.
 
 ## Entrega final obrigatória
 

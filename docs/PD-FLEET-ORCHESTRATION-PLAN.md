@@ -1,6 +1,6 @@
 # PD Fleet Orchestration — Plano de Evolução
 
-**Status:** proposta de implementação
+**Status:** implementação local verificada parcialmente; aguardando verification gate humano
 **Branch de planejamento:** `feat/pd-fleet-orchestration-plan`
 **Objetivo:** evoluir o PD de um pipeline orientado a fases para um sistema de planejamento e execução coordenada por uma fleet de subagents.
 
@@ -92,44 +92,46 @@ outputs: []
 acceptance_criteria: []
 validation_commands: []
 blocked_when: []
+capabilities: []
+owner: orchestrator
+retry_policy:
+  max_attempts: 2
+  retryable_errors: []
 status: pending
 ```
 
 O relatório de execução deverá registrar `status`, arquivos alterados, comandos executados, resultados, riscos e blockers.
 
-## 6. Waves e gates
+## 6. Waves e gates (taxonomia canônica)
 
-### Wave 0 — Intake
-Normalizar goal, escopo, restrições, definição de pronto e perguntas bloqueadoras.
+### Wave 0 — Reconhecimento
+Ler contexto obrigatório, pesquisar CLI/estado/templates/testes e registrar baseline.
 
-**Gate:** goal operacional e sem ambiguidade crítica.
+**Gate G0:** pesquisa concluída e baseline verificável.
 
-### Wave 1 — Discovery e design
-Analisar o repositório, convenções, interfaces, riscos e alternativas. Produzir `SPEC.md` e decisões de design.
+### Wave 1 — Design executável
+Produzir SPEC, PLAN, DAG, contracts, estratégia de rollback e matriz de cobertura.
 
-**Paralelo:** pesquisa independente e inventário do repo.
-**Gate:** SPEC aprovada.
+**Gate G1:** grill do plano PASS, owner registrado e nenhum BLOCKER/HIGH aberto.
 
-### Wave 2 — Plan compilation
-Produzir `PLAN.md`, DAG de tasks, contratos, grupos de paralelismo, caminho crítico e estratégia de rollback.
+### Wave 2 — Fundação
+Implementar modelos, validação de DAG/ownership, lifecycle, gates e templates.
 
-**Gate:** plan grill sem blocker crítico.
+**Regra:** tasks paralelas só com ownership não sobreposto e contrato completo.
 
-### Wave 3 — Foundation
-Implementar contratos, schemas, persistência e interfaces compartilhadas.
+### Wave 3 — Estado e inspeção
+Integrar `fleet_state` backward-compatible, status, tasks elegíveis e checkpoint/resume.
 
-**Regra:** normalmente serializada quando cria interfaces usadas por outras tasks.
+### Wave 4 — Orquestração local
+Integrar protocolo de adapter, adapter simulado e `FleetOrchestrator` com seleção, dispatch e reports.
 
-### Wave 4 — Parallel execution
-Executar coders/test-engineers independentes em contextos isolados. Cada task deve ter escopo de paths explícito.
+**Gate:** pelo menos duas tasks independentes e uma dependente executadas localmente.
 
-**Gate:** todos os outputs presentes; conflitos resolvidos pelo orchestrator, nunca por merge implícito.
+### Wave 5 — Gates e exemplo
+Formalizar review/grill/smoke/evidence e demonstrar o próprio PD como exemplo executável.
 
-### Wave 5 — Integration
-Integrar resultados, executar testes de contrato e resolver incompatibilidades.
-
-### Wave 6 — Review + adversarial grill
-Reviewer, analyst e grill verificam requisitos, diff, segurança, regressões, premissas e complexidade.
+### Wave 6 — Review pós-código e prompt refinement
+Reviewer, analyst e grill verificam requisitos, diff, segurança, regressões, premissas e complexidade. O prompt-refiner incorpora os findings em um prompt reutilizável.
 
 **Gate:** zero blocker aberto ou decisão humana explícita.
 
@@ -137,7 +139,7 @@ Reviewer, analyst e grill verificam requisitos, diff, segurança, regressões, p
 Executar build, inicialização, caminho crítico e testes mínimos. Gerar `VERIFICATION.md` com evidências.
 
 ### Wave 8 — Closeout
-Atualizar estado, changelog e relatório. Gerar prompt de continuação/refinamento. Merge somente após aprovação humana.
+Atualizar estado, changelog e relatório. Merge somente após aprovação humana.
 
 ## 7. Dependências e paralelismo
 
@@ -196,3 +198,11 @@ Transições inválidas devem ser rejeitadas pelo CLI/validador.
 - Orquestração distribuída multi-host.
 - Dependência de um único provedor/modelo.
 - Métricas sofisticadas antes de existir um fluxo funcional.
+
+## 12. Remediações R3 e verification gate
+
+As remediações T1–T13, R1/R2 e matching de `role`/`capabilities` foram incorporadas ao caminho local. A evidência atual está em [`.spec/pd-fleet-orchestration/VERIFICATION.md`](../.spec/pd-fleet-orchestration/VERIFICATION.md): a suíte completa registra 278 testes passando, o exemplo local é executável sem provider externo e o CLI `fleet-run` foi exercitado em normal, `--dry-run` e `--resume`.
+
+O estado documental é deliberadamente **PARTIAL até o verification gate**. Nenhum gate declarativo, número de testes ou smoke local autoriza declarar PASS global sem comando executado, evidência fresca, owner e decisão registrados. Em particular, `validation_commands` permanecem declarativos; a saída JSON bruta pode variar em timestamps/paths; e provider externo não é habilitado por default.
+
+O histórico de planejamento e de findings anteriores permanece preservado nos artefatos existentes. Após qualquer remediação, reexecutar a suíte e o smoke, atualizar `VERIFICATION.md` e somente então registrar a decisão humana de closeout.

@@ -130,6 +130,13 @@ The next PD evolution is specified in:
 
 This proposal evolves PD from a phase-oriented development guide into a protocol for supervised subagent fleets while preserving the simple single-agent flow.
 
+The offline fleet example (`examples/pd-fleet/run_local.py`) performs a validated G1
+preflight before creating output files. Gate references are deterministic identities
+(`evidence:<task-id>` and `report:<task-id>`) resolved against validated records;
+unresolved references fail closed. Output paths are resolved and contained beneath
+`--output`, existing symlink roots are rejected, and task IDs must match
+`[A-Za-z0-9_-]+` as one safe path segment.
+
 ## License
 
 MIT
