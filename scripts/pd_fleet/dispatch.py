@@ -95,8 +95,18 @@ class SimulatedAdapter:
         attempt = context.get("attempt", 1)
         if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
             attempt = 1
-        result = {"output": f"simulated:{task_id}:{digest[:16]}", "fingerprint": digest}
+        result: dict[str, Any] = {"output": f"simulated:{task_id}:{digest[:16]}", "fingerprint": digest}
         evidence = {"adapter": self.name, "deterministic": True, "fingerprint": digest}
+        # Opt-in V2 report keeps the legacy result shape unchanged by default.
+        if context.get("report_v2") is True:
+            result["report"] = {
+                "schema_version": "pd-fleet-report:v2", "task_id": task_id,
+                "attempt": attempt, "agent_id": str(_value(task, "owner", None) or _value(task, "role", "local")),
+                "role": str(_value(task, "role", "worker")), "capabilities": list(_value(task, "capabilities", []) or []),
+                "status": "completed", "outputs": {str((_value(task, "outputs", ["output"]) or ["output"])[0]): result["output"]}, "evidence": evidence,
+                "tests": [{"name": "local", "status": "passed"}], "validation": {"status": "passed", "fingerprint": digest},
+                "decision": {"decision": "accept"}, "started_at": "1970-01-01T00:00:00Z", "completed_at": "1970-01-01T00:00:00Z",
+            }
         return DispatchResult(task_id, self.name, "completed", attempt, result, evidence)
 
 

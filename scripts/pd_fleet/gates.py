@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from datetime import datetime, timedelta, timezone
+import re
 import json
 from types import MappingProxyType
 from typing import Any, Mapping, cast
@@ -30,6 +32,40 @@ class GateStatus(str, Enum):
     PASSED = "passed"
     FAILED = "failed"
     BLOCKED = "blocked"
+
+
+class HumanDecision(str, Enum):
+    """Explicit human decision; identity is audit metadata, not authentication."""
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    PENDING = "PENDING"
+
+
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+
+
+def _utc_datetime(value: Any, name: str) -> datetime:
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise GateError(f"{name} deve ser timestamp ISO-8601 UTC") from exc
+    if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() != timedelta(0):
+        raise GateError(f"{name} deve ser timestamp UTC")
+    return value.astimezone(timezone.utc)
+
+
+def _digest(value: Any, name: str) -> str:
+    if type(value) is not str or _SHA256.fullmatch(value) is None:
+        raise GateError(f"{name} deve ser SHA-256 hexadecimal lowercase")
+    return value
+
+
+def _human_decision(value: Any) -> HumanDecision:
+    try:
+        return value if isinstance(value, HumanDecision) else HumanDecision(str(value).upper())
+    except (TypeError, ValueError) as exc:
+        raise GateError("decision humana inválida") from exc
 
 
 _VALID_TRANSITIONS = {
@@ -123,10 +159,21 @@ def _frozen_policy(value: Any, path: str = "policy") -> Any:
 
 def _open_blocker(item: Any) -> bool:
     if isinstance(item, Mapping):
-        severity = str(item.get("severity", item.get("level", ""))).lower()
-        status = str(item.get("status", "open")).lower()
-        return status not in {"closed", "resolved", "done", "passed"} and severity in {"blocker", "high"}
-    return bool(item)
+        # Blocker metadata is an untrusted boundary: normalize only strings and
+        # fail closed for missing/unknown values rather than silently ignoring it.
+        severity_value = item.get("severity", item.get("level"))
+        status_value = item.get("status")
+        if type(severity_value) is not str or type(status_value) is not str:
+            return True
+        severity = severity_value.strip().casefold()
+        status = status_value.strip().casefold()
+        known_severities = {"blocker", "critical", "high", "medium", "low", "info"}
+        known_statuses = {"open", "pending", "active", "in_progress", "in-progress",
+                          "unresolved", "closed", "resolved", "done", "passed"}
+        if severity not in known_severities or status not in known_statuses:
+            return True
+        return status not in {"closed", "resolved", "done", "passed"} and severity in {"blocker", "critical", "high"}
+    return True
 
 
 @dataclass
@@ -280,3 +327,123 @@ class GatePolicy:
 
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+@dataclass(frozen=True)
+class HumanVerificationGate:
+    """Fail-closed, local record of an explicit human verification decision.
+
+    ``identity`` is deliberately only an auditable string.  This class performs
+    no authentication, network access, release, merge, or push operation.
+    """
+    owner: str
+    identity: str
+    decision: HumanDecision | str
+    scope: Any
+    run: str
+    evidence_digest: str
+    artifact_digest: str
+    created_at: datetime | str
+    updated_at: datetime | str
+    freshness_window: timedelta | int | float
+    blockers: Any = ()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "owner", cast(str, _text(self.owner, "owner")))
+        object.__setattr__(self, "identity", cast(str, _text(self.identity, "identity")))
+        object.__setattr__(self, "run", cast(str, _text(self.run, "run")))
+        object.__setattr__(self, "decision", _human_decision(self.decision))
+        object.__setattr__(self, "evidence_digest", _digest(self.evidence_digest, "evidence_digest"))
+        object.__setattr__(self, "artifact_digest", _digest(self.artifact_digest, "artifact_digest"))
+        created = _utc_datetime(self.created_at, "created_at")
+        updated = _utc_datetime(self.updated_at, "updated_at")
+        if updated < created:
+            raise GateError("updated_at não pode anteceder created_at")
+        object.__setattr__(self, "created_at", created)
+        object.__setattr__(self, "updated_at", updated)
+        window = self.freshness_window
+        if isinstance(window, timedelta):
+            seconds = window.total_seconds()
+        elif type(window) in (int, float):
+            seconds = float(window)
+        else:
+            raise GateError("freshness_window deve ser duração positiva")
+        if seconds <= 0 or seconds != seconds or seconds == float("inf"):
+            raise GateError("freshness_window deve ser duração positiva")
+        object.__setattr__(self, "freshness_window", timedelta(seconds=seconds))
+        if isinstance(self.scope, str):
+            frozen_scope = _text(self.scope, "scope")
+        else:
+            frozen_scope = _frozen_policy(self.scope, "scope")
+        if not isinstance(frozen_scope, (str, MappingProxyType)) and not isinstance(frozen_scope, tuple):
+            raise GateError("scope deve ser string ou objeto JSON")
+        object.__setattr__(self, "scope", frozen_scope)
+        object.__setattr__(self, "blockers", _frozen_policy(_items(self.blockers, "blockers"), "blockers"))
+
+    @property
+    def run_id(self) -> str:
+        return self.run
+
+    def evaluate(self, *, now: datetime | str | None = None, artifact_digest: str | None = None,
+                 evidence_digest: str | None = None, blockers: Any | None = None) -> GateStatus:
+        """Return PASSED only when every explicit approval condition is true."""
+        now_value = _utc_datetime(now or datetime.now(timezone.utc), "now")
+        if blockers is None:
+            current_blockers = self.blockers
+        else:
+            current_blockers = _frozen_policy(_items(blockers, "blockers"), "blockers")
+        if any(_open_blocker(item) for item in current_blockers):
+            return GateStatus.BLOCKED
+        if self.decision is not HumanDecision.APPROVED:
+            return GateStatus.BLOCKED if self.decision is HumanDecision.REJECTED else GateStatus.PENDING
+        if artifact_digest is None:
+            artifact_digest = self.artifact_digest
+        if artifact_digest != self.artifact_digest:
+            return GateStatus.PENDING
+        if evidence_digest is None:
+            evidence_digest = self.evidence_digest
+        if evidence_digest != self.evidence_digest:
+            return GateStatus.PENDING
+        if now_value > self.updated_at + self.freshness_window:
+            return GateStatus.PENDING
+        return GateStatus.PASSED
+
+    def allows(self, *, now: datetime | str | None = None, artifact_digest: str | None = None,
+               evidence_digest: str | None = None, blockers: Any | None = None) -> bool:
+        return self.evaluate(now=now, artifact_digest=artifact_digest,
+                             evidence_digest=evidence_digest, blockers=blockers) is GateStatus.PASSED
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"owner": self.owner, "identity": self.identity, "decision": self.decision.value,
+                "scope": _safe(self.scope), "run": self.run, "run_id": self.run,
+                "evidence_digest": self.evidence_digest, "artifact_digest": self.artifact_digest,
+                "created_at": self.created_at.isoformat().replace("+00:00", "Z"),
+                "updated_at": self.updated_at.isoformat().replace("+00:00", "Z"),
+                "freshness_window": self.freshness_window.total_seconds(), "blockers": _safe(self.blockers)}
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any], *, reject_unknown: bool = True) -> "HumanVerificationGate":
+        if not isinstance(value, Mapping):
+            raise GateError("human gate deve ser objeto")
+        allowed = {"owner", "identity", "decision", "scope", "run", "run_id",
+                   "evidence_digest", "artifact_digest", "created_at", "updated_at",
+                   "freshness_window", "blockers"}
+        unknown = set(value) - allowed
+        if reject_unknown and unknown:
+            raise GateError(f"human gate contém campos desconhecidos: {sorted(unknown)!r}")
+        if "run" in value and "run_id" in value and value["run"] != value["run_id"]:
+            raise GateError("run e run_id conflitantes")
+        run = value.get("run") if "run" in value else value.get("run_id")
+        return cls(value.get("owner"), value.get("identity"), value.get("decision"), value.get("scope"), run,
+                   value.get("evidence_digest"), value.get("artifact_digest"), value.get("created_at"),
+                   value.get("updated_at"), value.get("freshness_window"), value.get("blockers", ()))
+
+    @classmethod
+    def from_json(cls, value: str) -> "HumanVerificationGate":
+        try:
+            return cls.from_dict(json.loads(value))
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise GateError("JSON inválido") from exc
