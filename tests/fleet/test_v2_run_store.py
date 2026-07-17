@@ -1,0 +1,95 @@
+from __future__ import annotations
+
+import hashlib
+import sys
+from pathlib import Path
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
+from test_run_store import PLAN, _complete_report
+from pd_fleet.run_store import FleetRunStore, LeaseError
+from pd_fleet.run_store import RunStoreError
+
+
+def test_claim_use_commit_rejects_stale_generation_or_lease_without_corruption(
+    tmp_path: Path,
+):
+    """M-04 evidence: renewing fences the old claim before commit, atomically."""
+    store = FleetRunStore(tmp_path)
+    store.create("run", PLAN, "owner")
+
+    old_token = store.claim("run", "a", "owner")
+    store.use("run", "a", old_token, "owner")
+    renewed_token = store.renew("run", "a", old_token, "owner")
+    state_before_stale_commit = store.load("run")
+    snapshot_before_stale_commit = (tmp_path / "run" / "snapshot.json").read_bytes()
+    snapshot_digest = hashlib.sha256(snapshot_before_stale_commit).hexdigest()
+
+    with pytest.raises(LeaseError, match="stale or expired lease"):
+        store.commit("run", "a", old_token, "owner", _complete_report())
+
+    assert store.load("run") == state_before_stale_commit
+    assert (tmp_path / "run" / "snapshot.json").read_bytes() == snapshot_before_stale_commit
+    assert hashlib.sha256(
+        (tmp_path / "run" / "snapshot.json").read_bytes()
+    ).hexdigest() == snapshot_digest
+    assert store.query("run", "events") == state_before_stale_commit["events"]
+    assert store.query("run", "reports") == state_before_stale_commit["reports"]
+    assert store.load("run")["leases"]["a"]["lease_id"] == renewed_token["lease_id"]
+
+
+@pytest.mark.parametrize("event", [{1: "bad"}, {"nested": {1: "bad"}}])
+def test_append_event_rejects_non_string_keys_without_mutation(tmp_path: Path, event):
+    store = FleetRunStore(tmp_path)
+    store.create("run", PLAN, "owner")
+    before = store.load("run")
+    with pytest.raises(RunStoreError, match="mapping keys must be strings"):
+        store.append_event("run", event, "owner")
+    assert store.load("run") == before
+
+
+def test_append_event_rejects_cycles_with_stable_error(tmp_path: Path):
+    event = {}
+    event["self"] = event
+    store = FleetRunStore(tmp_path)
+    store.create("run", PLAN, "owner")
+    with pytest.raises(RunStoreError, match="payload contains a cycle"):
+        store.append_event("run", event, "owner")
+
+
+def test_claim_rejects_unknown_task_and_nan_lease(tmp_path: Path):
+    store = FleetRunStore(tmp_path)
+    store.create("run", PLAN, "owner")
+    with pytest.raises(RunStoreError, match="unknown task id"):
+        store.claim("run", "unknown", "owner")
+    with pytest.raises(LeaseError, match="lease duration must be positive"):
+        store.claim("run", "a", "owner", lease_seconds=float("nan"))
+
+
+def test_claim_many_refuses_task_committed_terminal_under_store_lock(tmp_path: Path):
+    store = FleetRunStore(tmp_path)
+    store.create("run", PLAN, "owner")
+    token = store.claim("run", "a", "owner")
+    store.commit("run", "a", token, "owner", _complete_report())
+    before = store.load("run")
+
+    with pytest.raises(RunStoreError, match="terminal task"):
+        store.claim_many("run", ["a"], "owner", max_parallel=1)
+
+    assert store.load("run") == before
+
+
+def test_unrelated_event_does_not_fence_surviving_lease(tmp_path: Path):
+    plan = {"schema_version": "pd-fleet-plan:v2", "tasks": [{"id": "a"}, {"id": "b"}]}
+    store = FleetRunStore(tmp_path)
+    store.create("run", plan, "owner")
+    token_a = store.claim("run", "a", "owner")
+    token_b = store.claim("run", "b", "owner")
+    store.append_event("run", {"event_id": "note"}, "owner")
+    store.use("run", "a", token_a, "owner")
+    renewed_b = store.renew("run", "b", token_b, "owner")
+    with pytest.raises(LeaseError):
+        store.use("run", "b", token_b, "owner")
+    store.use("run", "a", token_a, "owner")
+    assert renewed_b["lease_id"] != token_b["lease_id"]
