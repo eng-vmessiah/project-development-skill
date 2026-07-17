@@ -7,12 +7,70 @@ posteriores.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+import copy
 import json
 import math
 from typing import Any, ClassVar, Mapping
 
+from .contracts import canonical_json_bytes, canonicalize
+
 
 SCHEMA_VERSION = "1"
+
+
+@dataclass(frozen=True, init=False)
+class CanonicalOutput:
+    """Immutable view of a V2 output and its normative JSON representation.
+
+    Construction always goes through :func:`normalize_output`, including the
+    direct ``CanonicalOutput(value=...)`` form.  The canonical result is kept
+    privately and every mutable value crossing the model boundary is copied so
+    neither caller-owned input nor accessor results can mutate the identity
+    used for JSON serialization and hashing.
+    """
+
+    _value: dict[str, Any]
+
+    def __init__(self, value: Mapping[str, Any]) -> None:
+        # canonicalize builds fresh containers, while the extra copy also makes
+        # this invariant robust if the contract implementation ever reuses one.
+        object.__setattr__(self, "_value", copy.deepcopy(normalize_output(value)))
+
+    @property
+    def value(self) -> dict[str, Any]:
+        return copy.deepcopy(self._value)
+
+    @classmethod
+    def from_value(cls, value: Mapping[str, Any]) -> "CanonicalOutput":
+        return cls(value)
+
+    def to_dict(self) -> dict[str, Any]:
+        return copy.deepcopy(self._value)
+
+    @property
+    def json_bytes(self) -> bytes:
+        return canonical_json_bytes(self._value)
+
+    def to_json(self) -> str:
+        return self.json_bytes.decode("utf-8")
+
+    def __getitem__(self, key: str) -> Any:
+        return copy.deepcopy(self._value[key])
+
+
+def normalize_output(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalize a V2 output using the canonical contract implementation.
+
+    V1 models are deliberately not routed through this function: V2 requires
+    the explicit ``pd-fleet-plan:v2`` schema and therefore remains additive to
+    the existing ``FleetPlan`` API.  Contract validation is fail-closed for
+    unsupported Python values and unknown V2 fields.
+    """
+    if isinstance(value, CanonicalOutput):
+        value = value.value
+    if not isinstance(value, Mapping):
+        raise TypeError("V2 output must be a mapping")
+    return canonicalize(value)
 
 
 class FleetPlanError(ValueError):
