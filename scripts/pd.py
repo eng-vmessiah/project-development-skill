@@ -8,12 +8,26 @@ Manages state, validates progress, and enforces the PD pipeline.
 
 import argparse
 import json
+import os
+import stat
 import shutil
 import subprocess
 import sys
+import tempfile
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any, Tuple, Mapping
+
+from pd_fleet.state import normalize_fleet_state
+from pd_fleet.models import FleetPlan, FleetPlanError
+from pd_fleet.validation import compute_ready_tasks
+from pd_fleet.orchestrator import FleetOrchestrator
+from pd_fleet.checkpoint import Checkpoint
+from pd_fleet.contracts import canonicalize as canonicalize_v2, plan_hash as plan_hash_v2
+from pd_fleet.scheduler import LeaseScheduler
+from pd_fleet.parallel import BoundedParallelExecutor
+from pd_fleet.run_store import FleetRunStore, RunStoreError
 
 try:
     import yaml
@@ -70,6 +84,11 @@ class PhaseError(PDError):
 
 class ConfigError(PDError):
     """Configuration error."""
+    pass
+
+
+class TransactionRecoveryError(PDError):
+    """A failed state transaction could not be rolled back completely."""
     pass
 
 
@@ -184,24 +203,27 @@ class PDConfig:
 class PDState:
     """Manages project state with a dual JSON/Markdown backend."""
 
-    def __init__(self, feature_dir: Path, config: Optional[PDConfig] = None):
+    def __init__(self, feature_dir: Path, config: Optional[PDConfig] = None, *, read_only: bool = False):
         self.feature_dir = feature_dir
         self.config = config or PDConfig(feature_dir.parent.parent)
         self.state_file = feature_dir / STATE_FILE
         self.json_file = feature_dir / STATE_JSON_FILE
+        self.read_only = read_only
         self.state: Dict[str, Any] = self._load_state()
 
     # ── loading ──────────────────────────────────────────────────────────
 
     def _default_state(self) -> Dict[str, Any]:
+        now = datetime.now().isoformat()
         return {
             "feature": self.feature_dir.name,
             "phase": 0,
             "status": "initialized",
             "tasks": [],
             "checkpoints": [],
-            "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat(),
+            "created_at": now,
+            "updated_at": now,
+            "fleet_state": normalize_fleet_state({"updated_at": now}),
         }
 
     def _load_state(self) -> Dict[str, Any]:
@@ -211,20 +233,44 @@ class PDState:
         if self.state_file.exists():
             state = self._parse_state_md(self.state_file.read_text())
             # Migrate: write JSON so we never have to parse markdown again
-            self._write_json(state)
+            if not self.read_only:
+                try:
+                    self._write_json(state)
+                except OSError:
+                    pass
             return state
         return self._default_state()
 
     def _load_from_json(self) -> Dict[str, Any]:
-        try:
-            with open(self.json_file) as f:
+        def load_valid(path: Path) -> Dict[str, Any]:
+            with open(path) as f:
                 data = json.load(f)
-            # Merge with defaults for forward-compat
+            if not isinstance(data, dict):
+                raise ValueError("STATE.json deve conter um objeto")
+            # Merge with defaults for forward-compat; root tasks remains legacy.
             default = self._default_state()
             for key in default:
                 data.setdefault(key, default[key])
+            data["fleet_state"] = normalize_fleet_state(data.get("fleet_state"))
             return data
-        except (json.JSONDecodeError, OSError):
+
+        try:
+            return load_valid(self.json_file)
+        except (json.JSONDecodeError, OSError, ValueError):
+            backup = self.json_file.with_name(self.json_file.name + ".bak")
+            if backup.exists():
+                try:
+                    data = load_valid(backup)
+                    # Repair the primary without consuming or changing the backup.
+                    # A failed repair must not prevent use of the valid state.
+                    if not self.read_only:
+                        try:
+                            shutil.copy2(backup, self.json_file)
+                        except OSError:
+                            pass
+                    return data
+                except (json.JSONDecodeError, OSError, ValueError):
+                    pass
             # Fall back to STATE.md
             if self.state_file.exists():
                 return self._parse_state_md(self.state_file.read_text())
@@ -234,6 +280,16 @@ class PDState:
         """Parse STATE.md content (legacy / migration path)."""
         state = self._default_state()
         lines = content.split("\n")
+        marker = "## Fleet State"
+        if marker in content:
+            try:
+                fragment = content.split(marker, 1)[1]
+                fragment = fragment.split("```json", 1)[1].split("```", 1)[0]
+                fleet = json.loads(fragment.strip())
+                if isinstance(fleet, dict):
+                    state["fleet_state"] = normalize_fleet_state(fleet)
+            except (IndexError, json.JSONDecodeError):
+                pass
         for i, line in enumerate(lines):
             if line.startswith("## Phase:"):
                 try:
@@ -261,38 +317,116 @@ class PDState:
     # ── saving ───────────────────────────────────────────────────────────
 
     def save(self) -> None:
-        """Save state to both STATE.json and STATE.md."""
-        self.state["updated_at"] = datetime.now().isoformat()
-        self._write_json(self.state)
-        self.state_file.write_text(self._generate_state_md())
+        """Save state to both STATE.json and STATE.md transactionally."""
+        candidate = deepcopy(self.state)
+        now = datetime.now().isoformat()
+        candidate["updated_at"] = now
+        candidate["fleet_state"] = normalize_fleet_state(candidate.get("fleet_state"))
+        candidate["fleet_state"]["updated_at"] = now
+        try:
+            json_text = json.dumps(candidate, indent=2, allow_nan=False)
+            json.loads(json_text)
+        except (TypeError, ValueError) as exc:
+            raise TypeError(f"Estado não serializável em JSON: {exc}") from exc
+        md_text = self._generate_state_md(candidate)
+        if not isinstance(md_text, str):
+            raise TypeError("STATE.md deve ser texto")
+        self._write_transaction(json_text + "\n", md_text)
+        self.state = candidate
 
     def _write_json(self, data: Dict[str, Any]) -> None:
-        with open(self.json_file, "w") as f:
-            json.dump(data, f, indent=2, default=str)
+        """Atomically replace STATE.json, retaining the last valid backup."""
+        self.json_file.parent.mkdir(parents=True, exist_ok=True)
+        fd, temporary = tempfile.mkstemp(prefix=f".{self.json_file.name}.", suffix=".tmp", dir=self.json_file.parent)
+        temporary_path = Path(temporary)
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(data, f, indent=2, allow_nan=False)
+                f.write("\n")
+                f.flush()
+                os.fsync(f.fileno())
+            if self.json_file.exists():
+                shutil.copy2(self.json_file, self.json_file.with_name(self.json_file.name + ".bak"))
+            os.replace(str(temporary_path), str(self.json_file))
+        except Exception:
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise
 
-    def _generate_state_md(self) -> str:
-        """Generate STATE.md content from the state dict."""
+    def _write_transaction(self, json_text: str, md_text: str) -> None:
+        """Replace JSON and Markdown together, restoring both on failure."""
+        self.json_file.parent.mkdir(parents=True, exist_ok=True)
+        targets = (self.json_file, self.state_file)
+        backups = tuple(path.with_name(path.name + ".bak") for path in targets)
+        existed_before = tuple(target.exists() for target in targets)
+        temporary_paths: list[Path] = []
+        replaced: list[tuple[Path, Path, bool]] = []
+        try:
+            for target, content in zip(targets, (json_text, md_text)):
+                fd, temporary = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".tmp", dir=target.parent)
+                temporary_path = Path(temporary)
+                temporary_paths.append(temporary_path)
+                with os.fdopen(fd, "w") as handle:
+                    handle.write(content)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+            for target, backup in zip(targets, backups):
+                if target.exists():
+                    shutil.copy2(target, backup)
+            for temporary_path, target, backup, existed in zip(temporary_paths, targets, backups, existed_before):
+                os.replace(str(temporary_path), str(target))
+                replaced.append((target, backup, existed))
+        except Exception as original_error:
+            recovery_error = None
+            for target, backup, existed in reversed(replaced):
+                try:
+                    if existed:
+                        if not backup.exists():
+                            raise FileNotFoundError(f"backup ausente para recuperação de {target}")
+                        shutil.copy2(backup, target)
+                    else:
+                        target.unlink(missing_ok=True)
+                except Exception as exc:
+                    if recovery_error is None:
+                        recovery_error = exc
+            if recovery_error is not None:
+                raise TransactionRecoveryError(
+                    f"Falha na transação e na recuperação de estado: {recovery_error}"
+                ) from original_error
+            raise
+        finally:
+            for temporary_path in temporary_paths:
+                try:
+                    temporary_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+
+    def _generate_state_md(self, state: Optional[Dict[str, Any]] = None) -> str:
+        """Generate STATE.md content from a candidate state dict."""
+        state = self.state if state is None else state
         phases = self.config.get_phases()
-        phase = phases[self.state["phase"]]
+        phase = phases[state["phase"]]
 
         tasks_md = "\n".join(
-            f"- [x] {task}" for task in self.state["tasks"]
+            f"- [x] {task}" for task in state["tasks"]
         ) or "- [ ] No tasks completed"
 
         checkpoints_md = "\n".join(
-            f"- {cp['date']}: {cp['note']}" for cp in self.state["checkpoints"]
+            f"- {cp['date']}: {cp['note']}" for cp in state["checkpoints"]
         ) or "- No checkpoints"
 
-        return f"""# STATE.md - {self.state['feature']}
+        return f"""# STATE.md - {state['feature']}
 
 ## Feature
-{self.state['feature']}
+{state['feature']}
 
 ## Phase
 {phase['id']} ({phase['name']})
 
 ## Status
-{self.state['status']}
+{state['status']}
 
 ## Completed Tasks
 {tasks_md}
@@ -301,8 +435,13 @@ class PDState:
 {checkpoints_md}
 
 ## Timestamps
-- Created: {self.state['created_at']}
-- Updated: {self.state['updated_at']}
+- Created: {state['created_at']}
+- Updated: {state['updated_at']}
+
+## Fleet State
+```json
+{json.dumps(state.get('fleet_state', normalize_fleet_state(None)), indent=2, allow_nan=False)}
+```
 """
 
     # ── mutations ────────────────────────────────────────────────────────
@@ -586,6 +725,36 @@ class PD:
         # status
         subparsers.add_parser("status", parents=[global_parent], help="Show current status")
 
+        # fleet inspection (strictly read-only)
+        for fleet_command, help_text in (("fleet-status", "Show fleet status"), ("fleet-ready", "Show ready fleet tasks")):
+            fleet_parser = subparsers.add_parser(fleet_command, parents=[global_parent], help=help_text)
+            fleet_parser.add_argument(
+                "--plan", "--manifest", "--fleet-plan", dest="plan_path", default=None,
+                help="Explicit path to a FleetPlan YAML/JSON manifest",
+            )
+
+        # fleet execution (local simulated/default-deny dispatcher)
+        run_parser = subparsers.add_parser("fleet-run", parents=[global_parent], help="Run a FleetPlan locally")
+        run_parser.add_argument("--plan", "--manifest", "--fleet-plan", dest="plan_path", default=None,
+                                help="Explicit path to a FleetPlan YAML/JSON manifest")
+        run_parser.add_argument("--resume", action="store_true", default=False,
+                                help="Resume from the persisted fleet checkpoint")
+
+        # V2 is opt-in and isolated from legacy command semantics.
+        v2_parser = subparsers.add_parser("v2", parents=[global_parent], help="V2 Fleet adapter")
+        v2_commands = v2_parser.add_subparsers(dest="v2_command", required=True)
+        for name, help_text in (("read", "Read a V2 manifest"), ("status", "Read V2 run status")):
+            inspect = v2_commands.add_parser(name, parents=[global_parent], help=help_text)
+            inspect.add_argument("--plan", "--manifest", dest="plan_path", default=None)
+            inspect.add_argument("--store", dest="store_root", default=".pd-fleet-runs")
+            inspect.add_argument("--run-id", dest="run_id", default=None)
+        local = v2_commands.add_parser("run-local", parents=[global_parent], help="Run V2 locally")
+        local.add_argument("--plan", "--manifest", dest="plan_path", required=True)
+        local.add_argument("--store", dest="store_root", default=".pd-fleet-runs")
+        local.add_argument("--run-id", dest="run_id", default=None)
+        local.add_argument("--owner", default="cli")
+        local.add_argument("--provider", choices=("local", "disabled"), default="local")
+
         # validate
         validate_parser = subparsers.add_parser("validate", parents=[global_parent], help="Validate progress")
         validate_parser.add_argument(
@@ -637,7 +806,7 @@ class PD:
 
     # ── entry point ──────────────────────────────────────────────────────
 
-    def run(self, args: Optional[List[str]] = None) -> None:
+    def run(self, args: Optional[List[str]] = None) -> Optional[int]:
         """Run the CLI."""
         parsed = self.parser.parse_args(args)
 
@@ -664,6 +833,8 @@ class PD:
             if parsed.command == "completion":
                 self._cmd_completion(parsed.shell)
                 return
+            if parsed.command == "v2":
+                return self._cmd_v2(parsed)
 
             # Everything else requires a feature
             feature_dir = self._find_feature_dir(parsed.feature)
@@ -673,12 +844,18 @@ class PD:
                 )
 
             config = PDConfig(feature_dir.parent.parent)
-            state = PDState(feature_dir, config)
+            state = PDState(feature_dir, config, read_only=parsed.command in {"fleet-status", "fleet-ready"})
 
             # Dispatch
             cmd = parsed.command
             if cmd == "status":
                 self._cmd_status(state, as_json)
+            elif cmd == "fleet-status":
+                self._cmd_fleet_status(state, parsed.plan_path, as_json)
+            elif cmd == "fleet-ready":
+                self._cmd_fleet_ready(state, parsed.plan_path, as_json)
+            elif cmd == "fleet-run":
+                return self._cmd_fleet_run(state, parsed.plan_path, parsed.dry_run, parsed.resume, as_json)
             elif cmd == "validate":
                 self._cmd_validate(state, parsed.deep, as_json)
             elif cmd == "checkpoint":
@@ -835,6 +1012,363 @@ class PD:
         print(f"   Last updated: {state.state['updated_at']}")
 
     # ── command: validate ────────────────────────────────────────────────
+
+    # ── commands: fleet inspection (read-only) ───────────────────────────
+    def _fleet_plan_path(self, state: PDState, explicit: Optional[str]) -> Optional[Path]:
+        """Find a manifest only in the feature directory or at an explicit path."""
+        if explicit:
+            candidate = Path(explicit).expanduser()
+            if not candidate.is_absolute():
+                candidate = Path.cwd() / candidate
+            return candidate if candidate.is_file() else None
+        for name in ("fleet.yaml", "plan.yaml"):
+            candidate = state.feature_dir / name
+            if candidate.is_file():
+                return candidate
+        return None
+
+    def _load_fleet_inspection(self, state: PDState, explicit: Optional[str]) -> Dict[str, Any]:
+        fleet_state = normalize_fleet_state(state.state.get("fleet_state"))
+        path = self._fleet_plan_path(state, explicit)
+        plan: Optional[FleetPlan] = None
+        if path:
+            try:
+                raw = path.read_text()
+                data = json.loads(raw) if path.suffix.lower() == ".json" else (yaml.safe_load(raw) if yaml else None)
+                if data is None and yaml is None:
+                    raise FleetPlanError("PyYAML não está instalado para ler o manifesto")
+                plan = FleetPlan.from_dict(data)
+            except Exception as exc:
+                raise PDError(f"FleetPlan inválido em {path}: {exc}") from exc
+        records = [item for item in fleet_state.get("tasks", []) if isinstance(item, dict)]
+        completed = sorted(str(item["id"]) for item in records if item.get("id") is not None and item.get("status") in {"completed", "skipped"})
+        skipped = sorted(str(item["id"]) for item in records if item.get("id") is not None and item.get("status") == "skipped")
+        gates_passed = sorted(str(item["id"]) for item in fleet_state.get("gates", []) if isinstance(item, dict) and item.get("id") is not None and item.get("status") in {"passed", "completed", "succeeded"})
+        ready = [task_id for task_id in compute_ready_tasks(plan, completed=completed, skipped=skipped, gates_passed=gates_passed)
+                 if task_id not in set(completed) and task_id not in set(skipped)] if plan else []
+        return {"feature": state.state.get("feature", state.feature_dir.name), "fleet_available": plan is not None,
+                "plan_path": str(path) if path else None, "fleet_state": fleet_state,
+                "plan": plan.to_dict() if plan else None, "ready_tasks": ready}
+
+    def _cmd_fleet_status(self, state: PDState, plan_path: Optional[str], as_json: bool) -> None:
+        data = self._load_fleet_inspection(state, plan_path)
+        if as_json:
+            print(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
+            return
+        print(f"🚢 Fleet: {data['feature']}")
+        if not data["fleet_available"]:
+            print("   FleetPlan: não disponível")
+            print("   Estado fleet: carregado (sem manifesto)")
+            return
+        plan = FleetPlan.from_dict(data["plan"])
+        statuses = {status: sum(1 for task in plan.tasks if task.status == status) for status in sorted({task.status for task in plan.tasks})}
+        print(f"   FleetPlan: {data['plan_path']}")
+        print(f"   Agentes: {len(plan.agents)} | Waves: {len(plan.waves)} | Tasks: {len(plan.tasks)}")
+        print(f"   Tasks por status: {json.dumps(statuses, ensure_ascii=False, sort_keys=True)}")
+        print(f"   Tasks prontas: {', '.join(data['ready_tasks']) or 'nenhuma'}")
+
+    def _cmd_fleet_ready(self, state: PDState, plan_path: Optional[str], as_json: bool) -> None:
+        data = self._load_fleet_inspection(state, plan_path)
+        if as_json:
+            print(json.dumps({"feature": data["feature"], "fleet_available": data["fleet_available"], "plan_path": data["plan_path"], "ready_tasks": data["ready_tasks"]}, ensure_ascii=False, indent=2, sort_keys=True))
+            return
+        print(f"🚦 Fleet tasks ready: {data['feature']}")
+        if not data["fleet_available"]:
+            print("   FleetPlan não disponível; nenhuma task elegível.")
+        else:
+            print(f"   Plano: {data['plan_path']}")
+            for task_id in data["ready_tasks"]:
+                print(f"   ✅ {task_id}")
+            if not data["ready_tasks"]:
+                print("   Nenhuma task elegível (verifique dependências e gates).")
+
+    def _cmd_fleet_run(self, state: PDState, plan_path: Optional[str], dry_run: bool,
+                       resume: bool, as_json: bool) -> int:
+        """Run only the local simulated/default-deny fleet dispatcher."""
+        path = self._fleet_plan_path(state, plan_path)
+        def emit(payload: Dict[str, Any], text: str) -> int:
+            print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) if as_json else text)
+            return 1
+        if path is None:
+            return emit({"status": "no_plan", "feature": state.state.get("feature"),
+                         "plan_path": None, "error": "FleetPlan não encontrado"},
+                        "❌ FleetPlan não encontrado")
+        try:
+            raw = path.read_text(encoding="utf-8")
+            data = json.loads(raw) if path.suffix.lower() == ".json" else (yaml.safe_load(raw) if yaml else None)
+            if data is None and yaml is None:
+                raise FleetPlanError("PyYAML não está instalado para ler o manifesto")
+            plan = FleetPlan.from_dict(data)
+        except Exception as exc:
+            return emit({"status": "invalid", "feature": state.state.get("feature"),
+                         "plan_path": str(path), "error": f"FleetPlan inválido: {exc}"},
+                        f"❌ FleetPlan inválido: {exc}")
+
+        checkpoint = None
+        if resume:
+            fleet = normalize_fleet_state(state.state.get("fleet_state"))
+            if fleet.get("lifecycle"):
+                try:
+                    checkpoint = Checkpoint.from_dict(fleet)
+                except Exception as exc:
+                    return emit({"status": "invalid", "feature": state.state.get("feature"),
+                                 "plan_path": str(path), "error": f"checkpoint inválido: {exc}"},
+                                f"❌ checkpoint inválido: {exc}")
+
+        class SnapshotHook:
+            value = None
+            def checkpoint(self, snapshot: Mapping[str, Any]) -> None:
+                self.value = deepcopy(dict(snapshot))
+
+        hook = SnapshotHook()
+        try:
+            orchestrator = FleetOrchestrator(plan, hooks=hook, dry_run=dry_run, checkpoint=checkpoint,
+                                             feature=state.state.get("feature", state.feature_dir.name),
+                                             created_at=state.state.get("created_at", ""))
+            result = orchestrator.run()
+            if hook.value is None:
+                orchestrator._checkpoint()
+            raw_snapshot = hook.value or {}
+            # fleet_state is a list-oriented public namespace; retain the
+            # checkpoint's richer mappings in the lifecycle/report fields.
+            raw_snapshot["agents"] = list(raw_snapshot.get("agents", {}).values()) if isinstance(raw_snapshot.get("agents"), dict) else raw_snapshot.get("agents", [])
+            raw_snapshot["gates"] = [dict(v, id=k) if isinstance(v, dict) and "id" not in v else v
+                                      for k, v in raw_snapshot.get("gates", {}).items()] if isinstance(raw_snapshot.get("gates"), dict) else raw_snapshot.get("gates", [])
+            raw_snapshot["attempts"] = [{"id": k, "attempt": v} for k, v in raw_snapshot.get("attempts", {}).items()] if isinstance(raw_snapshot.get("attempts"), dict) else raw_snapshot.get("attempts", [])
+            lifecycle = raw_snapshot.get("lifecycle", {})
+            raw_snapshot["tasks"] = [{"id": k, **(dict(v) if isinstance(v, dict) else {})}
+                                      for k, v in lifecycle.items()] if isinstance(lifecycle, dict) else []
+            raw_snapshot["waves"] = [list(w) for w in result.waves]
+            snapshot = normalize_fleet_state(raw_snapshot)
+        except Exception as exc:
+            return emit({"status": "failed", "feature": state.state.get("feature"),
+                         "plan_path": str(path), "error": str(exc)},
+                        f"❌ Fleet execution failed: {exc}")
+
+        statuses = {key: result.statuses[key] for key in sorted(result.statuses)}
+        outcome = "completed" if not result.failed and not result.blocked else ("blocked" if result.blocked else "failed")
+        output = {"status": "dry_run" if dry_run else outcome, "feature": state.state.get("feature"),
+                  "plan_path": str(path), "statuses": statuses, "fleet_state": snapshot,
+                  "completed": sorted(result.completed), "blocked": sorted(result.blocked),
+                  "failed": sorted(result.failed)}
+        if not dry_run:
+            state.state["fleet_state"] = snapshot
+            state.save()
+        if as_json:
+            print(json.dumps(output, ensure_ascii=False, indent=2, sort_keys=True))
+        else:
+            print(f"🚢 Fleet {output['status']}: {output['feature']}")
+            for task_id in sorted(statuses):
+                print(f"   {task_id}: {statuses[task_id]}")
+        return 0 if outcome == "completed" else 1
+
+    # ── commands: V2 adapter (canonical, read-only by default) ──────────
+    @staticmethod
+    def _v2_json(payload: Mapping[str, Any]) -> str:
+        volatile = {"timestamp", "timestamps", "created_at", "updated_at", "started_at", "completed_at", "finished_at", "heartbeat_at", "expires_at", "lease_expiry", "runtime", "wall_time", "monotonic_time"}
+        def project(value: Any, key: str = "") -> Any:
+            if key.lower() in volatile:
+                return None
+            if isinstance(value, Mapping):
+                result = {}
+                for child_key in sorted(value):
+                    if not isinstance(child_key, str) or child_key.lower() in volatile:
+                        continue
+                    if any(token in child_key.lower() for token in ("token", "secret", "password", "credential", "authorization", "private_key", "api_key")):
+                        result[child_key] = "[REDACTED]"
+                    else:
+                        result[child_key] = project(value[child_key], child_key)
+                return result
+            if isinstance(value, (list, tuple)):
+                return [project(item, key) for item in value]
+            if isinstance(value, str):
+                return canonicalize_v2({"schema_version": "pd-fleet-plan:v2", "description": value})["description"]
+            return value
+        safe = project(dict(payload))
+        if isinstance(safe.get("plan"), Mapping):
+            safe["plan"] = canonicalize_v2(safe["plan"])
+        return json.dumps(safe, ensure_ascii=False, sort_keys=True,
+                          separators=(",", ":"), allow_nan=False)
+
+    @staticmethod
+    def _v2_load_plan(path_text: Optional[str]) -> Dict[str, Any]:
+        if not path_text:
+            raise PDError("V2 manifest required")
+        path = Path(path_text).expanduser()
+        fd = -1
+        try:
+            if path.is_symlink():
+                raise PDError("V2 manifest invalid: manifest_symlink")
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise PDError("V2 manifest invalid: manifest_not_regular")
+            chunks = []
+            while True:
+                chunk = os.read(fd, 1024 * 1024)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+            raw = b"".join(chunks).decode("utf-8")
+            data = json.loads(raw) if path.suffix.lower() == ".json" else (yaml.safe_load(raw) if yaml else None)
+            if data is None and yaml is None:
+                raise ValueError("yaml_unavailable")
+            if not isinstance(data, Mapping):
+                raise ValueError("manifest_shape")
+            # Normalize aliases at every object level before canonical/schema validation.
+            aliases = {"schemaVersion": "schema_version", "planHash": "plan_hash", "runId": "run_id", "taskId": "task_id", "agentId": "agent_id", "maxParallel": "max_parallel", "dependsOn": "depends_on", "allowedPaths": "allowed_paths", "acceptanceCriteria": "acceptance_criteria", "validationCommands": "validation_commands", "retryPolicy": "retry_policy", "maxAttempts": "max_attempts", "backoffSeconds": "backoff_seconds"}
+            def normalize(value):
+                if isinstance(value, Mapping):
+                    result = {}
+                    for raw_key, item in value.items():
+                        key = aliases.get(raw_key, raw_key)
+                        item = normalize(item)
+                        if key in result and result[key] != item:
+                            raise ValueError("conflicting_aliases")
+                        result[key] = item
+                    return result
+                if isinstance(value, list):
+                    return [normalize(item) for item in value]
+                return value
+            normalized_data = normalize(data)
+            if not isinstance(normalized_data, Mapping):
+                raise ValueError("manifest_shape")
+            canonical = canonicalize_v2(normalized_data)
+            if not isinstance(canonical.get("tasks"), list):
+                raise ValueError("tasks_invalid")
+            return canonical
+        except PDError:
+            raise
+        except Exception as exc:
+            raise PDError(f"V2 manifest invalid: {type(exc).__name__}") from exc
+        finally:
+            if fd >= 0:
+                os.close(fd)
+
+    @staticmethod
+    def _v2_read_snapshot(store_root: str, run_id: str) -> Dict[str, Any]:
+        root = Path(store_root).expanduser()
+        if not root.exists() or not root.is_dir() or root.is_symlink():
+            raise RunStoreError("run snapshot unavailable")
+        run_dir = root / run_id
+        if not run_dir.exists() or not run_dir.is_dir() or run_dir.is_symlink():
+            raise RunStoreError("run snapshot unavailable")
+        probe = FleetRunStore.__new__(FleetRunStore)
+        probe.root = root.resolve()
+        snapshot = probe._valid_snapshot(run_id)
+        if snapshot is None:
+            raise RunStoreError("run snapshot unavailable")
+        return snapshot
+
+    @staticmethod
+    def _v2_resume_checkpoint(snapshot: Mapping[str, Any]) -> Checkpoint:
+        lifecycle = {}
+        tasks = {}
+        for task_id, state in snapshot.get("tasks", {}).items():
+            status = state.get("status", "pending") if isinstance(state, Mapping) else "pending"
+            tasks[task_id] = {"id": task_id, "status": status}
+            lifecycle[task_id] = {"task_id": task_id, "status": status,
+                                  "attempt": snapshot.get("attempts", {}).get(task_id, 0)}
+        reports = [dict(r["report"]) for r in snapshot.get("reports", {}).values()
+                   if isinstance(r, Mapping) and isinstance(r.get("report"), Mapping)]
+        return Checkpoint.create("v2", 0, tasks=tasks, lifecycle=lifecycle,
+                                 reports=reports, created_at="1970-01-01T00:00:00+00:00")
+
+    @staticmethod
+    def _v2_persisted_result(snapshot: Mapping[str, Any]) -> Dict[str, Any]:
+        statuses = {tid: s.get("status", "pending") for tid, s in snapshot.get("tasks", {}).items()
+                    if isinstance(s, Mapping)}
+        reports = [dict(r["report"]) for r in snapshot.get("reports", {}).values()
+                   if isinstance(r, Mapping) and isinstance(r.get("report"), Mapping)]
+        return {"statuses": statuses, "reports": reports, "waves": snapshot.get("waves", []),
+                "validation": None}
+
+    def _cmd_v2(self, args: argparse.Namespace) -> int:
+        if args.v2_command == "read":
+            plan = self._v2_load_plan(args.plan_path)
+            print(self._v2_json({"status": "read", "plan": plan}) + "\n", end="")
+            return 0
+        if args.v2_command == "status":
+            if args.run_id:
+                try:
+                    snapshot = self._v2_read_snapshot(args.store_root, args.run_id)
+                    print(self._v2_json({"status": "ok", "run": snapshot}) + "\n", end="")
+                except RunStoreError as exc:
+                    raise PDError(f"V2 run unavailable: {type(exc).__name__}") from exc
+            else:
+                plan = self._v2_load_plan(args.plan_path)
+                print(self._v2_json({"status": "read", "plan": plan}) + "\n", end="")
+            return 0
+        if args.provider != "local":
+            raise PDError("V2 external providers are disabled")
+        plan = self._v2_load_plan(args.plan_path)
+        run_id = args.run_id or plan.get("run_id") or "local"
+        if args.dry_run:
+            result = FleetOrchestrator(plan, dry_run=True).run()
+            payload = {"status": "dry_run", "run_id": run_id, "result": result.to_dict()}
+        else:
+            try:
+                with FleetRunStore(args.store_root) as store:
+                    try:
+                        current = store.load(run_id)
+                        if current["plan_hash"] != plan_hash_v2(plan):
+                            raise PDError("V2 run conflict: plan_hash")
+                        if current["owner"] != args.owner:
+                            raise PDError("V2 run conflict: owner")
+                        if current["status"] in {"completed", "failed", "cancelled", "blocked"}:
+                            payload = {"status": current["status"], "run_id": run_id,
+                                       "result": self._v2_persisted_result(current)}
+                            print(self._v2_json(payload) + "\n", end="")
+                            return 0 if current["status"] == "completed" else 1
+                        checkpoint = self._v2_resume_checkpoint(current)
+                    except RunStoreError as missing:
+                        if type(missing).__name__ != "RunNotFoundError":
+                            raise
+                        store.create(run_id, plan, args.owner)
+                        current = store.load(run_id)
+                        checkpoint = Checkpoint.create("v2", 0, created_at="1970-01-01T00:00:00+00:00")
+                    store.transition(run_id, "running", args.owner, expected_generation=current["generation"])
+                    current = store.load(run_id)
+                    reconciliation = {"plan_hash": current["plan_hash"], "run_id": run_id,
+                                      "generation": current["generation"], "owner": args.owner,
+                                      "checkpoint": checkpoint.to_dict(), "leases": current["leases"],
+                                      "events": current["events"]}
+                    scheduler = LeaseScheduler(store, run_id, args.owner, max_parallel=1)
+                    executor = BoundedParallelExecutor(max_workers=1)
+                    def adapter(task, token):
+                        # The local adapter is a dispatcher boundary, not a
+                        # validator.  It must never claim work, tests, or
+                        # acceptance that it did not actually perform.
+                        # Raising makes the V2 pipeline persist a diagnosed
+                        # failure rather than allowing a fabricated completed
+                        # report through the report contract.
+                        attempt = token.get("attempt")
+                        raise RuntimeError(
+                            f"local adapter has no validator for task {task.id} "
+                            f"(attempt {attempt})"
+                        )
+                    try:
+                        try:
+                            result = FleetOrchestrator(plan, scheduler=scheduler, store=store,
+                                executor=executor, adapter=adapter, run_id=run_id,
+                                run_owner=args.owner, checkpoint=checkpoint,
+                                reconciliation_context=reconciliation).run()
+                        except Exception as exc:
+                            failed_state = store.load(run_id)
+                            store.append_event(run_id, {"event_id": "run_failed", "ordering_key": "run_failed", "reason": type(exc).__name__}, args.owner,
+                                               expected_generation=failed_state["generation"])
+                            failed_state = store.load(run_id)
+                            store.transition(run_id, "failed", args.owner, expected_generation=failed_state["generation"])
+                            raise PDError(f"V2 run failed: {type(exc).__name__}") from exc
+                    finally:
+                        executor.close()
+                    final = "completed" if not result.failed and not result.blocked else ("blocked" if result.blocked else "failed")
+                    current = store.load(run_id)
+                    store.transition(run_id, final, args.owner, expected_generation=current["generation"])
+                    payload = {"status": final, "run_id": run_id, "result": result.to_dict()}
+            except RunStoreError as exc:
+                raise PDError(f"V2 run unavailable: {type(exc).__name__}") from exc
+        print(self._v2_json(payload) + "\n", end="")
+        return 0 if payload["status"] in {"completed", "dry_run"} else 1
 
     def _cmd_validate(self, state: PDState, deep: bool, as_json: bool) -> None:
         feature_dir = state.feature_dir
@@ -1372,7 +1906,7 @@ def _make_progress_bar(pct: float, width: int = 20) -> str:
 
 def main() -> None:
     pd = PD()
-    pd.run()
+    sys.exit(pd.run() or 0)
 
 
 if __name__ == "__main__":

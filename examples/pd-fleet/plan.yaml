@@ -1,0 +1,146 @@
+schema_version: "1"
+
+agents:
+  - id: analyst-a
+    role: analyst
+    capabilities:
+      - requirements
+      - documentation
+    status: available
+  - id: analyst-b
+    role: analyst
+    capabilities:
+      - architecture
+      - review
+    status: available
+  - id: coder-c
+    role: coder
+    capabilities:
+      - python
+      - testing
+    status: available
+
+waves:
+  - id: wave-1
+    tasks:
+      - T-001
+      - T-002
+    status: pending
+  - id: wave-2
+    tasks:
+      - T-003
+    status: pending
+    gates:
+      - G1
+
+tasks:
+  - id: T-001
+    wave: 1
+    role: analyst
+    capabilities:
+      - requirements
+    objective: Documentar os requisitos do exemplo de fleet.
+    depends_on: []
+    parallel_group: discovery
+    allowed_paths:
+      - examples/pd-fleet/requirements.md
+    forbidden_paths:
+      - .env
+      - credentials/
+    inputs:
+      - docs/PD-FLEET-ORCHESTRATION-PLAN.md
+    outputs:
+      - name: requirements
+        description: Requisitos resumidos do exemplo.
+        required: true
+    acceptance_criteria:
+      - Os requisitos do exemplo estão documentados e revisáveis.
+    validation_commands:
+      - test -f examples/pd-fleet/requirements.md
+    blocked_when:
+      - Requisitos de entrada não estão disponíveis.
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: analyst-a
+    status: pending
+
+  - id: T-002
+    wave: 1
+    role: analyst
+    capabilities:
+      - architecture
+    objective: Definir a estrutura técnica do artefato dependente.
+    depends_on: []
+    parallel_group: discovery
+    allowed_paths:
+      - examples/pd-fleet/design.md
+    forbidden_paths:
+      - .env
+      - credentials/
+    inputs:
+      - docs/PD-FLEET-ORCHESTRATION-PLAN.md
+    outputs:
+      - name: design
+        description: Desenho técnico resumido.
+        required: true
+    acceptance_criteria:
+      - O desenho identifica interfaces e limites do artefato final.
+    validation_commands:
+      - test -f examples/pd-fleet/design.md
+    blocked_when:
+      - O contexto arquitetural não está disponível.
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: analyst-b
+    status: pending
+
+  - id: T-003
+    wave: 2
+    role: coder
+    capabilities:
+      - python
+    objective: Produzir o artefato final usando requisitos e desenho aprovados.
+    depends_on:
+      - T-001
+      - T-002
+    parallel_group: null
+    allowed_paths:
+      - examples/pd-fleet/artifact.txt
+    forbidden_paths:
+      - .env
+      - credentials/
+    inputs:
+      - examples/pd-fleet/requirements.md
+      - examples/pd-fleet/design.md
+    outputs:
+      - name: artifact
+        description: Artefato final do exemplo.
+        required: true
+    acceptance_criteria:
+      - O artefato atende aos requisitos e ao desenho das tasks anteriores.
+    validation_commands:
+      - test -f examples/pd-fleet/artifact.txt
+    blocked_when:
+      - T-001 ou T-002 não foi concluída.
+      - O gate G1 não foi aprovado.
+    retry_policy:
+      max_attempts: 2
+      backoff_seconds: 1
+      retryable_errors:
+        - transient-validation-error
+    owner: coder-c
+    status: pending
+
+gates:
+  - id: G1
+    kind: review
+    scope: plan
+    owner: analyst-a
+    status: pending
+    required_evidence:
+      - grill do plano sem BLOCKER ou HIGH aberto
+      - owner registrado e decisão documentada

@@ -189,3 +189,16 @@ Templates are stored in `skills/pd/templates/` and provide standardized formats:
 - **STATUS.md** — Project status summary
 
 These are copied to the appropriate location during installation.
+
+## Fleet V2 boundary and recovery
+
+Fleet V2 is local-first and **PARTIAL/OPEN**: parsing, normalization,
+reconciliation, checkpointing, and simulation stay within an explicit output root.
+Shell, network, credentials, and external providers are denied by default. An
+opt-in executor requires exact argv allowlists, sandbox/root containment, timeout,
+bounded redacted output, leases, and CAS. Threats include untrusted plans,
+traversal/symlink escape, stale ownership, crashes, and secret leakage.
+
+Migration keeps V1 state untouched and runs V2 in a separate namespace. Rollback is
+stop dispatch, invalidate leases, preserve evidence, and restore the latest valid
+snapshot; no destructive rewrite of V1 is permitted.

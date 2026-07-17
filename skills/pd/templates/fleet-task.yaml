@@ -1,0 +1,34 @@
+# Contrato de task consumível por subagents e humanos.
+# Substitua os valores entre <...>; mantenha todas as chaves para permitir
+# validação determinística e auditoria.
+id: T-<NNN>
+wave: <WAVE_NUMBER>
+role: <orchestrator|researcher|analyst|coder|test-engineer|reviewer|grill|smoke-tester|prompt-refiner>
+capabilities:
+  - <capability>
+objective: <resultado observável e verificável>
+depends_on: []
+parallel_group: <grupo-paralelo-ou-null>
+allowed_paths:
+  - <path/permitido>
+forbidden_paths:
+  - <path/proibido>
+inputs:
+  # Descreva artefatos, parâmetros ou contexto necessários.
+  - <input-ou-path>
+outputs:
+  - name: <artefato-produzido>
+    description: <descrição do resultado>
+    required: true
+acceptance_criteria:
+  - <critério verificável 1>
+validation_commands:
+  - <comando reproduzível>
+blocked_when:
+  - <condição explícita de bloqueio>
+retry_policy:
+  max_attempts: 1
+  backoff_seconds: 0
+  retryable_errors: []
+owner: <agent-id-ou-orchestrator>
+status: pending

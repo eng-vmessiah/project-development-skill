@@ -120,6 +120,38 @@ These are installed to:
 - Hermes: `~/.hermes/skills/software-development/pd/templates/`
 - OpenCode: `~/.config/opencode/skills/pd/templates/`
 
+## Fleet Orchestration Evolution
+
+The next PD evolution is specified in:
+
+- [`docs/PD-AS-IS-TO-BE.md`](docs/PD-AS-IS-TO-BE.md) — current state, target state, gaps, and migration strategy
+- [`docs/PD-FLEET-ORCHESTRATION-PLAN.md`](docs/PD-FLEET-ORCHESTRATION-PLAN.md) — waves, agent roles, contracts, gates, and implementation order
+- [`docs/PD-FIRST-CASE-PROMPT.md`](docs/PD-FIRST-CASE-PROMPT.md) — execution prompt for implementing the first case
+
+This proposal evolves PD from a phase-oriented development guide into a protocol for supervised subagent fleets while preserving the simple single-agent flow.
+
+The offline fleet example (`examples/pd-fleet/run_local.py`) performs a validated G1
+preflight before creating output files. Gate references are deterministic identities
+(`evidence:<task-id>` and `report:<task-id>`) resolved against validated records;
+unresolved references fail closed. Output paths are resolved and contained beneath
+`--output`, existing symlink roots are rejected, and task IDs must match
+`[A-Za-z0-9_-]+` as one safe path segment.
+
+### Fleet V2: local-first and fail-closed
+
+Fleet V2 is **PARTIAL/OPEN**, not released and not human-approved. The safe default
+is local simulation with an explicit plan and output directory; no shell, network,
+external provider, credentials, or undeclared validation command is invoked. Future
+external execution requires exact argv allowlist, containment/sandbox, timeout,
+redacted bounded output, and an explicit human gate. Migration preserves V1 state
+and uses a separate V2 namespace/output; rollback stops dispatch, invalidates leases,
+and restores the last valid snapshot without rewriting V1. Threats include malicious
+paths, symlink/traversal, stale leases, concurrent ownership, secret-bearing output,
+and provider escape; containment, CAS, redaction, atomic checkpoints, and
+ default-deny are the controls. The implemented offline checker
+`scripts/pd_fleet/v2_doc_paths.py` validates V2 path/link declarations and fails
+closed on root/document symlinks; its status is evidence for review, not G6 PASS.
+
 ## License
 
 MIT

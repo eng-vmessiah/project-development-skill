@@ -2,11 +2,11 @@
 
 This document outlines the development roadmap for Project Development Skills.
 
-## Current State: v1.0.0
+## Current State: v1.2.0
 
 **Released:** 2026-06-14
 
-The initial release includes 17 skills, a CLI tool, templates, and multi-platform installer support.
+The project includes the original skill ecosystem plus the v1.2.0 foundation work, including `codebase-design` and `resolving-merge-conflicts`.
 
 | Category | Skills | Status |
 |----------|--------|--------|
@@ -112,7 +112,37 @@ The initial release includes 17 skills, a CLI tool, templates, and multi-platfor
 
 ---
 
+## Phase 4: Fleet Orchestration Proposal (Next Major Direction)
+
+**Goal:** Evolve PD from a phase-oriented pipeline into a supervised protocol for planning and executing a fleet of subagents.
+
+The design and first-case execution prompt are documented in:
+
+- `docs/PD-AS-IS-TO-BE.md`
+- `docs/PD-FLEET-ORCHESTRATION-PLAN.md`
+- `docs/PD-FIRST-CASE-PROMPT.md`
+
+### Milestones
+
+- [ ] Model waves, tasks, dependencies, ownership, and agent contracts
+- [ ] Validate the task DAG and safe parallelism rules
+- [ ] Add fleet status, eligible-task inspection, and checkpoint/resume
+- [ ] Add provider-agnostic dispatcher/adapters
+- [ ] Make review, grill, smoke, and evidence explicit gates
+- [ ] Add prompt refinement before planning and after grill
+- [ ] Ship the PD self-evolution as the first executable example
+
+---
+
 ## Known Issues and Limitations
+
+### Fleet V2 status (PARTIAL/OPEN)
+
+The local-first fleet proposal remains **PARTIAL/OPEN** pending complete evidence
+and human G6 approval. Safe simulation, contracts, checkpoints, and documentation
+must not be described as provider, parallelism, or release PASS. Migration is
+additive beside V1; rollback stops dispatch, invalidates leases, and restores the
+last valid V2 snapshot without modifying V1 state.
 
 ### Current
 1. **CLI tool is read-only** — `pd` CLI can validate and show status, but cannot yet create/modify `.spec/` files programmatically
