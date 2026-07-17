@@ -120,6 +120,16 @@ These are installed to:
 - Hermes: `~/.hermes/skills/software-development/pd/templates/`
 - OpenCode: `~/.config/opencode/skills/pd/templates/`
 
+## Fleet Orchestration Evolution
+
+The next PD evolution is specified in:
+
+- [`docs/PD-AS-IS-TO-BE.md`](docs/PD-AS-IS-TO-BE.md) — current state, target state, gaps, and migration strategy
+- [`docs/PD-FLEET-ORCHESTRATION-PLAN.md`](docs/PD-FLEET-ORCHESTRATION-PLAN.md) — waves, agent roles, contracts, gates, and implementation order
+- [`docs/PD-FIRST-CASE-PROMPT.md`](docs/PD-FIRST-CASE-PROMPT.md) — execution prompt for implementing the first case
+
+This proposal evolves PD from a phase-oriented development guide into a protocol for supervised subagent fleets while preserving the simple single-agent flow.
+
 ## License
 
 MIT
