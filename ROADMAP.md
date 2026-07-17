@@ -136,6 +136,14 @@ The design and first-case execution prompt are documented in:
 
 ## Known Issues and Limitations
 
+### Fleet V2 status (PARTIAL/OPEN)
+
+The local-first fleet proposal remains **PARTIAL/OPEN** pending complete evidence
+and human G6 approval. Safe simulation, contracts, checkpoints, and documentation
+must not be described as provider, parallelism, or release PASS. Migration is
+additive beside V1; rollback stops dispatch, invalidates leases, and restores the
+last valid V2 snapshot without modifying V1 state.
+
 ### Current
 1. **CLI tool is read-only** — `pd` CLI can validate and show status, but cannot yet create/modify `.spec/` files programmatically
 2. **No automatic cross-references** — Skills don't automatically link to related skills in output

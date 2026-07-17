@@ -137,6 +137,21 @@ unresolved references fail closed. Output paths are resolved and contained benea
 `--output`, existing symlink roots are rejected, and task IDs must match
 `[A-Za-z0-9_-]+` as one safe path segment.
 
+### Fleet V2: local-first and fail-closed
+
+Fleet V2 is **PARTIAL/OPEN**, not released and not human-approved. The safe default
+is local simulation with an explicit plan and output directory; no shell, network,
+external provider, credentials, or undeclared validation command is invoked. Future
+external execution requires exact argv allowlist, containment/sandbox, timeout,
+redacted bounded output, and an explicit human gate. Migration preserves V1 state
+and uses a separate V2 namespace/output; rollback stops dispatch, invalidates leases,
+and restores the last valid snapshot without rewriting V1. Threats include malicious
+paths, symlink/traversal, stale leases, concurrent ownership, secret-bearing output,
+and provider escape; containment, CAS, redaction, atomic checkpoints, and
+ default-deny are the controls. The implemented offline checker
+`scripts/pd_fleet/v2_doc_paths.py` validates V2 path/link declarations and fails
+closed on root/document symlinks; its status is evidence for review, not G6 PASS.
+
 ## License
 
 MIT

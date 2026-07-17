@@ -1,16 +1,20 @@
 # PD Fleet Orchestration V2 — Plano de implementação
 
+**Estado atual (2026-07-17):** T2-01…T2-18 implementados localmente e documentados; a suíte fresca é `577 passed` com `-W error`, o checker offline retorna `valid`/`violation_count=0` e `M-04-toctou.json` possui digest verificado. Isso é evidência local, não aprovação de release: G1–G6 permanecem pendentes e a decisão continua **NOT READY / PARTIAL** até revisão humana explícita.
+
 **Regra:** planning only até aprovação de `GRILL-001`; nenhuma tarefa abaixo deve ser iniciada com BLOCKER/HIGH. Cada tarefa é TDD: escrever teste falhando, implementar, verificar e registrar evidência. `Create` indica caminho ainda inexistente; caminhos não listados são proibidos.
 
 ## Gates e comandos globais
 
-- **G0 baseline:** `pytest -q` esperado 278 passed (verificado antes deste plano).
+- **Canonical JSON/hash (normativo em todas as tarefas):** UTF-8 com `json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(',', ':'), allow_nan=False)`; remover timestamps de runtime, paths absolutos e secrets redigidos antes de serializar; SHA-256 lowercase hex sobre o domínio versionado `pd-fleet-plan:v2\0` + bytes canônicos. Reconciliation segue `load -> parse -> canonicalize -> hash -> compare plan_hash -> compare generation/run/checkpoint/lease/event sequence -> block on mismatch -> claim -> use -> commit`; mismatch/drift/stale bloqueia antes de mutar. Fixtures/golden e testes de drift são determinísticos.
+- **G0 baseline histórico:** `278 passed` (estado anterior ao plano). A evidência corrente é `pytest -q -W error` → `577 passed`; contagens intermediárias são históricas e não substituem os gates.
 - **G1 grill pré-código:** `GRILL-001.md` sem BLOCKER/HIGH + aprovação humana explícita.
 - **G2 foundation:** `pytest -q tests/fleet` + `python -m compileall scripts/pd_fleet`.
 - **G3 persistence:** testes de crash/replay/race passam.
 - **G4 executor:** prova de default-deny; nenhum processo sem policy.
 - **G5 parallel:** teste concorrente repetível, bounded e ordenado.
 - **G6 release:** `pytest -q`, `git diff --check`, revisão docs e gate humano APPROVED.
+- **Event ordering contract:** `sequence` é a ordem append-only de persistência/auditoria; `query("events")` ordena por `(ordering_key, sequence)`. A conclusão do scheduler não é contratualmente determinística.
 
 ## Regras de tarefa
 
@@ -20,9 +24,9 @@
 
 ### T2-01 — Congelar baseline e matriz V1/V2
 - **Objective:** registrar estado real, hashes e reconciliação sem declarar PASS.
-- **Exact files:** `.spec/pd-fleet-orchestration-v2/RESEARCH.md`, `.spec/pd-fleet-orchestration-v2/CONTEXT.md` (existem); `tests/fleet/test_v2_baseline.py` (Create).
-- **Dependencies:** [] | **Role/capabilities:** reviewer, pytest, git, threat-model.
-- **Allowed paths:** os três acima. **Forbidden:** código, `.spec/pd-fleet-orchestration/*` (V1), commits/push.
+- **Exact files:** `.spec/pd-fleet-orchestration-v2/RESEARCH.md`, `.spec/pd-fleet-orchestration-v2/CONTEXT.md` (existem); `tests/fleet/test_v2_baseline.py` (Create); `scripts/pd_fleet/v2_doc_paths.py` e `tests/fleet/test_v2_doc_paths.py` pertencem exclusivamente a T2-17 e já estão implementados.
+- **Dependencies:** [] (checker/path contract is defined before T2-17; no implementation authorized in T2-01) | **Role/capabilities:** reviewer, pytest, git, threat-model, docs/path-contract, stdlib/offline path and link analysis.
+- **Allowed paths:** todos os exact files acima. **Forbidden:** código V1, `.spec/pd-fleet-orchestration/*` (V1), outros testes/código, commits/push.
 - **Failing tests:** teste que fixa `pytest` count/hash e rejeita alegação PASS sem gate.
 - **Implementation:** capturar baseline reproduzível e matriz verified/partial/open/superseded.
 - **Commands / Expected results:** `pytest -q tests/fleet/test_v2_baseline.py` → exit 0; baseline/hash e ausência de PASS sem gate passam.
@@ -66,8 +70,8 @@
 - **Allowed paths:** esses paths. **Forbidden:** `scripts/pd.py`, provider, rede.
 - **Failing tests:** owner mismatch, CAS generation, duplicate commit, lease expiry e concurrent writers; `tests/fleet/test_v2_run_store.py::test_claim_use_commit_rejects_stale_generation_or_lease_without_corruption` prova explicitamente claim→use→commit, rejeição de generation/lease stale e snapshot/state intactos.
 - **Implementation:** API create/load/claim/renew/commit/append/query; lock/atomic replace local. `claim` retorna generation+lease token, `use` exige o token e `commit` faz CAS atômico dos dois; stale falha fechado antes de qualquer mutação.
-- **Commands / Expected results:** `pytest -q tests/fleet/test_run_store.py tests/fleet/test_v2_run_store.py` → exit 0; ownership, CAS, lease, duplicate commit e TOCTOU stale passam sem mutar state.
-- **Verification:** `pytest -q tests/fleet/test_run_store.py`.
+- **Commands / Expected results:** `pytest -q tests/fleet/test_run_store.py tests/fleet/test_v2_run_store.py` → exit 0; ownership, CAS, lease, duplicate commit, ordenação canônica de eventos e TOCTOU stale passam sem mutar state.
+- **Verification:** `pytest -q tests/fleet/test_run_store.py tests/fleet/test_v2_run_store.py`; focused evidence `pytest -q tests/fleet/test_v2_run_store.py -k claim_use_commit`.
 - **Acceptance:** único owner commita; crash preserva último snapshot válido.
 - **Rollback:** excluir novo store/testes, sem tocar state V1.
 - **Gate:** G3.
@@ -238,26 +242,26 @@
 
 ### T2-17 — Docs, examples e roadmap
 - **Objective:** document safe local mode, opt-in executor/provider boundaries and operational recovery.
-- **Exact files:** `.spec/pd-fleet-orchestration-v2/SPEC.md`, `.spec/pd-fleet-orchestration-v2/CONTEXT.md`, `README.md`, `ROADMAP.md`, `docs/ARCHITECTURE.md`, `examples/pd-fleet/README.md`, `tests/fleet/test_v2_doc_paths.py` (Create; checker de paths/documentação).
-- **Dependencies:** T2-15 (compatibilidade/CLI), T2-16 (contrato do human gate), T2-01…T2-14 (reviews e resultados a documentar); **Role/capabilities:** documentação, roadmap, verificação de paths/links, pytest; smoke `pytest -q` e checker de paths/links devem estar disponíveis antes do handoff.
-- **Allowed paths:** exact files acima, incluindo `tests/fleet/test_v2_doc_paths.py`. **Forbidden:** `.spec/pd-fleet-orchestration/*`, qualquer outro código/teste.
-- **Failing tests:** `tests/fleet/test_v2_doc_paths.py` (Create), checker de links/paths e distinção planned-versus-executed.
+- **Exact files:** `.spec/pd-fleet-orchestration-v2/SPEC.md`, `.spec/pd-fleet-orchestration-v2/CONTEXT.md`, `README.md`, `ROADMAP.md`, `docs/ARCHITECTURE.md`, `examples/pd-fleet/README.md`, `scripts/pd_fleet/v2_doc_paths.py` (implementado; checker stdlib-only/offline), `tests/fleet/test_v2_doc_paths.py` (implementado).
+- **Dependencies:** T2-01 (contrato, ownership e matriz de referências), T2-15 (compatibilidade/CLI), T2-16 (contrato do human gate), T2-02…T2-14 (reviews e resultados a documentar); **Role/capabilities:** documentação, roadmap, verificação determinística de paths/links, Python stdlib/offline, pytest; smoke `pytest -q` e checker devem estar disponíveis antes do handoff.
+- **Allowed paths:** exact files acima, incluindo `scripts/pd_fleet/v2_doc_paths.py` e `tests/fleet/test_v2_doc_paths.py`. **Forbidden:** `.spec/pd-fleet-orchestration/*`, qualquer outro código/teste, rede, commits/push.
+- **Failing tests:** histórico TDD já encerrado em `tests/fleet/test_v2_doc_paths.py`, cobrindo root explícito, referências Create/Exact/Allowed, ownership/tarefa correta, V1 forbidden, links/âncoras, JSON determinístico e exits 0/1/2.
 - **Implementation:** examples sem credenciais, threat model, migration/rollback and roadmap statuses PARTIAL/OPEN.
-- **Commands / Expected results:** `pytest -q tests/fleet/test_v2_doc_paths.py` → exit 0; paths/links V2 existem e planned-versus-executed está distinguido.
-- **Verification:** `pytest -q tests/fleet/test_v2_doc_paths.py`; link/path script (Create, documented).
+- **Commands / Expected results:** `pytest -q tests/fleet/test_v2_doc_paths.py` → exit 0; `python scripts/pd_fleet/v2_doc_paths.py <repo-root>` → exit 0 e JSON determinístico sem violações. Evidência fresca registrada em `VERIFICATION.md`.
+- **Verification:** `pytest -q tests/fleet/test_v2_doc_paths.py`; `python scripts/pd_fleet/v2_doc_paths.py <repo-root>`; `git diff --check`.
 - **Acceptance:** nenhuma promessa de provider/parallel PASS; todos limites claros.
 - **Rollback:** reverter somente docs V2/roadmap edits.
 - **Gate:** G6-pre.
 
 ### T2-18 — Evidence pack, final review e handoff humano
 - **Objective:** produzir evidência completa e fechar plano sem implementar/commitar.
-- **Exact files:** `.spec/pd-fleet-orchestration-v2/GRILL-001.md`, `.spec/pd-fleet-orchestration-v2/PROMPT-NEXT.md`, `.spec/pd-fleet-orchestration-v2/RESEARCH.md` (exist); `.spec/pd-fleet-orchestration-v2/VERIFICATION.md` (Create, somente quando implementação futura).
-- **Dependencies:** T2-01…T2-17 | **Role/capabilities:** release reviewer, evidence, human gate.
-- **Allowed paths:** exact V2 paths. **Forbidden:** código, V1 docs, commit/push, external dispatch.
-- **Failing tests:** `git diff --check`; full pytest; path-reference checker; review matrix sem PASS indevido.
-- **Implementation:** reunir comandos/outputs frescos, riscos residuais, decisão humana e rollback; atualizar prompt reutilizável.
-- **Commands / Expected results:** `pytest -q && git diff --check` → exit 0; a suíte completa passa, não há erro de whitespace e GRILL-001 continua PENDING.
-- **Verification:** `pytest -q`; `git diff --check`; `git status --short`; `git diff --stat -- .spec/pd-fleet-orchestration-v2`.
+- **Exact files:** `.spec/pd-fleet-orchestration-v2/GRILL-001.md`, `.spec/pd-fleet-orchestration-v2/PROMPT-NEXT.md`, `.spec/pd-fleet-orchestration-v2/RESEARCH.md` e `.spec/pd-fleet-orchestration-v2/VERIFICATION.md` (implementados; evidence pack atual).
+- **Dependencies:** T2-01…T2-17, incluindo contrato e implementação/testes de `scripts/pd_fleet/v2_doc_paths.py` e `tests/fleet/test_v2_doc_paths.py` em T2-17 | **Role/capabilities:** release reviewer, evidence, human gate, docs/path checker, pytest, git diff.
+- **Allowed paths:** `.spec/pd-fleet-orchestration-v2/GRILL-001.md`, `.spec/pd-fleet-orchestration-v2/PROMPT-NEXT.md`, `.spec/pd-fleet-orchestration-v2/RESEARCH.md`, `.spec/pd-fleet-orchestration-v2/VERIFICATION.md` (Create), `scripts/pd_fleet/v2_doc_paths.py`, `tests/fleet/test_v2_doc_paths.py`. **Forbidden:** código V1, outros paths, V1 docs, commit/push, external dispatch.
+- **Failing tests:** `git diff --check`; full pytest; `python scripts/pd_fleet/v2_doc_paths.py <repo-root>`; path-reference checker; review matrix sem PASS indevido.
+- **Implementation:** reunir comandos/outputs frescos, riscos residuais, decisão humana e rollback; atualizar prompt reutilizável. O pacote atual registra `NOT READY / PARTIAL`; nenhuma decisão humana `APPROVED` foi inventada.
+- **Commands / Expected results:** `pytest -q && git diff --check && python scripts/pd_fleet/v2_doc_paths.py <repo-root>` → exit 0; a suíte, whitespace e checker passam, e GRILL-001 continua PENDING até rerun formal.
+- **Verification:** `pytest -q`; `git diff --check`; `python scripts/pd_fleet/v2_doc_paths.py <repo-root>`; `git status --short`; `git diff --stat -- .spec/pd-fleet-orchestration-v2`.
 - **Acceptance:** somente artefatos V2 modificados, diff whitespace limpo, todos gates explicitamente evidenciados; aprovação humana registrada fora do agente.
 - **Rollback:** remover diretório V2 inteiro restaura exatamente a branch original.
 - **Gate:** G6 final; sem APPROVED, status permanece NOT READY.

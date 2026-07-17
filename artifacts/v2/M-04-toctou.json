@@ -1,0 +1,53 @@
+{
+  "schema_version": "pd-fleet-evidence:v2",
+  "finding": "M-04",
+  "task": "T2-04",
+  "artifact": "artifacts/v2/M-04-toctou.json",
+  "test": "tests/fleet/test_v2_run_store.py::test_claim_use_commit_rejects_stale_generation_or_lease_without_corruption",
+  "capture": {
+    "captured_at_utc": "2026-07-17T22:01:32Z",
+    "git": {
+      "branch": "feat/pd-fleet-orchestration-plan",
+      "commit": "2b4f219c97f083177b6c8d559e5de5807428b747"
+    },
+    "metadata_policy": "branch and commit are captured as single-line sanitized git identifiers"
+  },
+  "contract": {
+    "claim": "capture generation and lease token",
+    "use": "accept the captured token before renewal",
+    "renew": "replace lease identity and generation",
+    "commit": "reject the old token before mutation"
+  },
+  "verification": {
+    "focused_command": "pytest -q tests/fleet/test_v2_run_store.py -k claim_use_commit",
+    "focused_result": "1 passed, 6 deselected",
+    "targeted_command": "pytest -q tests/fleet/test_run_store.py tests/fleet/test_v2_run_store.py",
+    "targeted_result": "29 passed",
+    "full_command": "pytest -q",
+    "full_result": "577 passed",
+    "full_observation": "latest successful run passed; no failure was observed in the current collection",
+    "compileall_command": "python -m compileall -q scripts tests",
+    "compileall_result": "passed",
+    "diff_check_command": "git diff --check",
+    "diff_check_result": "passed"
+  },
+  "baseline": {
+    "historical_test_count": 278,
+    "scope": "historical V2 starting-point fixture; not the current suite result",
+    "current_full_result": "577 passed"
+  },
+  "assertions": [
+    "old token after renew raises LeaseError",
+    "logical run-store state remains unchanged at the stale-commit boundary",
+    "primary snapshot bytes and SHA-256 remain unchanged",
+    "events and reports remain unchanged",
+    "renewed lease remains installed"
+  ],
+  "artifact_integrity": {
+    "algorithm": "SHA-256",
+    "generation_rule": "For a reproducible artifact digest, serialize this JSON as UTF-8 canonical JSON with lexicographically sorted object keys and no insignificant whitespace, omit artifact_integrity.digest, then hash the resulting bytes.",
+    "digest": "1e75c1e7bf9d55ae7083ed484d571a283b38afa49228a83e33ae4626ba3fefdf"
+  },
+  "status": "verified",
+  "implementation_changed": false
+}

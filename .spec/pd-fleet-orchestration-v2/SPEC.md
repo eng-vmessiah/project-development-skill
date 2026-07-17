@@ -42,7 +42,40 @@ Entregar coordenação local segura e determinística, com store desacoplado do 
 
 Todos V2-R1…R12 cobertos por testes/evidência, `git diff --check` limpo, grill sem BLOCKER/HIGH e gate humano explicitamente `APPROVED`. Até lá, status é PARTIAL/OPEN.
 
+## Operação local segura, ameaça e recuperação
+
+O modo local/simulado é o único caminho seguro por default: lê um plano explícito,
+normaliza e valida em memória e grava somente sob um output escolhido pelo operador.
+Não há shell, rede, provider, credencial ou executor implícito. Executor e provider
+externos são capacidades opt-in, com policy, sandbox, timeout, allowlist e gate
+humano; ausência de capability falha fechado.
+
+O threat model cobre plano malicioso (IDs, paths e comandos), traversal/symlink,
+ownership concorrente, lease stale, crash durante checkpoint, output que contém
+segredos e provider que tenta escapar da policy. As defesas são canonicalização,
+root containment, redaction, CAS/leases, escrita atômica, limites de output e
+default-deny. Status: **PARTIAL/OPEN** até evidência completa e aprovação humana;
+não alegar G6 PASS.
+
+Migração é aditiva e opt-in: preservar `STATE.json`/`STATE.md`, criar namespace V2
+separado, comparar hashes e manter o snapshot legado até validação. Rollback para
+um snapshot anterior interrompe dispatch, invalida leases e remove somente artefatos
+V2 do output; nunca reescreve ou destrói estado V1.
+
 ## Contratos de gaps obrigatórios
+
+### Ordenação de eventos e auditoria
+`sequence` é atribuído monotonamente no append e representa exclusivamente a ordem de persistência/auditoria. A consulta observável `query("events")` ordena por `(ordering_key, sequence)`; `ordering_key` fornece a chave canônica e `sequence` resolve empates. A ordem em que o scheduler conclui tarefas não é parte do contrato determinístico.
+
+### Identidade canônica do plano e reconciliação
+O JSON canônico V2 é serializado em **UTF-8**, sem espaços, exatamente com `json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(',', ':'), allow_nan=False)`. Antes da serialização, a normalização deve remover timestamps de runtime, paths absolutos (incluindo variantes Windows/WSL) e segredos redigidos; esses valores não podem participar do hash. O digest é `SHA-256` em hexadecimal minúsculo. `plan_hash` é definido sobre o domínio versionado `pd-fleet-plan:v2\0` concatenado aos bytes UTF-8 do JSON canônico (a versão do domínio é parte normativa do contrato). Hashes não podem depender de ordem de inserção, locale, relógio, ambiente ou representação de alias.
+
+Ao abrir ou retomar um run, a sequência obrigatória e indivisível é: `load -> parse -> canonicalize -> hash -> compare plan_hash -> compare generation/run/checkpoint/lease/event sequence -> block on mismatch -> claim -> use -> commit`. Nenhum readiness, dispatch ou efeito pode ocorrer antes de todos os compares; qualquer mismatch, drift ou estado stale bloqueia fail-closed antes de mutar state, snapshot, eventos ou evidência. `claim` captura generation/lease; `use` e `commit` devem usar os tokens capturados e `commit` exige CAS. Testes devem ser determinísticos (golden bytes/hash, permutações equivalentes e relógio/paths/segredos injetados) e incluir drift após load/hash e generation, checkpoint, lease e event sequence stale.
+
+### Contrato executável de paths e links da documentação
+O checker implementado em `scripts/pd_fleet/v2_doc_paths.py`, coberto por `tests/fleet/test_v2_doc_paths.py`, é stdlib-only, offline e read-only. Recebe o repository root explícito e verifica, em todos os documentos V2 sob `.spec/pd-fleet-orchestration-v2/`, referências `Create`, `Exact files` e `Allowed paths`: cada path deve existir ou estar marcado `Create` na tarefa correta, sem permitir que uma tarefa crie path de outra; paths V1 (`.spec/pd-fleet-orchestration/`) são forbidden. Também resolve links internos relativos (incluindo âncoras quando presentes), rejeitando links quebrados, traversal, escapes e symlinks de root/documento.
+
+O output é JSON UTF-8 determinístico, com chaves ordenadas, listas ordenadas e schema estável contendo `schema_version`, `repo_root` relativizado, `violations` (cada item com `code`, `path`, `task`, `detail`) e `summary`; não inclui relógio, paths absolutos ou segredos. Exit codes: `0` sem violações, `1` violações de contrato, `2` uso/configuração inválida (inclusive root ausente, root symlink ou não-repositório). O estado permanece **PARTIAL/OPEN** até review e gate humano.
 
 ### TOCTOU claim→use→commit
 `claim(run_id, task_id)` captura `generation` e `lease_id/expiry`; `use` recebe esses tokens imutáveis; `commit` exige CAS simultâneo de generation e lease. Qualquer token stale é rejeitado antes da mutação. O teste deve tirar snapshot/hash do state, provocar renovação/commit concorrente entre use e commit, provar rejeição e afirmar que state, snapshot, eventos e evidência permanecem inalterados.

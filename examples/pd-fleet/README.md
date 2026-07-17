@@ -40,3 +40,18 @@ ficam sob `--output`:
 O exemplo não executa os `validation_commands` do manifest: eles são apenas dados
 validados pelo contrato. Assim, mesmo ao apontar para um diretório temporário,
 nenhum arquivo do repositório é alterado.
+
+## Limites, ameaça e rollback
+
+Este exemplo é **local/simulado**, não um provider ou executor externo. Nunca
+inclua tokens, URLs privadas ou credenciais no manifest. O plano é entrada não
+confiável: IDs e outputs ficam contidos no output explícito; traversal, symlink,
+shell, rede e comandos derivados de texto são proibidos. O modo V2 geral continua
+**PARTIAL/OPEN**, sem alegação de G6 PASS.
+
+Para migração, mantenha o estado V1 e execute em um output/namespace V2 separado.
+Para rollback, interrompa o processo e invalide leases antes de remover apenas o
+output V2. Preserve `evidence.json`/reports (e seus digests) em armazenamento de
+auditoria antes da limpeza; não altere o plano ou estado legado. Um
+executor futuro só pode ser habilitado por policy explícita, allowlist, sandbox,
+timeout, limites e redaction.
