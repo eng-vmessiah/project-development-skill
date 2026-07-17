@@ -9,6 +9,7 @@ Manages state, validates progress, and enforces the PD pipeline.
 import argparse
 import json
 import os
+import stat
 import shutil
 import subprocess
 import sys
@@ -23,6 +24,10 @@ from pd_fleet.models import FleetPlan, FleetPlanError
 from pd_fleet.validation import compute_ready_tasks
 from pd_fleet.orchestrator import FleetOrchestrator
 from pd_fleet.checkpoint import Checkpoint
+from pd_fleet.contracts import canonicalize as canonicalize_v2, plan_hash as plan_hash_v2
+from pd_fleet.scheduler import LeaseScheduler
+from pd_fleet.parallel import BoundedParallelExecutor
+from pd_fleet.run_store import FleetRunStore, RunStoreError
 
 try:
     import yaml
@@ -735,6 +740,21 @@ class PD:
         run_parser.add_argument("--resume", action="store_true", default=False,
                                 help="Resume from the persisted fleet checkpoint")
 
+        # V2 is opt-in and isolated from legacy command semantics.
+        v2_parser = subparsers.add_parser("v2", parents=[global_parent], help="V2 Fleet adapter")
+        v2_commands = v2_parser.add_subparsers(dest="v2_command", required=True)
+        for name, help_text in (("read", "Read a V2 manifest"), ("status", "Read V2 run status")):
+            inspect = v2_commands.add_parser(name, parents=[global_parent], help=help_text)
+            inspect.add_argument("--plan", "--manifest", dest="plan_path", default=None)
+            inspect.add_argument("--store", dest="store_root", default=".pd-fleet-runs")
+            inspect.add_argument("--run-id", dest="run_id", default=None)
+        local = v2_commands.add_parser("run-local", parents=[global_parent], help="Run V2 locally")
+        local.add_argument("--plan", "--manifest", dest="plan_path", required=True)
+        local.add_argument("--store", dest="store_root", default=".pd-fleet-runs")
+        local.add_argument("--run-id", dest="run_id", default=None)
+        local.add_argument("--owner", default="cli")
+        local.add_argument("--provider", choices=("local", "disabled"), default="local")
+
         # validate
         validate_parser = subparsers.add_parser("validate", parents=[global_parent], help="Validate progress")
         validate_parser.add_argument(
@@ -813,6 +833,8 @@ class PD:
             if parsed.command == "completion":
                 self._cmd_completion(parsed.shell)
                 return
+            if parsed.command == "v2":
+                return self._cmd_v2(parsed)
 
             # Everything else requires a feature
             feature_dir = self._find_feature_dir(parsed.feature)
@@ -1139,6 +1161,214 @@ class PD:
             for task_id in sorted(statuses):
                 print(f"   {task_id}: {statuses[task_id]}")
         return 0 if outcome == "completed" else 1
+
+    # ── commands: V2 adapter (canonical, read-only by default) ──────────
+    @staticmethod
+    def _v2_json(payload: Mapping[str, Any]) -> str:
+        volatile = {"timestamp", "timestamps", "created_at", "updated_at", "started_at", "completed_at", "finished_at", "heartbeat_at", "expires_at", "lease_expiry", "runtime", "wall_time", "monotonic_time"}
+        def project(value: Any, key: str = "") -> Any:
+            if key.lower() in volatile:
+                return None
+            if isinstance(value, Mapping):
+                result = {}
+                for child_key in sorted(value):
+                    if not isinstance(child_key, str) or child_key.lower() in volatile:
+                        continue
+                    if any(token in child_key.lower() for token in ("token", "secret", "password", "credential", "authorization", "private_key", "api_key")):
+                        result[child_key] = "[REDACTED]"
+                    else:
+                        result[child_key] = project(value[child_key], child_key)
+                return result
+            if isinstance(value, (list, tuple)):
+                return [project(item, key) for item in value]
+            if isinstance(value, str):
+                return canonicalize_v2({"schema_version": "pd-fleet-plan:v2", "description": value})["description"]
+            return value
+        safe = project(dict(payload))
+        if isinstance(safe.get("plan"), Mapping):
+            safe["plan"] = canonicalize_v2(safe["plan"])
+        return json.dumps(safe, ensure_ascii=False, sort_keys=True,
+                          separators=(",", ":"), allow_nan=False)
+
+    @staticmethod
+    def _v2_load_plan(path_text: Optional[str]) -> Dict[str, Any]:
+        if not path_text:
+            raise PDError("V2 manifest required")
+        path = Path(path_text).expanduser()
+        fd = -1
+        try:
+            if path.is_symlink():
+                raise PDError("V2 manifest invalid: manifest_symlink")
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise PDError("V2 manifest invalid: manifest_not_regular")
+            chunks = []
+            while True:
+                chunk = os.read(fd, 1024 * 1024)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+            raw = b"".join(chunks).decode("utf-8")
+            data = json.loads(raw) if path.suffix.lower() == ".json" else (yaml.safe_load(raw) if yaml else None)
+            if data is None and yaml is None:
+                raise ValueError("yaml_unavailable")
+            if not isinstance(data, Mapping):
+                raise ValueError("manifest_shape")
+            # Normalize aliases at every object level before canonical/schema validation.
+            aliases = {"schemaVersion": "schema_version", "planHash": "plan_hash", "runId": "run_id", "taskId": "task_id", "agentId": "agent_id", "maxParallel": "max_parallel", "dependsOn": "depends_on", "allowedPaths": "allowed_paths", "acceptanceCriteria": "acceptance_criteria", "validationCommands": "validation_commands", "retryPolicy": "retry_policy", "maxAttempts": "max_attempts", "backoffSeconds": "backoff_seconds"}
+            def normalize(value):
+                if isinstance(value, Mapping):
+                    result = {}
+                    for raw_key, item in value.items():
+                        key = aliases.get(raw_key, raw_key)
+                        item = normalize(item)
+                        if key in result and result[key] != item:
+                            raise ValueError("conflicting_aliases")
+                        result[key] = item
+                    return result
+                if isinstance(value, list):
+                    return [normalize(item) for item in value]
+                return value
+            normalized_data = normalize(data)
+            if not isinstance(normalized_data, Mapping):
+                raise ValueError("manifest_shape")
+            canonical = canonicalize_v2(normalized_data)
+            if not isinstance(canonical.get("tasks"), list):
+                raise ValueError("tasks_invalid")
+            return canonical
+        except PDError:
+            raise
+        except Exception as exc:
+            raise PDError(f"V2 manifest invalid: {type(exc).__name__}") from exc
+        finally:
+            if fd >= 0:
+                os.close(fd)
+
+    @staticmethod
+    def _v2_read_snapshot(store_root: str, run_id: str) -> Dict[str, Any]:
+        root = Path(store_root).expanduser()
+        if not root.exists() or not root.is_dir() or root.is_symlink():
+            raise RunStoreError("run snapshot unavailable")
+        run_dir = root / run_id
+        if not run_dir.exists() or not run_dir.is_dir() or run_dir.is_symlink():
+            raise RunStoreError("run snapshot unavailable")
+        probe = FleetRunStore.__new__(FleetRunStore)
+        probe.root = root.resolve()
+        snapshot = probe._valid_snapshot(run_id)
+        if snapshot is None:
+            raise RunStoreError("run snapshot unavailable")
+        return snapshot
+
+    @staticmethod
+    def _v2_resume_checkpoint(snapshot: Mapping[str, Any]) -> Checkpoint:
+        lifecycle = {}
+        tasks = {}
+        for task_id, state in snapshot.get("tasks", {}).items():
+            status = state.get("status", "pending") if isinstance(state, Mapping) else "pending"
+            tasks[task_id] = {"id": task_id, "status": status}
+            lifecycle[task_id] = {"task_id": task_id, "status": status,
+                                  "attempt": snapshot.get("attempts", {}).get(task_id, 0)}
+        reports = [dict(r["report"]) for r in snapshot.get("reports", {}).values()
+                   if isinstance(r, Mapping) and isinstance(r.get("report"), Mapping)]
+        return Checkpoint.create("v2", 0, tasks=tasks, lifecycle=lifecycle,
+                                 reports=reports, created_at="1970-01-01T00:00:00+00:00")
+
+    @staticmethod
+    def _v2_persisted_result(snapshot: Mapping[str, Any]) -> Dict[str, Any]:
+        statuses = {tid: s.get("status", "pending") for tid, s in snapshot.get("tasks", {}).items()
+                    if isinstance(s, Mapping)}
+        reports = [dict(r["report"]) for r in snapshot.get("reports", {}).values()
+                   if isinstance(r, Mapping) and isinstance(r.get("report"), Mapping)]
+        return {"statuses": statuses, "reports": reports, "waves": snapshot.get("waves", []),
+                "validation": None}
+
+    def _cmd_v2(self, args: argparse.Namespace) -> int:
+        if args.v2_command == "read":
+            plan = self._v2_load_plan(args.plan_path)
+            print(self._v2_json({"status": "read", "plan": plan}) + "\n", end="")
+            return 0
+        if args.v2_command == "status":
+            if args.run_id:
+                try:
+                    snapshot = self._v2_read_snapshot(args.store_root, args.run_id)
+                    print(self._v2_json({"status": "ok", "run": snapshot}) + "\n", end="")
+                except RunStoreError as exc:
+                    raise PDError(f"V2 run unavailable: {type(exc).__name__}") from exc
+            else:
+                plan = self._v2_load_plan(args.plan_path)
+                print(self._v2_json({"status": "read", "plan": plan}) + "\n", end="")
+            return 0
+        if args.provider != "local":
+            raise PDError("V2 external providers are disabled")
+        plan = self._v2_load_plan(args.plan_path)
+        run_id = args.run_id or plan.get("run_id") or "local"
+        if args.dry_run:
+            result = FleetOrchestrator(plan, dry_run=True).run()
+            payload = {"status": "dry_run", "run_id": run_id, "result": result.to_dict()}
+        else:
+            try:
+                with FleetRunStore(args.store_root) as store:
+                    try:
+                        current = store.load(run_id)
+                        if current["plan_hash"] != plan_hash_v2(plan):
+                            raise PDError("V2 run conflict: plan_hash")
+                        if current["owner"] != args.owner:
+                            raise PDError("V2 run conflict: owner")
+                        if current["status"] in {"completed", "failed", "cancelled", "blocked"}:
+                            payload = {"status": current["status"], "run_id": run_id,
+                                       "result": self._v2_persisted_result(current)}
+                            print(self._v2_json(payload) + "\n", end="")
+                            return 0 if current["status"] == "completed" else 1
+                        checkpoint = self._v2_resume_checkpoint(current)
+                    except RunStoreError as missing:
+                        if type(missing).__name__ != "RunNotFoundError":
+                            raise
+                        store.create(run_id, plan, args.owner)
+                        current = store.load(run_id)
+                        checkpoint = Checkpoint.create("v2", 0, created_at="1970-01-01T00:00:00+00:00")
+                    store.transition(run_id, "running", args.owner, expected_generation=current["generation"])
+                    current = store.load(run_id)
+                    reconciliation = {"plan_hash": current["plan_hash"], "run_id": run_id,
+                                      "generation": current["generation"], "owner": args.owner,
+                                      "checkpoint": checkpoint.to_dict(), "leases": current["leases"],
+                                      "events": current["events"]}
+                    scheduler = LeaseScheduler(store, run_id, args.owner, max_parallel=1)
+                    executor = BoundedParallelExecutor(max_workers=1)
+                    def adapter(task, token):
+                        # The local adapter is a dispatcher boundary, not a
+                        # validator.  It must never claim work, tests, or
+                        # acceptance that it did not actually perform.
+                        # Raising makes the V2 pipeline persist a diagnosed
+                        # failure rather than allowing a fabricated completed
+                        # report through the report contract.
+                        attempt = token.get("attempt")
+                        raise RuntimeError(
+                            f"local adapter has no validator for task {task.id} "
+                            f"(attempt {attempt})"
+                        )
+                    try:
+                        try:
+                            result = FleetOrchestrator(plan, scheduler=scheduler, store=store,
+                                executor=executor, adapter=adapter, run_id=run_id,
+                                run_owner=args.owner, checkpoint=checkpoint,
+                                reconciliation_context=reconciliation).run()
+                        except Exception as exc:
+                            failed_state = store.load(run_id)
+                            store.append_event(run_id, {"event_id": "run_failed", "ordering_key": "run_failed", "reason": type(exc).__name__}, args.owner,
+                                               expected_generation=failed_state["generation"])
+                            failed_state = store.load(run_id)
+                            store.transition(run_id, "failed", args.owner, expected_generation=failed_state["generation"])
+                            raise PDError(f"V2 run failed: {type(exc).__name__}") from exc
+                    finally:
+                        executor.close()
+                    final = "completed" if not result.failed and not result.blocked else ("blocked" if result.blocked else "failed")
+                    current = store.load(run_id)
+                    store.transition(run_id, final, args.owner, expected_generation=current["generation"])
+                    payload = {"status": final, "run_id": run_id, "result": result.to_dict()}
+            except RunStoreError as exc:
+                raise PDError(f"V2 run unavailable: {type(exc).__name__}") from exc
+        print(self._v2_json(payload) + "\n", end="")
+        return 0 if payload["status"] in {"completed", "dry_run"} else 1
 
     def _cmd_validate(self, state: PDState, deep: bool, as_json: bool) -> None:
         feature_dir = state.feature_dir
