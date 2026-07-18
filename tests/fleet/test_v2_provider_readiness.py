@@ -140,7 +140,7 @@ def test_local_probe_uses_only_fixed_auth_commands(monkeypatch) -> None:
     outputs = {
         "openai-codex": "openai-codex: logged in",
         "codex-cli": "Logged in using ChatGPT",
-        "opencode-go": "OpenCode Go credential configured",
+        "opencode-go": "OpenCode Go api\n2 credentials",
         "claude-code": '{"loggedIn": true, "email": "private@example.test"}',
     }
     for runtime, suffix in expected.items():
@@ -168,6 +168,25 @@ def test_local_probe_rejects_ambiguous_auth_output(monkeypatch) -> None:
     }
     for runtime, output in ambiguous_outputs.items():
         result = LocalRuntimeReadinessProbe(FakeRunner(output)).probe(runtime)
+        assert not result.authenticated and result.status == "auth_absent"
+
+
+def test_local_probe_rejects_opencode_missing_credentials_or_errors(monkeypatch) -> None:
+    class FakeRunner:
+        def __init__(self, output):
+            self.output = output
+
+        def run(self, argv, **kwargs):
+            return {"status": "passed", "returncode": 0, "stdout": self.output}
+
+    monkeypatch.setattr("pd_fleet.provider_readiness.shutil.which", lambda _: "/bin/tool")
+    for output in (
+        "OpenCode Go api\n0 credentials",
+        "OpenCode Go api\nError loading credentials",
+        "OpenCode Go api\nno credentials",
+        "OpenCode Go api\ncredential data",
+    ):
+        result = LocalRuntimeReadinessProbe(FakeRunner(output)).probe("opencode-go")
         assert not result.authenticated and result.status == "auth_absent"
 
 

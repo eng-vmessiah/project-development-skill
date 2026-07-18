@@ -159,6 +159,34 @@ class LocalRuntimeReadinessProbe:
                       output_limits=(self._output_limit, self._output_limit), env={})
 
     @staticmethod
+    def _opencode_go_authenticated(text: str) -> bool:
+        """Recognize only the structured, positive OpenCode Go status shape.
+
+        The CLI prints the provider label and credential summary on separate
+        lines (for example ``OpenCode Go api`` followed by ``2 credentials``).
+        Keep this parser deliberately fail-closed: an error or explicit empty
+        credential state anywhere in the output wins over a positive-looking
+        line, and the credential evidence must follow the provider label.
+        """
+        lines = [" ".join(line.casefold().split()) for line in text.splitlines()]
+        provider_index = next((i for i, line in enumerate(lines) if "opencode go" in line), None)
+        if provider_index is None:
+            return False
+
+        for line in lines[provider_index:]:
+            if re.search(r"\b(?:error|failed|failure|unauthori[sz]ed|invalid)\b", line):
+                return False
+            if re.search(r"\b(?:no|zero|0)\s+credentials?\b|\bcredentials?\s*[:=-]?\s*(?:none|0)\b", line):
+                return False
+
+        for line in lines[provider_index + 1:]:
+            if re.search(r"\b[1-9]\d* credentials?\b", line):
+                return True
+            if re.search(r"\bcredentials? (?:configured|available)\b", line):
+                return True
+        return False
+
+    @staticmethod
     def _parts(raw: Any) -> tuple[int | None, str, str, str]:
         if isinstance(raw, Mapping):
             status = raw.get("status", "")
@@ -198,8 +226,7 @@ class LocalRuntimeReadinessProbe:
             elif runtime_id == "codex-cli":
                 authenticated = "logged in using chatgpt" in lines
             elif runtime_id == "opencode-go":
-                authenticated = any("opencode go" in line and "credential" in line
-                                    for line in lines)
+                authenticated = self._opencode_go_authenticated(text)
             else:
                 try:
                     payload = json.loads(stdout)

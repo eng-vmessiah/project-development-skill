@@ -8,7 +8,7 @@ provider-specific signal; arbitrary success text and error messages are ignored.
 |---|---|---|
 | Hermes / `openai-codex` | `hermes auth status openai-codex` | A normalized line exactly equal to `openai-codex: logged in` |
 | Codex CLI | `codex login status` | A normalized line exactly equal to `Logged in using ChatGPT` |
-| OpenCode Go | `opencode providers list` | A normalized line containing both `OpenCode Go` and `credential` |
+| OpenCode Go | `opencode providers list` | After a normalized `OpenCode Go` provider label, a later line with positive credential evidence: `1` or more credentials (for example, `2 credentials`), or `credential(s) configured` / `credential(s) available`. Zero/no credentials, arbitrary credential text, and error output are rejected. |
 | Claude Code | `claude auth status --json` | JSON object with `loggedIn` whose value is exactly boolean `true` |
 
 ## Execution limits and statuses
