@@ -427,6 +427,7 @@ class RuntimeProviderProfile:
             raise _configuration_rejected()
         if self.command is not None:
             command = self.command
+
             executable = _redact(command.executable)
             if executable == command.executable:
                 executable = "[EXECUTABLE REDACTED]"
@@ -458,6 +459,7 @@ class RuntimeProviderProfile:
     def command_metadata(self) -> Mapping[str, Any] | None:
         """Mapping-shaped view for state/report consumers."""
         return self.command
+
 
     @property
     def readiness_status(self) -> ReadinessStatus:
