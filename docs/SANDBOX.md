@@ -40,17 +40,18 @@ process runner. It is intentionally **not** a kernel sandbox.
 Python's standard library cannot guarantee a portable network namespace,
 seccomp policy, filesystem namespace, resource quota, or protection against a
 malicious executable that is already trusted by the host. Accordingly,
-`network=True` is rejected rather than implying that networking is blocked.
+`network=True` is a broad egress mode, not an allowlist or isolation boundary;
+production requires an allowlisted proxy/network namespace before G6.
 The runner does not claim isolation from the host, does not change users or
 capabilities, and does not prevent an approved executable from reading files
 available to its OS identity. Use a separately provisioned container, VM, or
 platform sandbox for hostile code. If that stronger capability is unavailable,
 keep validation declarative and do not inject this runner.
 
-`network=False` is only a policy/configuration requirement: this runner does
-**not** provide network isolation. It rejects `network=True` because the
-standard library cannot reliably establish a network namespace on Linux/WSL;
-an approved process may still use the host network.
+`network=False` remains the default and is required for provider execution
+unless the explicit `provider_network` capability is granted by both profile
+and policy. The capability is default-deny, distinct from ordinary `network`
+(which remains denied); setting `network=True` alone never grants it.
 
 This is a defense-in-depth execution boundary, not authorization to run
 arbitrary commands. The allowlist and tool root must be provisioned by a

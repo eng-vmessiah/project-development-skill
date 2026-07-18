@@ -110,6 +110,37 @@ def test_runtime_capabilities_are_allowlisted_and_command_view_is_redacted_immut
         view["transport"] = "remote"  # type: ignore[index]
 
 
+@pytest.mark.parametrize("conflict", ["write", "execute", "shell", "network", "nested_agents"])
+def test_provider_network_profile_capability_cannot_be_combined_with_conflicting_capability(conflict: str) -> None:
+    with pytest.raises(ProviderConfigurationError, match="configuration rejected"):
+        RuntimeProviderProfile(
+            provider_name="x", runtime_name="x",
+            capabilities=("provider_network", conflict),
+        )
+
+
+@pytest.mark.parametrize("conflict", ["write", "execute", "shell", "network", "nested_agents"])
+def test_provider_network_policy_cannot_allow_conflicting_capability(conflict: str) -> None:
+    with pytest.raises(ProviderConfigurationError, match="configuration rejected"):
+        RuntimePolicy(
+            enabled=True,
+            allow_provider_network=True,
+            allowed_capabilities=("provider_network", conflict),
+        )
+
+
+def test_provider_network_profile_can_only_be_ready_with_safe_policy() -> None:
+    profile = RuntimeProviderProfile(
+        provider_name="x", runtime_name="x", auth_ref="runtime:default",
+        capabilities=("provider_network",), command=CommandMetadata("tool"),
+        policy=RuntimePolicy(
+            enabled=True, allow_provider_network=True,
+            allowed_capabilities=("provider_network",),
+        ),
+    )
+    assert assess_readiness(profile).status is ReadinessStatus.READY
+
+
 def test_readiness_is_derived_and_copy_safe() -> None:
     profile = RuntimeProviderProfile(
         provider_name="x", runtime_name="x", auth_ref="runtime:default",

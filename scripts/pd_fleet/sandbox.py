@@ -97,9 +97,9 @@ class LocalSandboxRunner:
     ``allowlist`` is a collection of complete argv tuples.  A run must match
     one tuple exactly; arguments are never interpreted as shell syntax.
     ``env`` is the complete child environment (the parent environment is never
-    inherited).  ``network=False`` is the only supported mode; network setup
-    is not silently attempted because stdlib cannot reliably provide a network
-    namespace on all Linux/WSL installations.
+    inherited).  ``network=False`` is the default.  ``network=True`` is an explicit broad
+    egress mode for a provider_network-authorized runner; this class does not
+    create a network namespace or provide an allowlist.
     """
 
     @property
@@ -124,6 +124,11 @@ class LocalSandboxRunner:
         return self._secrets
 
     @property
+    def network(self) -> bool:
+        """Whether this runner was explicitly configured for broad egress."""
+        return self._network
+
+    @property
     def trusted_executables(self) -> tuple[str, ...]:
         """Immutable, explicitly pinned executable exceptions outside ``tool_root``."""
         return self._trusted_executables
@@ -134,8 +139,8 @@ class LocalSandboxRunner:
                  network: bool = False, secrets: Sequence[str] = (),
                  path_roots: Mapping[str, str | os.PathLike[str]] | None = None,
                  trusted_executables: Sequence[str] = ()):
-        if type(network) is not bool or network:
-            raise SandboxConfigurationError("network_not_supported")
+        if type(network) is not bool:
+            raise SandboxConfigurationError("network_invalid")
         root = Path(tool_root)
         try:
             if root.is_symlink() or not root.is_dir():
@@ -145,6 +150,7 @@ class LocalSandboxRunner:
             raise SandboxConfigurationError("tool_root_invalid") from exc
         # Keep validated configuration private/read-only after construction.
         self._tool_root = root
+        self._network = network
         self._root_pin = _pin(root)
         if (isinstance(trusted_executables, (str, bytes))
                 or not isinstance(trusted_executables, Sequence)):

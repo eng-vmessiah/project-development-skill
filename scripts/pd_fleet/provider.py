@@ -42,7 +42,11 @@ class ProviderStatus(str, Enum):
 _ALLOWED_STATUS = frozenset(item.value for item in ProviderStatus)
 # Runtime profiles use a closed vocabulary; ProviderRequest retains its older
 # open capability contract for compatibility.
-RUNTIME_CAPABILITIES = frozenset({"read", "write", "execute", "network", "shell", "nested_agents"})
+RUNTIME_CAPABILITIES = frozenset({"read", "write", "execute", "network", "provider_network", "shell", "nested_agents"})
+# Provider egress is deliberately incompatible with capabilities that can
+# mutate state, execute arbitrary work, use ordinary network access, or spawn
+# agents. Keep this vocabulary aligned with the runtime envelope boundary.
+_PROVIDER_NETWORK_CONFLICTS = frozenset({"write", "execute", "shell", "network", "nested_agents"})
 
 
 def _configuration_rejected() -> ProviderConfigurationError:
@@ -363,12 +367,19 @@ class RuntimePolicy:
 
     enabled: bool = False
     allow_nested_subagents: bool = False
+    # Provider egress is separate from ordinary network and remains opt-in.
+    allow_provider_network: bool = False
     allowed_capabilities: Sequence[str] = ()
 
     def __post_init__(self) -> None:
-        if type(self.enabled) is not bool or type(self.allow_nested_subagents) is not bool:
+        if (type(self.enabled) is not bool or type(self.allow_nested_subagents) is not bool
+                or type(self.allow_provider_network) is not bool):
             raise _configuration_rejected()
         object.__setattr__(self, "allowed_capabilities", _runtime_caps(self.allowed_capabilities))
+        if self.allow_provider_network and "provider_network" not in self.allowed_capabilities:
+            raise _configuration_rejected()
+        if self.allow_provider_network and _PROVIDER_NETWORK_CONFLICTS.intersection(self.allowed_capabilities):
+            raise _configuration_rejected()
 
 
 @dataclass(frozen=True, slots=True)
@@ -423,6 +434,8 @@ class RuntimeProviderProfile:
         ):
             raise _configuration_rejected()
         object.__setattr__(self, "capabilities", _runtime_caps(self.capabilities))
+        if "provider_network" in self.capabilities and _PROVIDER_NETWORK_CONFLICTS.intersection(self.capabilities):
+            raise _configuration_rejected()
         if self.command is not None and not isinstance(self.command, CommandMetadata):
             raise _configuration_rejected()
         if self.command is not None:
@@ -487,6 +500,7 @@ class RuntimeProviderProfile:
             "policy": {
                 "enabled": self.policy.enabled,
                 "allow_nested_subagents": self.policy.allow_nested_subagents,
+                "allow_provider_network": self.policy.allow_provider_network,
                 "allowed_capabilities": list(self.policy.allowed_capabilities),
             },
             "metadata": _redact(self.metadata),
@@ -519,6 +533,8 @@ def _derive_readiness(profile: RuntimeProviderProfile) -> RuntimeReadiness:
         return RuntimeReadiness(ReadinessStatus.BLOCKED, "nested subagents denied by policy")
     if not set(profile.capabilities).issubset(profile.policy.allowed_capabilities):
         return RuntimeReadiness(ReadinessStatus.BLOCKED, "capabilities denied by policy")
+    if "provider_network" in profile.capabilities and not profile.policy.allow_provider_network:
+        return RuntimeReadiness(ReadinessStatus.BLOCKED, "provider network denied by policy")
     if profile.auth_ref is None:
         return RuntimeReadiness(ReadinessStatus.NOT_READY, "auth reference not configured")
     if profile.command is None:

@@ -129,10 +129,11 @@ def test_configured_environment_values_are_redacted(tmp_path: Path):
     assert "[SECRET REDACTED]" in result["stdout"]
 
 
-def test_network_is_fail_closed(tmp_path: Path):
+def test_network_mode_is_explicit(tmp_path: Path):
     tool = _tool(tmp_path, "tool", "pass")
-    with pytest.raises(SandboxConfigurationError):
-        LocalSandboxRunner(tmp_path, allowlist=((str(tool),),), network=True)
+    runner = LocalSandboxRunner(tmp_path, allowlist=((str(tool),),), network=True)
+    assert runner.network is True
+    assert LocalSandboxRunner(tmp_path, allowlist=((str(tool),),), network=False).network is False
 
 
 def test_capability_is_runner_issued_unique_and_not_publicly_mintable(tmp_path: Path):

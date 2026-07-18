@@ -18,7 +18,7 @@ from .sandbox import SandboxCapability
 
 RUNTIME_ADAPTER_SCHEMA_VERSION = "pd-runtime-adapter:v1"
 ALLOWED_PATHS = frozenset({"workspace", "artifacts", "inputs", "outputs"})
-ALLOWED_CAPABILITIES = frozenset({"read", "write", "execute", "network", "shell", "nested_agents"})
+ALLOWED_CAPABILITIES = frozenset({"read", "write", "execute", "network", "provider_network", "shell", "nested_agents"})
 _SENSITIVE = re.compile(r"(?i)(secret|token|password|credential|api[_ -]?key|authorization|bearer)")
 _PATH = re.compile(r"(?i)(?:https?://[^\s]+|(?:~|/|[A-Za-z]:[\\/]|\\\\)[^\s]+)")
 _SECRET_VALUE = re.compile(r"(?i)(?:token|secret|password|api[_ -]?key)\s*[=:]\s*[^\s]+")
@@ -144,10 +144,16 @@ class RuntimeTaskEnvelope:
         capabilities = _sequence(self.capabilities, field_name="capabilities")
         if not set(capabilities).issubset(ALLOWED_CAPABILITIES):
             raise RuntimeCapabilityError(RuntimeErrorCode.CAPABILITY_DENIED.value)
-        # This production boundary never permits shell or network, even when
-        # a provider policy or injected runner claims to support them.
+        # Ordinary network is never an authority for provider egress. The
+        # provider_network capability is separately opt-in and cannot be
+        # combined with dangerous execution/agent capabilities.
         if _PRODUCTION_DENIED_CAPABILITIES.intersection(capabilities):
             raise RuntimeCapabilityError(RuntimeErrorCode.CAPABILITY_DENIED.value)
+        if "provider_network" in capabilities:
+            if not self.provider_profile.policy.allow_provider_network:
+                raise RuntimeCapabilityError(RuntimeErrorCode.CAPABILITY_DENIED.value)
+            if {"write", "execute", "shell", "nested_agents"}.intersection(capabilities):
+                raise RuntimeCapabilityError(RuntimeErrorCode.CAPABILITY_DENIED.value)
         if "nested_agents" in capabilities or self.nested_agents:
             raise RuntimeCapabilityError(RuntimeErrorCode.NESTED_AGENTS_DENIED.value)
         if not set(capabilities).issubset(set(self.provider_profile.capabilities)):
@@ -222,6 +228,8 @@ class RuntimeResult:
 
 @runtime_checkable
 class SandboxRunner(Protocol):
+    network: bool
+
     def run(self, argv: Sequence[str], *, cwd: str, env: Mapping[str, str],
             timeout: float, output_limits: tuple[int, int]) -> Any: ...
 
@@ -297,6 +305,11 @@ class TemplateRuntimeAdapter:
         timeout = _runtime_timeout(envelope.metadata)
         if _PRODUCTION_DENIED_CAPABILITIES.intersection(envelope.capabilities):
             raise RuntimeCapabilityError(RuntimeErrorCode.CAPABILITY_DENIED.value)
+        if "provider_network" in envelope.capabilities:
+            if not self.profile.policy.allow_provider_network:
+                return RuntimeResult(RuntimeStatus.DENIED, RuntimeErrorCode.CAPABILITY_DENIED)
+            if {"write", "execute", "shell", "nested_agents"}.intersection(envelope.capabilities):
+                raise RuntimeCapabilityError(RuntimeErrorCode.CAPABILITY_DENIED.value)
         # A disabled or not-ready profile denies every capability, including read.
         if self.profile.readiness_status.value != "ready":
             return RuntimeResult(RuntimeStatus.DENIED, RuntimeErrorCode.CAPABILITY_DENIED)
@@ -306,6 +319,17 @@ class TemplateRuntimeAdapter:
                 or not isinstance(getattr(runner, "capability", None), SandboxCapability)
                 or getattr(runner.capability, "_owner", None) is not runner):
             raise RuntimeRunnerRequiredError(RuntimeErrorCode.RUNNER_REQUIRED.value)
+        # Fail closed at the provider path: only an explicitly network-enabled
+        # runner may service provider_network, and ordinary provider runs must
+        # never accidentally inherit network access.
+        runner_network = getattr(runner, "network", False)
+        if type(runner_network) is not bool:
+            return RuntimeResult(RuntimeStatus.DENIED, RuntimeErrorCode.CAPABILITY_DENIED)
+        if "provider_network" in envelope.capabilities:
+            if not runner_network:
+                return RuntimeResult(RuntimeStatus.DENIED, RuntimeErrorCode.CAPABILITY_DENIED)
+        elif runner_network:
+            return RuntimeResult(RuntimeStatus.DENIED, RuntimeErrorCode.CAPABILITY_DENIED)
         argv = self.build_argv(envelope)
         command = self._trusted_command()
         if command is None or type(command.executable) is not str:
