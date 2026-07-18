@@ -1,0 +1,12 @@
+{
+  "runtime": "openai-codex",
+  "mode": "read-only-smoke",
+  "status": "ok",
+  "error_code": null,
+  "output_sha256": "6bf54304794dbfec583c1803a48b575e8ebbcae31cb0c67f49a47ab49c312635",
+  "output_length": 9,
+  "created_files": [],
+  "credentials_persisted": false,
+  "model_prompt_content": "[REDACTED]",
+  "captured_output": "[DISCARDED]"
+}

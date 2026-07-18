@@ -203,3 +203,25 @@ def test_profile_never_stores_raw_command_or_execution_accessor() -> None:
     assert not hasattr(profile, "_raw_command")
     assert not hasattr(profile, "_execution_command_metadata")
     assert "private" not in str(profile.command)
+
+
+def test_runtime_timeout_policy_and_reserved_argv_metadata() -> None:
+    from pd_fleet.runtime_adapter import _runtime_timeout, TemplateRuntimeAdapter
+
+    assert _runtime_timeout({}) == 10.0
+    assert _runtime_timeout({"timeout_seconds": 30}) == 30.0
+    for value in (0, 121, True, "30"):
+        with pytest.raises(RuntimeConfigurationError) as exc:
+            _runtime_timeout({"timeout_seconds": value})
+        assert str(exc.value) == RuntimeErrorCode.INVALID_TIMEOUT.value
+
+    envelope = RuntimeTaskEnvelope(
+        "x", "do", _envelope().provider_profile, metadata={"timeout_seconds": 30, "label": "safe"}
+    )
+    adapter = TemplateRuntimeAdapter("hermes/openai-codex", envelope.provider_profile,
+                                    ("tool", "{label}", "{prompt}"))
+    assert adapter.build_argv(envelope) == ("tool", "safe", "do")
+    reserved = TemplateRuntimeAdapter("hermes/openai-codex", envelope.provider_profile,
+                                      ("tool", "{timeout_seconds}"))
+    with pytest.raises(RuntimeConfigurationError):
+        reserved.build_argv(envelope)

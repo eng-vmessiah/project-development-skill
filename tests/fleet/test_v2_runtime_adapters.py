@@ -24,13 +24,14 @@ def test_named_templates_are_exact_and_data_only() -> None:
         ("openai-codex", "hermes", "hermes chat -q inspect --provider openai-codex --model gpt-test -Q --safe-mode --ignore-rules --max-turns 1", {"model": "gpt-test"}),
         ("codex-cli", "codex-cli", "codex exec --json --ephemeral --sandbox read-only --skip-git-repo-check inspect", {}),
         ("opencode-go", "opencode", "opencode run --format json --pure inspect", {}),
-        ("claude-code", "claude-code", "claude -p inspect --output-format json --no-session-persistence --tools '' --max-budget-usd 0.10", {}),
+        ("claude-code", "claude-code", "claude -p inspect --output-format json --no-session-persistence --tools= --max-budget-usd 0.10", {}),
     ]
     for runtime, provider, expected, metadata in cases:
         envelope = __import__("pd_fleet.runtime_adapter", fromlist=["RuntimeTaskEnvelope"]).RuntimeTaskEnvelope("t", "inspect", profile(runtime, provider), ("workspace",), ("read",), metadata=metadata)
         adapter = create_runtime_adapter(runtime, envelope.provider_profile, CommandMetadata("/tools/" + provider))
-        parts = tuple("" if part == "''" else part for part in expected.split()[1:])
+        parts = tuple(expected.split()[1:])
         assert adapter.build_argv(envelope) == ("/tools/" + provider,) + parts
+        assert all(arg for arg in adapter.build_argv(envelope))
 
 
 def test_factory_rejects_unknown_mismatch_and_missing_command() -> None:

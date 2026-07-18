@@ -27,6 +27,11 @@ process runner. It is intentionally **not** a kernel sandbox.
   targeted). stdout and stderr are drained without retaining more than their
   configured byte limits, and output is UTF-8 decoded deterministically and
   redacted for URLs, absolute paths, and every configured environment value.
+- Runtime envelopes may provide `metadata.timeout_seconds` as an exact integer
+  policy input from 1 through 120 seconds (inclusive). The default is 10
+  seconds; invalid, boolean, string, fractional, or out-of-range values are
+  rejected. This input is used only as the runner timeout and is never passed
+  to shell, argv formatting, or runtime configuration.
 - Invalid requests return stable, non-sensitive error codes. The parent
   environment is never inherited.
 

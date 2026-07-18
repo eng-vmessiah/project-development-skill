@@ -1,0 +1,12 @@
+{
+  "runtime": "opencode-go",
+  "mode": "read-only-smoke",
+  "status": "timeout",
+  "error_code": "sandbox_timeout",
+  "output_sha256": null,
+  "output_length": 0,
+  "created_files": [],
+  "credentials_persisted": false,
+  "model_prompt_content": "[REDACTED]",
+  "captured_output": "[DISCARDED]"
+}

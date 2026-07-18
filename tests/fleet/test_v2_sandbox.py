@@ -33,6 +33,13 @@ def test_exact_allowlist_no_shell_and_explicit_env(tmp_path: Path):
     assert not (tmp_path / "pwned").exists()
 
 
+def test_non_empty_flag_assignment_is_accepted_for_disabled_tools(tmp_path: Path):
+    tool = _tool(tmp_path, "tool", "print('ok')")
+    argv = (str(tool), "--tools=")
+    runner = LocalSandboxRunner(tmp_path, allowlist=(argv,), env={})
+    assert runner.run(argv, cwd=tmp_path)["status"] == "passed"
+
+
 def test_rejects_symlink_and_credential_environment(tmp_path: Path):
     target = _tool(tmp_path, "tool", "print('ok')")
     link = tmp_path / "link"

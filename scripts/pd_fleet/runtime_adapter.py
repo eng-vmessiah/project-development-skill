@@ -23,6 +23,9 @@ _SENSITIVE = re.compile(r"(?i)(secret|token|password|credential|api[_ -]?key|aut
 _PATH = re.compile(r"(?i)(?:https?://[^\s]+|(?:~|/|[A-Za-z]:[\\/]|\\\\)[^\s]+)")
 _SECRET_VALUE = re.compile(r"(?i)(?:token|secret|password|api[_ -]?key)\s*[=:]\s*[^\s]+")
 _PRODUCTION_DENIED_CAPABILITIES = frozenset({"shell", "network"})
+RUNTIME_TIMEOUT_DEFAULT = 10.0
+RUNTIME_TIMEOUT_MIN = 1
+RUNTIME_TIMEOUT_MAX = 120
 
 
 class RuntimeAdapterError(ValueError):
@@ -62,6 +65,7 @@ class RuntimeErrorCode(str, Enum):
     SANDBOX_FAILED = "sandbox_failed"
     COMMAND_UNRESOLVED = "command_unresolved"
     CATALOG_INVALID = "catalog_invalid"
+    INVALID_TIMEOUT = "invalid_timeout"
 
 
 def _immutable(value: Any) -> Any:
@@ -236,6 +240,17 @@ def _validate_envelope(envelope: RuntimeTaskEnvelope, profile: RuntimeProviderPr
         raise RuntimeConfigurationError(RuntimeErrorCode.INVALID_ENVELOPE.value)
 
 
+def _runtime_timeout(metadata: Mapping[str, Any]) -> float:
+    """Return the policy-bounded runner timeout from envelope metadata."""
+    if "timeout_seconds" not in metadata:
+        return RUNTIME_TIMEOUT_DEFAULT
+    value = metadata["timeout_seconds"]
+    # bool is an int subclass, but is not a valid timeout input; do not coerce.
+    if type(value) is not int or not RUNTIME_TIMEOUT_MIN <= value <= RUNTIME_TIMEOUT_MAX:
+        raise RuntimeConfigurationError(RuntimeErrorCode.INVALID_TIMEOUT.value)
+    return float(value)
+
+
 @dataclass(frozen=True, slots=True)
 class TemplateRuntimeAdapter:
     name: str
@@ -261,10 +276,12 @@ class TemplateRuntimeAdapter:
         _validate_envelope(envelope, self.profile)
         try:
             values: dict[str, Any] = {"prompt": envelope.prompt, "task_id": envelope.task_id}
-            # Named smoke adapters may safely bind declarative metadata (never
-            # shell-expand it); absent values fail closed via KeyError.
+            # Named adapters may bind declarative scalar metadata (never
+            # shell-expand it), but timeout_seconds is reserved exclusively for
+            # the runner and can never be formatted into argv/configuration.
             values.update({key: value for key, value in envelope.metadata.items()
-                           if type(value) in (str, int) and not isinstance(value, bool)})
+                           if key != "timeout_seconds" and type(value) in (str, int)
+                           and not isinstance(value, bool)})
             argv = tuple(part.format(**values) for part in self.template)
         except (KeyError, IndexError, ValueError) as exc:
             raise RuntimeConfigurationError(RuntimeErrorCode.INVALID_ENVELOPE.value) from exc
@@ -277,6 +294,7 @@ class TemplateRuntimeAdapter:
 
     def execute(self, envelope: RuntimeTaskEnvelope, *, runner: SandboxRunner | Any = None) -> RuntimeResult:
         _validate_envelope(envelope, self.profile)
+        timeout = _runtime_timeout(envelope.metadata)
         if _PRODUCTION_DENIED_CAPABILITIES.intersection(envelope.capabilities):
             raise RuntimeCapabilityError(RuntimeErrorCode.CAPABILITY_DENIED.value)
         # A disabled or not-ready profile denies every capability, including read.
@@ -307,7 +325,7 @@ class TemplateRuntimeAdapter:
             return RuntimeResult(RuntimeStatus.DENIED, RuntimeErrorCode.PATH_DENIED)
         try:
             value = runner.run(argv, cwd=cwd, env=getattr(runner, "env", {}),
-                               timeout=10.0, output_limits=(65536, 65536))
+                               timeout=timeout, output_limits=(65536, 65536))
         except Exception as exc:
             return RuntimeResult(RuntimeStatus.FAILED, RuntimeErrorCode.RUNNER_ERROR,
                                  metadata={"exception": type(exc).__name__})
@@ -376,7 +394,7 @@ def build_opencode_go_argv(envelope: RuntimeTaskEnvelope) -> tuple[str, ...]:
 
 
 def build_claude_code_argv(envelope: RuntimeTaskEnvelope) -> tuple[str, ...]:
-    return _fixed_builder(envelope, "claude-code", "claude-code", ("claude", "-p", "{prompt}", "--output-format", "json", "--no-session-persistence", "--tools", "", "--max-budget-usd", "0.10"))
+    return _fixed_builder(envelope, "claude-code", "claude-code", ("claude", "-p", "{prompt}", "--output-format", "json", "--no-session-persistence", "--tools=", "--max-budget-usd", "0.10"))
 
 
 build_hermes_openai_codex_argv = build_hermes_argv
@@ -396,5 +414,5 @@ def runtime_adapters(profiles: Sequence[RuntimeProviderProfile]) -> tuple[Templa
         _adapter("hermes/openai-codex", by_runtime["openai-codex"], ("hermes", "chat", "-q", "{prompt}", "--provider", "openai-codex", "--model", "default", "-Q", "--safe-mode", "--ignore-rules", "--max-turns", "1")),
         _adapter("codex-cli", by_runtime["codex-cli"], ("codex", "exec", "--json", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", "{prompt}")),
         _adapter("opencode-go", by_runtime["opencode-go"], ("opencode", "run", "--format", "json", "--pure", "{prompt}")),
-        _adapter("claude-code", by_runtime["claude-code"], ("claude", "-p", "{prompt}", "--output-format", "json", "--no-session-persistence", "--tools", "", "--max-budget-usd", "0.10")),
+        _adapter("claude-code", by_runtime["claude-code"], ("claude", "-p", "{prompt}", "--output-format", "json", "--no-session-persistence", "--tools=", "--max-budget-usd", "0.10")),
     )

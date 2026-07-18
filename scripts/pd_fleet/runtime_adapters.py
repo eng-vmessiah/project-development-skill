@@ -40,7 +40,7 @@ _TEMPLATES = {
     "openai-codex": ("hermes", "chat", "-q", "{prompt}", "--provider", "openai-codex", "--model", "{model}", "-Q", "--safe-mode", "--ignore-rules", "--max-turns", "1"),
     "codex-cli": ("codex", "exec", "--json", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", "{prompt}"),
     "opencode-go": ("opencode", "run", "--format", "json", "--pure", "{prompt}"),
-    "claude-code": ("claude", "-p", "{prompt}", "--output-format", "json", "--no-session-persistence", "--tools", "", "--max-budget-usd", "0.10"),
+    "claude-code": ("claude", "-p", "{prompt}", "--output-format", "json", "--no-session-persistence", "--tools=", "--max-budget-usd", "0.10"),
 }
 _RUNTIME_PROVIDERS = {"openai-codex": "hermes", "codex-cli": "codex-cli", "opencode-go": "opencode", "claude-code": "claude-code"}
 
