@@ -85,15 +85,44 @@ def parse_runtime_output(value: Any, *, runner_status: str = "passed", stderr: s
         return RuntimeResult(RuntimeStatus.FAILED, RuntimeErrorCode.SANDBOX_FAILED)
     output = ""
     evidence = False
+    def collect_content(value: Any) -> list[str]:
+        """Collect only textual content, including provider content blocks."""
+        if isinstance(value, str):
+            return [value] if value.strip() else []
+        if not isinstance(value, list):
+            return []
+        found: list[str] = []
+        for block in value:
+            if isinstance(block, str):
+                if block.strip():
+                    found.append(block)
+            elif isinstance(block, Mapping):
+                block_text = block.get("text")
+                if isinstance(block_text, str) and block_text.strip():
+                    found.append(block_text)
+        return found
+
     def collect(document: Any) -> list[str]:
         found: list[str] = []
         if isinstance(document, Mapping):
             event_type = document.get("type")
-            if isinstance(event_type, str) and event_type.lower().startswith(("tool", "event")):
+            normalized_type = event_type.lower() if isinstance(event_type, str) else ""
+            # Codex emits lifecycle, tool, function-call, and usage records in
+            # the same JSONL stream.  None of those records is output evidence.
+            if normalized_type in {"thread.started", "turn.started", "turn.completed", "usage", "error"} or normalized_type.startswith(("tool", "function_call", "function.call")):
+                return found
+            if normalized_type == "item.completed":
+                item = document.get("item")
+                if not isinstance(item, Mapping) or item.get("type") not in {"agent_message", "message", "assistant"}:
+                    return found
+                found.extend(collect_content(item.get("text")))
+                found.extend(collect_content(item.get("content")))
                 return found
             for key in ("output", "result", "structured_output", "text", "content"):
                 candidate = document.get(key)
-                if isinstance(candidate, str) and candidate.strip():
+                if key in ("text", "content"):
+                    found.extend(collect_content(candidate))
+                elif isinstance(candidate, str) and candidate.strip():
                     found.append(candidate)
                 elif key in ("output", "result", "structured_output") and candidate not in (None, "", {}, [], ()):
                     rendered = json.dumps(candidate, ensure_ascii=True, sort_keys=True)

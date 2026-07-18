@@ -123,11 +123,17 @@ class LocalSandboxRunner:
     def secrets(self) -> tuple[str, ...]:
         return self._secrets
 
+    @property
+    def trusted_executables(self) -> tuple[str, ...]:
+        """Immutable, explicitly pinned executable exceptions outside ``tool_root``."""
+        return self._trusted_executables
+
     def __init__(self, tool_root: str | os.PathLike[str], *,
                  allowlist: Sequence[Sequence[str]] = (),
                  env: Mapping[str, str] | None = None,
                  network: bool = False, secrets: Sequence[str] = (),
-                 path_roots: Mapping[str, str | os.PathLike[str]] | None = None):
+                 path_roots: Mapping[str, str | os.PathLike[str]] | None = None,
+                 trusted_executables: Sequence[str] = ()):
         if type(network) is not bool or network:
             raise SandboxConfigurationError("network_not_supported")
         root = Path(tool_root)
@@ -140,6 +146,30 @@ class LocalSandboxRunner:
         # Keep validated configuration private/read-only after construction.
         self._tool_root = root
         self._root_pin = _pin(root)
+        if (isinstance(trusted_executables, (str, bytes))
+                or not isinstance(trusted_executables, Sequence)):
+            raise SandboxConfigurationError("trusted_executables_invalid")
+        trusted: list[str] = []
+        for value in trusted_executables:
+            if type(value) is not str or not value or "\x00" in value:
+                raise SandboxConfigurationError("trusted_executable_invalid")
+            executable = Path(value)
+            if not executable.is_absolute():
+                raise SandboxConfigurationError("trusted_executable_not_absolute")
+            try:
+                if executable.is_symlink():
+                    raise SandboxConfigurationError("trusted_executable_invalid")
+                resolved = executable.resolve(strict=True)
+                st = executable.stat(follow_symlinks=False)
+                if not stat.S_ISREG(st.st_mode) or not (st.st_mode & stat.S_IXUSR):
+                    raise SandboxConfigurationError("trusted_executable_invalid")
+            except SandboxConfigurationError:
+                raise
+            except (OSError, RuntimeError) as exc:
+                raise SandboxConfigurationError("trusted_executable_invalid") from exc
+            trusted.append(str(resolved))
+        self._trusted_executables = tuple(dict.fromkeys(trusted))
+        trusted_set = frozenset(self._trusted_executables)
         if isinstance(allowlist, (str, bytes)) or not isinstance(allowlist, Sequence):
             raise SandboxConfigurationError("allowlist_invalid")
         normalized: list[tuple[str, ...]] = []
@@ -157,11 +187,11 @@ class LocalSandboxRunner:
                 if executable.is_symlink() or not executable.is_file():
                     raise SandboxConfigurationError("executable_invalid")
                 resolved = executable.resolve(strict=True)
-                if resolved != executable or not _inside(resolved, root):
-                    raise SandboxConfigurationError("executable_outside_root")
                 st = executable.stat(follow_symlinks=False)
                 if not stat.S_ISREG(st.st_mode) or not (st.st_mode & stat.S_IXUSR):
                     raise SandboxConfigurationError("executable_invalid")
+                if not _inside(resolved, root) and str(resolved) not in trusted_set:
+                    raise SandboxConfigurationError("executable_outside_root")
             except (OSError, RuntimeError) as exc:
                 raise SandboxConfigurationError("executable_invalid") from exc
             normalized.append(argv)

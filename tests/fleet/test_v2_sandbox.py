@@ -43,6 +43,39 @@ def test_rejects_symlink_and_credential_environment(tmp_path: Path):
         LocalSandboxRunner(tmp_path, allowlist=((str(target),),), env={"API_TOKEN": "no"})
 
 
+def test_external_executable_requires_exact_trusted_pin(tmp_path: Path):
+    root = tmp_path / "root"
+    root.mkdir()
+    external = _tool(tmp_path, "external-tool", "print('external ok')")
+    argv = (str(external), "--exact")
+    with pytest.raises(SandboxConfigurationError):
+        LocalSandboxRunner(root, allowlist=(argv,))
+    runner = LocalSandboxRunner(root, allowlist=(argv,), trusted_executables=(str(external),))
+    assert runner.trusted_executables == (str(external.resolve()),)
+    assert runner.run(argv, cwd=root)["status"] == "passed"
+    assert runner.run((str(external), "--different"), cwd=root)["error"] == "argv_not_allowlisted"
+
+
+def test_trusted_executable_symlink_is_rejected(tmp_path: Path):
+    root = tmp_path / "root"
+    root.mkdir()
+    target = _tool(tmp_path, "external-tool", "print('ok')")
+    link = tmp_path / "external-link"
+    link.symlink_to(target)
+    with pytest.raises(SandboxConfigurationError):
+        LocalSandboxRunner(root, allowlist=((str(link),),), trusted_executables=(str(link),))
+
+
+def test_external_trusted_runner_keeps_cwd_root_contained(tmp_path: Path):
+    root = tmp_path / "root"
+    root.mkdir()
+    external = _tool(tmp_path, "external-tool", "print('ok')")
+    runner = LocalSandboxRunner(root, allowlist=((str(external),),), trusted_executables=(str(external),))
+    result = runner.run((str(external),), cwd=tmp_path)
+    assert result["status"] == "denied"
+    assert result["error"] == "cwd_outside_root"
+
+
 def test_output_is_bounded_and_timeout_kills_process_group(tmp_path: Path):
     tool = _tool(tmp_path, "tool", "import sys,time; print('x'*100); sys.stdout.flush(); time.sleep(10)")
     runner = LocalSandboxRunner(tmp_path, allowlist=((str(tool),),), env={})

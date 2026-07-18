@@ -106,6 +106,30 @@ def test_result_parser_collects_jsonl_results_and_ignores_events() -> None:
     assert result.output == "first\nsecond"
 
 
+def test_result_parser_collects_codex_item_completed_agent_message() -> None:
+    payload = "\n".join((
+        '{"type":"thread.started","thread_id":"t"}',
+        '{"type":"turn.started"}',
+        '{"type":"item.completed","item":{"type":"agent_message","content":[{"type":"output_text","text":"final"}]}}',
+        '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}',
+    ))
+    result = parse_runtime_output(payload)
+    assert result.status.value == "ok"
+    assert result.output == "final"
+
+
+def test_result_parser_tool_or_usage_events_without_message_fail() -> None:
+    payload = "\n".join((
+        '{"type":"thread.started"}',
+        '{"type":"item.completed","item":{"type":"function_call","text":"not output"}}',
+        '{"type":"item.completed","item":{"type":"tool_result","content":"not output"}}',
+        '{"type":"turn.completed","usage":{"output_tokens":99},"status":"completed"}',
+    ))
+    result = parse_runtime_output(payload)
+    assert result.status.value == "failed"
+    assert result.error_code == "sandbox_failed"
+
+
 def test_plain_text_is_opt_in_for_hermes_only() -> None:
     assert parse_runtime_output("final answer", allow_plain_text=True).status.value == "ok"
     assert parse_runtime_output("final answer").status.value == "failed"

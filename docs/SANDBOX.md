@@ -9,7 +9,12 @@ process runner. It is intentionally **not** a kernel sandbox.
   arguments are data and are never parsed as shell commands.
 - The executable must be an existing regular, executable, non-symlink file
   physically beneath the declared tool root. Device/inode/size/mtime pins are
-  checked again immediately before launch.
+  checked again immediately before launch. A runtime binary outside the tool
+  root is allowed only when its exact absolute real path is supplied through
+  `trusted_executables`; each such path is resolved strictly and pinned at
+  construction. These are explicit trusted runtime exceptions, not arbitrary
+  external execution: there is no `PATH` lookup, wildcard/prefix matching, or
+  shell execution.
 - The tool root and working directory are regular directories, and the cwd is
   contained by the root. Cwd must be absolute; its validated, resolved path is
   passed to `Popen`. Root identity and cwd containment are rechecked on every
