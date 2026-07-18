@@ -10,12 +10,208 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 import json
+import os
+from pathlib import Path
+import selectors
+import shutil
+import signal
+import subprocess
+import time
 from types import MappingProxyType
 from typing import Any, Mapping, Protocol, Sequence
 import re
 
 from .provider import CommandMetadata, RuntimeProviderProfile, ReadinessStatus, assess_readiness
 from .sandbox import SandboxCapability
+
+
+# Local status checks are deliberately separate from the older, capability
+# gated version probe below.  The command table is closed: callers cannot add
+# arguments, choose an executable, or turn this into a login/model invocation.
+_LOCAL_COMMANDS: Mapping[str, tuple[str, ...]] = MappingProxyType({
+    "openai-codex": ("hermes", "auth", "status", "openai-codex"),
+    "codex-cli": ("codex", "login", "status"),
+    "opencode-go": ("opencode", "providers", "list"),
+    "claude-code": ("claude", "auth", "status", "--json"),
+})
+_LOCAL_EXECUTABLES = MappingProxyType({key: value[0] for key, value in _LOCAL_COMMANDS.items()})
+_LOCAL_OUTPUT_LIMIT = 4096
+_COMBINED_OUTPUT_LIMIT = 4096
+_LOCAL_TIMEOUT = 10.0
+
+
+@dataclass(frozen=True, slots=True)
+class LocalReadinessResult:
+    """Safe, immutable result for a local runtime authentication check.
+
+    It intentionally contains neither argv/path nor command output.  Status
+    commands may perform their own provider network request, but this module
+    never logs in, reads credentials, or executes a model prompt.
+    """
+    runtime_id: str
+    installed: bool
+    authenticated: bool
+    status: str
+    reason: str
+
+
+class LocalRuntimeReadinessProbe:
+    """Check the four supported local runtimes using fixed read-only commands.
+
+    ``runner`` is injectable for tests and may be a callable or an object with
+    ``run``.  The default runner uses ``subprocess.Popen`` with an empty
+    environment, no shell, stdin closed, bounded output, and a ten second
+    timeout.  Captured bytes are parsed and then immediately discarded.
+    """
+
+    def __init__(self, runner: Any = None, *, timeout: float = _LOCAL_TIMEOUT,
+                 output_limit: int = _LOCAL_OUTPUT_LIMIT) -> None:
+        # Do not allow callers to weaken the safety bounds.
+        self._runner = runner
+        self._timeout = min(float(timeout), _LOCAL_TIMEOUT)
+        self._output_limit = min(int(output_limit), _LOCAL_OUTPUT_LIMIT)
+
+    @staticmethod
+    def _default_runner(argv: Sequence[str], *, timeout: float,
+                        output_limits: tuple[int, int], env: Mapping[str, str]) -> Any:
+        try:
+            executable = Path(argv[0]).resolve(strict=True)
+            if not executable.is_absolute() or not executable.is_file() or not os.access(executable, os.X_OK):
+                return {"status": "failed"}
+            fixed_argv = (str(executable),) + tuple(argv[1:])
+        except (OSError, RuntimeError, IndexError, TypeError):
+            return {"status": "failed"}
+        # Keep the per-stream contract and read chunks above, but enforce one
+        # hard aggregate ceiling for the whole probe.
+        cap = _COMBINED_OUTPUT_LIMIT
+        proc = None
+        chunks: list[bytes] = []
+        selector = selectors.DefaultSelector()
+        try:
+            proc = subprocess.Popen(list(fixed_argv), stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False, env={},
+                start_new_session=True)
+            assert proc.stdout is not None and proc.stderr is not None
+            selector.register(proc.stdout, selectors.EVENT_READ)
+            selector.register(proc.stderr, selectors.EVENT_READ)
+            started = time.monotonic()
+            while selector.get_map():
+                remaining = float(timeout) - (time.monotonic() - started)
+                if remaining <= 0:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                    proc.wait()
+                    return {"status": "timeout"}
+                for key, _ in selector.select(remaining):
+                    chunk = os.read(key.fd, 8192)
+                    if not chunk:
+                        selector.unregister(key.fileobj)
+                        continue
+                    chunks.append(chunk)
+                    if sum(map(len, chunks)) > cap:
+                        os.killpg(proc.pid, signal.SIGKILL)
+                        proc.wait()
+                        data = b"".join(chunks)[:cap].decode("utf-8", "replace")
+                        return {"status": "output_limit", "stdout": data, "stderr": "",
+                                "returncode": proc.returncode}
+            proc.wait()
+            data = b"".join(chunks)[:cap].decode("utf-8", "replace")
+            return {"status": "passed" if proc.returncode == 0 else "failed",
+                    "stdout": data, "stderr": "", "returncode": proc.returncode}
+        except (OSError, subprocess.TimeoutExpired):
+            if proc is not None and proc.poll() is None:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                    proc.wait()
+                except OSError:
+                    pass
+            return {"status": "failed"}
+        finally:
+            # ``Popen`` does not close the parent-side BufferedReader objects
+            # when the child is reaped.  Close them explicitly on every exit
+            # path (normal, timeout, output cap, and exceptions).  Do not use
+            # ``communicate`` here: it could drain an unbounded pipe after the
+            # aggregate cap has fired and reintroduce the DoS this runner is
+            # intended to prevent.
+            selector.close()
+            if proc is not None and proc.poll() is None:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except OSError:
+                    pass
+                try:
+                    proc.wait()
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
+            if proc is not None:
+                for stream in (proc.stdout, proc.stderr):
+                    if stream is not None:
+                        try:
+                            stream.close()
+                        except OSError:
+                            pass
+
+    def _invoke(self, argv: tuple[str, ...]) -> Any:
+        runner = self._runner or self._default_runner
+        if hasattr(runner, "run"):
+            return runner.run(argv, timeout=self._timeout,
+                              output_limits=(self._output_limit, self._output_limit), env={})
+        return runner(argv, timeout=self._timeout,
+                      output_limits=(self._output_limit, self._output_limit), env={})
+
+    @staticmethod
+    def _parts(raw: Any) -> tuple[int | None, str, str, str]:
+        if isinstance(raw, Mapping):
+            status = raw.get("status", "")
+            status = status.value if isinstance(status, Enum) else str(status)
+            return raw.get("returncode"), str(raw.get("stdout", ""))[:_LOCAL_OUTPUT_LIMIT], str(raw.get("stderr", ""))[:_LOCAL_OUTPUT_LIMIT], status
+        return getattr(raw, "returncode", None), str(getattr(raw, "stdout", ""))[:_LOCAL_OUTPUT_LIMIT], str(getattr(raw, "stderr", ""))[:_LOCAL_OUTPUT_LIMIT], ""
+
+    def probe(self, runtime_id: str) -> LocalReadinessResult:
+        if runtime_id not in _LOCAL_COMMANDS:
+            return LocalReadinessResult(str(runtime_id), False, False, "unknown", "runtime_unknown")
+        executable = shutil.which(_LOCAL_EXECUTABLES[runtime_id])
+        if not executable:
+            return LocalReadinessResult(runtime_id, False, False, "not_installed", "executable_not_found")
+        # The real runner validates this path immediately before exec.  Keeping
+        # discovery opaque here also lets injected test runners model discovery.
+        argv = (executable,) + _LOCAL_COMMANDS[runtime_id][1:]
+        try:
+            raw = self._invoke(argv)
+        except (subprocess.TimeoutExpired, TimeoutError):
+            return LocalReadinessResult(runtime_id, True, False, "timeout", "command_timeout")
+        except Exception:
+            return LocalReadinessResult(runtime_id, True, False, "failed", "command_failed")
+        returncode, stdout, stderr, runner_status = self._parts(raw)
+        if runner_status == "timeout":
+            return LocalReadinessResult(runtime_id, True, False, "timeout", "command_timeout")
+        if runner_status in {"failed", "error", "denied", "blocked"}:
+            return LocalReadinessResult(runtime_id, True, False, "failed", "command_failed")
+        # Fake runners commonly expose only the existing sandbox status; a
+        # successful status is equivalent to a zero process exit.
+        succeeded = returncode == 0 or (returncode is None and runner_status in {"passed", "ok", "success"})
+        text = (stdout + "\n" + stderr)
+        authenticated = False
+        if succeeded:
+            lines = {line.strip().lower() for line in text.splitlines()}
+            if runtime_id == "openai-codex":
+                authenticated = "openai-codex: logged in" in lines
+            elif runtime_id == "codex-cli":
+                authenticated = "logged in using chatgpt" in lines
+            elif runtime_id == "opencode-go":
+                authenticated = any("opencode go" in line and "credential" in line
+                                    for line in lines)
+            else:
+                try:
+                    payload = json.loads(stdout)
+                    authenticated = type(payload) is dict and payload.get("loggedIn") is True
+                except (TypeError, ValueError):
+                    authenticated = False
+        return LocalReadinessResult(runtime_id, True, authenticated,
+                                    "authenticated" if authenticated else "auth_absent",
+                                    "auth_confirmed" if authenticated else "auth_not_confirmed")
+
+    check = probe
+    readiness = probe
 
 
 class ProviderReadinessError(ValueError):
@@ -92,11 +288,11 @@ def _auth_confirmed(auth_result: Any, evidence: Any) -> bool:
     return False
 
 
-def _runner_result(result: Any) -> tuple[str, Any]:
+def _runner_status(result: Any) -> str:
     if isinstance(result, Mapping):
         status = result.get("status", "failed")
-        return (status.value if isinstance(status, Enum) else status), result
-    return "failed", None
+        return status.value if isinstance(status, Enum) else status
+    return "failed"
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,7 +330,9 @@ class ProviderReadinessResult:
         # expose the pinned absolute executable path.
         if self.argv:
             object.__setattr__(self, "argv", ("[PATH REDACTED]",) + self.argv[1:])
-        object.__setattr__(self, "output", _redact(self.output if type(self.output) is str else ""))
+        # ``output`` is retained only as a legacy API field.  Probe diagnostics
+        # may contain credentials or other PII, so never redact-and-retain them.
+        object.__setattr__(self, "output", "")
         object.__setattr__(self, "metadata", MappingProxyType({"runtime": self.runtime}))
 
     def as_dict(self) -> dict[str, Any]:
@@ -177,7 +375,7 @@ def probe_provider_readiness(profile: RuntimeProviderProfile, *, runner: Trusted
     suffix = _fixed_status_argv(status_command)
     argv = (exe,) + suffix
     result = runner.run(argv, cwd=cwd, env={}, timeout=timeout, output_limits=(4096, 4096))
-    runner_status, raw = _runner_result(result)
+    runner_status = _runner_status(result)
     if runner_status == "denied":
         status, reason = ProbeStatus.DENIED, ReadinessAuditReason.SANDBOX_DENIED
     elif runner_status == "timeout":
@@ -192,9 +390,8 @@ def probe_provider_readiness(profile: RuntimeProviderProfile, *, runner: Trusted
                   else ReadinessAuditReason.AUTH_NOT_VERIFIED)
     else:
         status, reason = ProbeStatus.FAILED, ReadinessAuditReason.SANDBOX_FAILED
-    output = _redact(str(raw.get("stdout", "")) if isinstance(raw, Mapping) else "")
     audit = ProviderReadinessAudit(runtime, status, reason)
-    return ProviderReadinessResult(status, runtime, argv, output, audit)
+    return ProviderReadinessResult(status, runtime, argv, audit=audit)
 
 
 readiness_probe = probe_provider_readiness
