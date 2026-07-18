@@ -6,8 +6,10 @@ start nested agents, or perform implicit failover.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
+import re
+from types import MappingProxyType
 from typing import Any, Iterable, Mapping, cast
 
 from .provider import RuntimeProviderProfile
@@ -16,6 +18,7 @@ from .provider_routing import (
     RouteStatus, profile_id, route_provider,
 )
 from .runtime_adapter import (
+    ALLOWED_CAPABILITIES, ALLOWED_PATHS,
     RuntimeAdapter, RuntimeErrorCode, RuntimeResult, RuntimeStatus,
     RuntimeTaskEnvelope,
 )
@@ -44,6 +47,69 @@ class DispatchAuditReason(str, Enum):
     ADAPTER_MISSING = "adapter_missing"
     RUNNER_MISSING = "runner_missing"
     DISPATCH_ERROR = "dispatch_error"
+
+
+def _request_immutable(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        if any(type(key) is not str for key in value):
+            raise DispatchConfigurationError("invalid_request")
+        return MappingProxyType({key: _request_immutable(item) for key, item in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_request_immutable(item) for item in value)
+    if type(value) in (str, int, float, bool) or value is None:
+        return value
+    raise DispatchConfigurationError("invalid_request")
+
+
+def _request_paths(value: Any) -> tuple[str, ...]:
+    if isinstance(value, (str, bytes, bytearray)) or not isinstance(value, (tuple, list)):
+        raise DispatchConfigurationError("invalid_request")
+    values = tuple(value)
+    if any(type(path) is not str or not path for path in values):
+        raise DispatchConfigurationError("invalid_request")
+    paths = tuple(sorted(set(values)))
+    for path in paths:
+        parts = path.replace("\\\\", "/").split("/")
+        if (path.startswith(("/", "\\\\", "~")) or re.match(r"^[A-Za-z]:", path)
+                or not parts or parts[0] not in ALLOWED_PATHS or ".." in parts
+                or any(ord(char) < 32 or ord(char) == 127 for char in path)):
+            raise DispatchConfigurationError("invalid_request")
+    return paths
+
+
+def _request_capabilities(value: Any) -> tuple[str, ...]:
+    if isinstance(value, (str, bytes, bytearray)) or not isinstance(value, (tuple, list)):
+        raise DispatchConfigurationError("invalid_request")
+    values = tuple(value)
+    if any(type(capability) is not str or not capability for capability in values):
+        raise DispatchConfigurationError("invalid_request")
+    capabilities = tuple(sorted(set(values)))
+    if (not set(capabilities).issubset(ALLOWED_CAPABILITIES)
+            or {"shell", "network", "nested_agents"}.intersection(capabilities)):
+        raise DispatchConfigurationError("invalid_request")
+    return capabilities
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderDispatchRequest:
+    """Provider-independent input; routing must precede envelope construction."""
+    task_id: str
+    prompt: str
+    allowed_paths: tuple[str, ...] = ()
+    capabilities: tuple[str, ...] = ("read",)
+    nested_agents: bool = False
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if (type(self.task_id) is not str or not self.task_id
+                or type(self.prompt) is not str or not self.prompt
+                or type(self.nested_agents) is not bool or self.nested_agents):
+            raise DispatchConfigurationError("invalid_request")
+        if not isinstance(self.metadata, Mapping):
+            raise DispatchConfigurationError("invalid_request")
+        object.__setattr__(self, "allowed_paths", _request_paths(self.allowed_paths))
+        object.__setattr__(self, "capabilities", _request_capabilities(self.capabilities))
+        object.__setattr__(self, "metadata", _request_immutable(self.metadata))
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,29 +183,23 @@ class ProviderDispatchBoundary:
             raise DispatchConfigurationError("invalid_router")
         self._router = router
 
-    def dispatch(self, envelope: RuntimeTaskEnvelope, policy: ProviderRoutePolicy,
+    def _execute(self, request: ProviderDispatchRequest, route: ProviderRouteResult,
                  *, run_id: str) -> ProviderDispatchResult:
-        if not isinstance(envelope, RuntimeTaskEnvelope):
-            raise DispatchConfigurationError("invalid_envelope")
-        if type(run_id) is not str or not run_id:
-            raise DispatchConfigurationError("invalid_identity")
-        route = cast(ProviderRouteResult, self._router(envelope.task_id, run_id, policy, self._catalog))
         selected = route.selected
         if route.status is RouteStatus.NO_PROVIDER:
-            audit = DispatchAuditEvent(envelope.task_id, run_id, None,
+            audit = DispatchAuditEvent(request.task_id, run_id, None,
                                        DispatchStatus.NO_PROVIDER,
                                        DispatchAuditReason.PROVIDER_NOT_CONFIGURED)
             return ProviderDispatchResult(DispatchStatus.NO_PROVIDER, route, None, audit)
         if selected is None:
-            audit = DispatchAuditEvent(envelope.task_id, run_id, None,
+            audit = DispatchAuditEvent(request.task_id, run_id, None,
                                        DispatchStatus.BLOCKED,
                                        DispatchAuditReason.ROUTE_BLOCKED)
             return ProviderDispatchResult(DispatchStatus.BLOCKED, route, None, audit)
-
         identity = profile_id(selected)
         adapter = self._adapters.get(identity)
         if adapter is None:
-            audit = DispatchAuditEvent(envelope.task_id, run_id, identity,
+            audit = DispatchAuditEvent(request.task_id, run_id, identity,
                                        DispatchStatus.BLOCKED, DispatchAuditReason.ADAPTER_MISSING)
             return ProviderDispatchResult(DispatchStatus.BLOCKED, route, None, audit)
         if not isinstance(adapter, RuntimeAdapter):
@@ -148,22 +208,44 @@ class ProviderDispatchBoundary:
             raise DispatchConfigurationError("adapter_profile_mismatch")
         runner = self._runners.get(identity)
         if runner is None:
-            audit = DispatchAuditEvent(envelope.task_id, run_id, identity,
+            audit = DispatchAuditEvent(request.task_id, run_id, identity,
                                        DispatchStatus.BLOCKED, DispatchAuditReason.RUNNER_MISSING)
             return ProviderDispatchResult(DispatchStatus.BLOCKED, route, None, audit)
+        # This is intentionally constructed only after routing selected a profile.
+        envelope = RuntimeTaskEnvelope(request.task_id, request.prompt, selected,
+                                       request.allowed_paths, request.capabilities,
+                                       request.nested_agents, request.metadata)
         try:
             runtime = adapter.execute(envelope, runner=runner)
         except Exception as exc:
-            # Do not expose exception text and, importantly, never try another adapter.
             runtime = RuntimeResult(RuntimeStatus.FAILED, RuntimeErrorCode.RUNNER_ERROR,
                                     metadata={"exception": type(exc).__name__})
         if not isinstance(runtime, RuntimeResult):
             raise DispatchConfigurationError("adapter_result_invalid")
-        ok = runtime.status is RuntimeStatus.OK
-        status = DispatchStatus.OK if ok else DispatchStatus.FAILED
-        reason = DispatchAuditReason.PROVIDER_EXECUTED if ok else DispatchAuditReason.PROVIDER_FAILED
-        audit = DispatchAuditEvent(envelope.task_id, run_id, identity, status, reason)
+        status = DispatchStatus.OK if runtime.status is RuntimeStatus.OK else DispatchStatus.FAILED
+        reason = (DispatchAuditReason.PROVIDER_EXECUTED if status is DispatchStatus.OK
+                  else DispatchAuditReason.PROVIDER_FAILED)
+        audit = DispatchAuditEvent(request.task_id, run_id, identity, status, reason)
         return ProviderDispatchResult(status, route, runtime, audit)
+
+    def dispatch_request(self, request: ProviderDispatchRequest, policy: ProviderRoutePolicy,
+                         *, run_id: str) -> ProviderDispatchResult:
+        if not isinstance(request, ProviderDispatchRequest):
+            raise DispatchConfigurationError("invalid_request")
+        if type(run_id) is not str or not run_id:
+            raise DispatchConfigurationError("invalid_identity")
+        route = cast(ProviderRouteResult, self._router(request.task_id, run_id, policy, self._catalog))
+        return self._execute(request, route, run_id=run_id)
+
+    def dispatch(self, envelope: RuntimeTaskEnvelope, policy: ProviderRoutePolicy,
+                 *, run_id: str) -> ProviderDispatchResult:
+        """Backward-compatible envelope API; route result owns the effective profile."""
+        if not isinstance(envelope, RuntimeTaskEnvelope):
+            raise DispatchConfigurationError("invalid_envelope")
+        request = ProviderDispatchRequest(envelope.task_id, envelope.prompt,
+                                          tuple(envelope.allowed_paths), tuple(envelope.capabilities),
+                                          envelope.nested_agents, envelope.metadata)
+        return self.dispatch_request(request, policy, run_id=run_id)
 
     __call__ = dispatch
 
@@ -177,6 +259,17 @@ def dispatch_provider(envelope: RuntimeTaskEnvelope, policy: ProviderRoutePolicy
     return ProviderDispatchBoundary(catalog=catalog, adapters=adapters,
                                     runners=runners, router=router).dispatch(
                                         envelope, policy, run_id=run_id)
+
+
+def dispatch_request(request: ProviderDispatchRequest, policy: ProviderRoutePolicy,
+                     catalog: Iterable[RuntimeProviderProfile],
+                     adapters: Mapping[str, RuntimeAdapter],
+                     runners: Mapping[str, Any], *, run_id: str,
+                     router=route_provider) -> ProviderDispatchResult:
+    """Functional request-first API; profile selection precedes envelope creation."""
+    return ProviderDispatchBoundary(catalog=catalog, adapters=adapters,
+                                    runners=runners, router=router).dispatch_request(
+                                        request, policy, run_id=run_id)
 
 
 ProviderDispatch = ProviderDispatchBoundary

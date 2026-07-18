@@ -593,6 +593,42 @@ class FleetOrchestrator:
                                             self.executor, self.adapter,
                                             self.run_id, self.run_owner))
 
+    def _adapter_lease(self, task: Any, token: Mapping[str, Any]) -> dict[str, Any]:
+        """Create a safe, detached lease for an injected adapter.
+
+        Scheduler tokens intentionally contain only lease fencing data.  Provider
+        adapters additionally need the run owner and the *durable* retry attempt;
+        never mutate the scheduler token (or the store snapshot) while adding
+        those fields.  A malformed snapshot is a hard failure rather than an
+        invitation to guess an attempt/owner.
+        """
+        if not isinstance(token, Mapping):
+            raise OrchestratorError("V2 scheduler returned invalid lease")
+        try:
+            lease = _strict_copy(token)
+            snapshot = self.store.load(self.run_id)
+        except Exception as exc:
+            raise OrchestratorError("V2 lease enrichment store read failed") from exc
+        if not isinstance(lease, dict) or not isinstance(snapshot, Mapping):
+            raise OrchestratorError("V2 lease enrichment received malformed state")
+        attempts = snapshot.get("attempts")
+        if not isinstance(attempts, Mapping):
+            raise OrchestratorError("V2 lease enrichment received malformed attempts")
+        task_id = getattr(task, "id", None)
+        if type(task_id) is not str or not task_id:
+            raise OrchestratorError("V2 task has invalid id")
+        durable_attempt = attempts.get(task_id, lease.get("attempt", 1))
+        if type(durable_attempt) is not int or durable_attempt < 1:
+            raise OrchestratorError("V2 lease enrichment received invalid attempt")
+        if type(self.run_id) is not str or not self.run_id:
+            raise OrchestratorError("V2 run_id is invalid")
+        if type(self.run_owner) is not str or not self.run_owner:
+            raise OrchestratorError("V2 run owner is invalid")
+        lease["run_id"] = self.run_id
+        lease["owner"] = self.run_owner
+        lease["attempt"] = durable_attempt
+        return lease
+
     def _adapter_run(self, task: Any, token: Mapping[str, Any]) -> Any:
         """Run a worker without granting it a store capability."""
         fn = getattr(self.adapter, "run", None) or getattr(self.adapter, "execute", None)
@@ -601,10 +637,11 @@ class FleetOrchestrator:
                 fn = self.adapter
             else:
                 raise OrchestratorError("V2 adapter must be callable")
+        lease = self._adapter_lease(task, token) if self._v2_integration_enabled else deepcopy(token)
         # Adapters in early V2 tests used either task or task+lease.  Supporting
         # both keeps the capability boundary explicit while remaining injectable.
         try:
-            return fn(deepcopy(task), deepcopy(token))
+            return fn(deepcopy(task), deepcopy(lease))
         except TypeError:
             return fn(deepcopy(task))
 
@@ -678,6 +715,7 @@ class FleetOrchestrator:
                 token = token_by_id.get(task_id)
                 if token is None:
                     continue
+                parsed_failure_report = None
                 if status == "completed":
                     candidate = value.get("report") if isinstance(value, Mapping) and "report" in value else value
                     try:
@@ -686,27 +724,56 @@ class FleetOrchestrator:
                         if (parsed is None or parsed.task_id != task_id or
                                 parsed.attempt != expected_attempt):
                             raise ValueError("invalid AgentReport")
-                        report = self._store_report_projection(parsed, status="completed")
-                        # The terminal commit is durable truth.  Event append
-                        # is separate best-effort observability: once commit
-                        # succeeds, an event failure must never change status,
-                        # release/retry the consumed lease, or cause a second
-                        # terminal commit.
-                        self.store.commit(self.run_id, task_id, token, self.run_owner, report, status="completed")
-                        statuses[task_id] = "completed"
-                        reports.append(report)
-                        try:
-                            self.store.append_event(self.run_id, {"event_id": task_id,
-                                "ordering_key": task_id, "task_id": task_id, "status": "completed"}, self.run_owner)
-                        except Exception as event_exc:
-                            warning = _sanitize_text(event_exc, "event persistence failed") or "event persistence failed"
-                            reports[-1]["event_persistence_warning"] = warning
+                        # The executor's status only describes invocation.  The
+                        # validated AgentReport is the authority for the task
+                        # lifecycle; a provider may have run successfully while
+                        # reporting failed/blocked.
+                        parsed_status = parsed.status
+                        if parsed_status == "completed":
+                            report = self._store_report_projection(parsed, status="completed")
+                        elif parsed_status == "blocked":
+                            report = self._store_report_projection(parsed, status="blocked")
+                            self.store.commit(self.run_id, task_id, token, self.run_owner,
+                                              report, status="blocked")
+                            statuses[task_id] = "blocked"
+                            terminal_ids.add(task_id)
+                            reports.append(report)
                             try:
-                                self._call("report", {"type": "event_persistence_warning",
-                                    "task_id": task_id, "status": "completed", "error": warning})
-                            except Exception:
-                                pass
-                        continue
+                                self.store.append_event(self.run_id, {"event_id": task_id,
+                                    "ordering_key": task_id, "task_id": task_id, "status": "blocked"}, self.run_owner)
+                            except Exception as event_exc:
+                                warning = _sanitize_text(event_exc, "event persistence failed") or "event persistence failed"
+                                reports[-1]["event_persistence_warning"] = warning
+                            continue
+                        elif parsed_status == "failed":
+                            parsed_failure_report = self._store_report_projection(parsed, status="failed")
+                            error = (_sanitize_text(getattr(parsed, "error", None), "") or
+                                     _sanitize_text(getattr(parsed, "reason", None), "") or
+                                     "provider execution failed")
+                            status = "failed"
+                        else:
+                            raise ValueError("invalid AgentReport status")
+                        if parsed_status == "completed":
+                            # The terminal commit is durable truth.  Event append
+                            # is separate best-effort observability: once commit
+                            # succeeds, an event failure must never change status,
+                            # release/retry the consumed lease, or cause a second
+                            # terminal commit.
+                            self.store.commit(self.run_id, task_id, token, self.run_owner, report, status="completed")
+                            statuses[task_id] = "completed"
+                            reports.append(report)
+                            try:
+                                self.store.append_event(self.run_id, {"event_id": task_id,
+                                    "ordering_key": task_id, "task_id": task_id, "status": "completed"}, self.run_owner)
+                            except Exception as event_exc:
+                                warning = _sanitize_text(event_exc, "event persistence failed") or "event persistence failed"
+                                reports[-1]["event_persistence_warning"] = warning
+                                try:
+                                    self._call("report", {"type": "event_persistence_warning",
+                                        "task_id": task_id, "status": "completed", "error": warning})
+                                except Exception:
+                                    pass
+                            continue
                     except Exception as exc:
                         status, error = "failed", type(exc).__name__
                 if status != "completed":
@@ -723,9 +790,10 @@ class FleetOrchestrator:
                                   self._retry_error_matches(str(error or status), policy.retryable_errors)))
                     if not can_retry:
                         terminal_status = "blocked" if cancelled else "failed"
-                        terminal_report = self._failure_projection(task_id, attempt,
-                            "cancelled" if cancelled else (error or status),
-                            status=terminal_status, error=error or status)
+                        terminal_report = (parsed_failure_report if terminal_status == "failed" and parsed_failure_report
+                                           else self._failure_projection(task_id, attempt,
+                                               "cancelled" if cancelled else (error or status),
+                                               status=terminal_status, error=error or status))
                         try:
                             self.store.commit(self.run_id, task_id, token, self.run_owner,
                                               terminal_report, status=terminal_status)

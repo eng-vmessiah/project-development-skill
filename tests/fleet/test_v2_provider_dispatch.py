@@ -9,7 +9,7 @@ from pd_fleet.provider import CommandMetadata, RuntimePolicy, RuntimeProviderPro
 from pd_fleet.provider_routing import ProviderRoutePolicy  # noqa: E402
 from pd_fleet.runtime_adapter import RuntimeResult, RuntimeStatus, RuntimeTaskEnvelope  # noqa: E402
 from pd_fleet.provider_dispatch import (  # noqa: E402
-    DispatchStatus, ProviderDispatchBoundary,
+    DispatchStatus, ProviderDispatchBoundary, ProviderDispatchRequest,
 )
 
 
@@ -49,6 +49,23 @@ def test_routes_and_executes_only_selected_adapter():
     assert result.output == "done"
     assert adapter.calls == 1
     assert result.audit.as_dict()["reason"] == "provider_executed"
+
+
+def test_request_first_fallback_constructs_envelope_with_selected_profile():
+    first, second = _profile("one"), _profile("two")
+    object.__setattr__(first, "policy", RuntimePolicy(enabled=False, allowed_capabilities=("read",)))
+    adapter = _Adapter(second, RuntimeResult(RuntimeStatus.OK, output="fallback"))
+    result = ProviderDispatchBoundary(
+        catalog=(first, second), adapters={"two/runtime": adapter}, runners={"two/runtime": object()},
+    ).dispatch_request(
+        ProviderDispatchRequest("task", "prompt", ("workspace",), ("read",)),
+        ProviderRoutePolicy(preferred_ids=("one/runtime",), fallback_ids=("two/runtime",),
+                            allow_fallback=True, required_capabilities=("read",)),
+        run_id="run",
+    )
+    assert result.status is DispatchStatus.OK
+    assert result.selected == second
+    assert adapter.calls == 1
 
 
 def test_execution_failure_does_not_fallback_to_another_adapter():
