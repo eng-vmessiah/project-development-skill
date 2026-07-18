@@ -21,15 +21,16 @@ def profile(runtime: str, provider: str) -> RuntimeProviderProfile:
 
 def test_named_templates_are_exact_and_data_only() -> None:
     cases = [
-        ("openai-codex", "hermes", "hermes chat -q inspect --provider openai-codex --model gpt-test", {"model": "gpt-test"}),
-        ("codex-cli", "codex-cli", "codex exec inspect", {}),
-        ("opencode-go", "opencode", "opencode run inspect --format json", {}),
-        ("claude-code", "claude-code", "claude -p inspect --output-format json --max-turns 3", {"max_turns": 3}),
+        ("openai-codex", "hermes", "hermes chat -q inspect --provider openai-codex --model gpt-test -Q --safe-mode --ignore-rules --max-turns 1", {"model": "gpt-test"}),
+        ("codex-cli", "codex-cli", "codex exec --json --ephemeral --sandbox read-only --skip-git-repo-check inspect", {}),
+        ("opencode-go", "opencode", "opencode run --format json --pure inspect", {}),
+        ("claude-code", "claude-code", "claude -p inspect --output-format json --no-session-persistence --tools '' --max-budget-usd 0.10", {}),
     ]
     for runtime, provider, expected, metadata in cases:
         envelope = __import__("pd_fleet.runtime_adapter", fromlist=["RuntimeTaskEnvelope"]).RuntimeTaskEnvelope("t", "inspect", profile(runtime, provider), ("workspace",), ("read",), metadata=metadata)
         adapter = create_runtime_adapter(runtime, envelope.provider_profile, CommandMetadata("/tools/" + provider))
-        assert adapter.build_argv(envelope) == ("/tools/" + provider,) + tuple(expected.split()[1:])
+        parts = tuple("" if part == "''" else part for part in expected.split()[1:])
+        assert adapter.build_argv(envelope) == ("/tools/" + provider,) + parts
 
 
 def test_factory_rejects_unknown_mismatch_and_missing_command() -> None:
@@ -51,11 +52,8 @@ def test_model_and_turns_are_required_and_validated() -> None:
     with pytest.raises(RuntimeFactoryError) as exc:
         a.build_argv(RuntimeTaskEnvelope("t", "x", p, ("workspace",), ("read",)))
     assert exc.value.code == FACTORY_INVALID_MODEL
-    p = profile("claude-code", "claude-code")
-    a = create_runtime_adapter("claude-code", p, CommandMetadata("/claude"))
-    with pytest.raises(RuntimeFactoryError) as exc:
-        a.build_argv(RuntimeTaskEnvelope("t", "x", p, ("workspace",), ("read",), metadata={"max_turns": 0}))
-    assert exc.value.code == FACTORY_INVALID_MAX_TURNS
+    # Claude's bounded smoke command uses a fixed budget, not a caller-
+    # supplied turn count.
 
 
 def test_result_parser_ignores_provider_claimed_status_and_redacts() -> None:
@@ -95,3 +93,34 @@ def test_factory_rejects_unsafe_executable_and_unsupported_arguments() -> None:
 def test_runner_error_and_blocked_states_are_preserved() -> None:
     assert parse_runtime_output('{"output":"x"}', runner_status="error").status.value == "error"
     assert parse_runtime_output('{"output":"x"}', runner_status="blocked").status.value == "blocked"
+
+
+def test_result_parser_collects_jsonl_results_and_ignores_events() -> None:
+    payload = '\n'.join((
+        '{"type":"tool_use","status":"running","content":""}',
+        '{"type":"assistant","text":"first"}',
+        '{"event":"done","output":"second"}',
+    ))
+    result = parse_runtime_output(payload)
+    assert result.status.value == "ok"
+    assert result.output == "first\nsecond"
+
+
+def test_plain_text_is_opt_in_for_hermes_only() -> None:
+    assert parse_runtime_output("final answer", allow_plain_text=True).status.value == "ok"
+    assert parse_runtime_output("final answer").status.value == "failed"
+
+
+def test_result_parser_rejects_oversized_text_and_bytes_before_parsing() -> None:
+    oversized_text = "x" * (64 * 1024 + 1)
+    for payload in (oversized_text, oversized_text.encode("utf-8")):
+        result = parse_runtime_output(payload, allow_plain_text=True)
+        assert result.status.value == "failed"
+        assert result.error_code == "sandbox_failed"
+
+
+def test_result_parser_rejects_oversized_jsonl_combined_result() -> None:
+    payload = "\n".join('{"output":"' + ("x" * 20000) + '"}' for _ in range(4))
+    result = parse_runtime_output(payload)
+    assert result.status.value == "failed"
+    assert result.error_code == "sandbox_failed"

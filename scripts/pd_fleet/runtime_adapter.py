@@ -260,10 +260,15 @@ class TemplateRuntimeAdapter:
     def build_argv(self, envelope: RuntimeTaskEnvelope) -> tuple[str, ...]:
         _validate_envelope(envelope, self.profile)
         try:
-            argv = tuple(part.format(prompt=envelope.prompt, task_id=envelope.task_id) for part in self.template)
+            values: dict[str, Any] = {"prompt": envelope.prompt, "task_id": envelope.task_id}
+            # Named smoke adapters may safely bind declarative metadata (never
+            # shell-expand it); absent values fail closed via KeyError.
+            values.update({key: value for key, value in envelope.metadata.items()
+                           if type(value) in (str, int) and not isinstance(value, bool)})
+            argv = tuple(part.format(**values) for part in self.template)
         except (KeyError, IndexError, ValueError) as exc:
             raise RuntimeConfigurationError(RuntimeErrorCode.INVALID_ENVELOPE.value) from exc
-        if not argv or any(type(item) is not str or not item or "\x00" in item
+        if not argv or any(type(item) is not str or "\x00" in item
                            or any(ord(c) < 32 or ord(c) == 127 for c in item)
                            or re.search(r"[;&|<>$`]|\$\(|&&|\|\|", item)
                            for item in argv):
@@ -359,19 +364,19 @@ def _fixed_builder(envelope: RuntimeTaskEnvelope, provider: str, runtime: str,
 
 
 def build_hermes_argv(envelope: RuntimeTaskEnvelope) -> tuple[str, ...]:
-    return _fixed_builder(envelope, "hermes", "openai-codex", ("hermes", "--runtime", "openai-codex", "--task-id", "{task_id}", "--prompt", "{prompt}"))
+    return _fixed_builder(envelope, "hermes", "openai-codex", ("hermes", "chat", "-q", "{prompt}", "--provider", "openai-codex", "--model", "default", "-Q", "--safe-mode", "--ignore-rules", "--max-turns", "1"))
 
 
 def build_codex_cli_argv(envelope: RuntimeTaskEnvelope) -> tuple[str, ...]:
-    return _fixed_builder(envelope, "codex-cli", "codex-cli", ("codex", "exec", "--task-id", "{task_id}", "{prompt}"))
+    return _fixed_builder(envelope, "codex-cli", "codex-cli", ("codex", "exec", "--json", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", "{prompt}"))
 
 
 def build_opencode_go_argv(envelope: RuntimeTaskEnvelope) -> tuple[str, ...]:
-    return _fixed_builder(envelope, "opencode", "opencode-go", ("opencode", "run", "--model", "opencode-go", "--task-id", "{task_id}", "{prompt}"))
+    return _fixed_builder(envelope, "opencode", "opencode-go", ("opencode", "run", "--format", "json", "--pure", "{prompt}"))
 
 
 def build_claude_code_argv(envelope: RuntimeTaskEnvelope) -> tuple[str, ...]:
-    return _fixed_builder(envelope, "claude-code", "claude-code", ("claude", "--print", "--task-id", "{task_id}", "{prompt}"))
+    return _fixed_builder(envelope, "claude-code", "claude-code", ("claude", "-p", "{prompt}", "--output-format", "json", "--no-session-persistence", "--tools", "", "--max-budget-usd", "0.10"))
 
 
 build_hermes_openai_codex_argv = build_hermes_argv
@@ -388,8 +393,8 @@ def runtime_adapters(profiles: Sequence[RuntimeProviderProfile]) -> tuple[Templa
         raise RuntimeConfigurationError(RuntimeErrorCode.CATALOG_INVALID.value)
     by_runtime = {p.runtime_name: p for p in profiles}
     return (
-        _adapter("hermes/openai-codex", by_runtime["openai-codex"], ("hermes", "--runtime", "openai-codex", "--task-id", "{task_id}", "--prompt", "{prompt}")),
-        _adapter("codex-cli", by_runtime["codex-cli"], ("codex", "exec", "--task-id", "{task_id}", "{prompt}")),
-        _adapter("opencode-go", by_runtime["opencode-go"], ("opencode", "run", "--model", "opencode-go", "--task-id", "{task_id}", "{prompt}")),
-        _adapter("claude-code", by_runtime["claude-code"], ("claude", "--print", "--task-id", "{task_id}", "{prompt}")),
+        _adapter("hermes/openai-codex", by_runtime["openai-codex"], ("hermes", "chat", "-q", "{prompt}", "--provider", "openai-codex", "--model", "default", "-Q", "--safe-mode", "--ignore-rules", "--max-turns", "1")),
+        _adapter("codex-cli", by_runtime["codex-cli"], ("codex", "exec", "--json", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", "{prompt}")),
+        _adapter("opencode-go", by_runtime["opencode-go"], ("opencode", "run", "--format", "json", "--pure", "{prompt}")),
+        _adapter("claude-code", by_runtime["claude-code"], ("claude", "-p", "{prompt}", "--output-format", "json", "--no-session-persistence", "--tools", "", "--max-budget-usd", "0.10")),
     )

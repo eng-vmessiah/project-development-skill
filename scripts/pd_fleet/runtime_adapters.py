@@ -37,12 +37,16 @@ FACTORY_INVALID_MAX_TURNS = "invalid_max_turns"
 FACTORY_COMMAND_ARGUMENTS_UNSUPPORTED = "command_arguments_unsupported"
 
 _TEMPLATES = {
-    "openai-codex": ("hermes", "chat", "-q", "{prompt}", "--provider", "openai-codex", "--model", "{model}"),
-    "codex-cli": ("codex", "exec", "{prompt}"),
-    "opencode-go": ("opencode", "run", "{prompt}", "--format", "json"),
-    "claude-code": ("claude", "-p", "{prompt}", "--output-format", "json", "--max-turns", "{max_turns}"),
+    "openai-codex": ("hermes", "chat", "-q", "{prompt}", "--provider", "openai-codex", "--model", "{model}", "-Q", "--safe-mode", "--ignore-rules", "--max-turns", "1"),
+    "codex-cli": ("codex", "exec", "--json", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", "{prompt}"),
+    "opencode-go": ("opencode", "run", "--format", "json", "--pure", "{prompt}"),
+    "claude-code": ("claude", "-p", "{prompt}", "--output-format", "json", "--no-session-persistence", "--tools", "", "--max-budget-usd", "0.10"),
 }
 _RUNTIME_PROVIDERS = {"openai-codex": "hermes", "codex-cli": "codex-cli", "opencode-go": "opencode", "claude-code": "claude-code"}
+
+# Runner output is untrusted.  Keep parsing and result construction bounded even
+# when a provider ignores the requested output format.
+MAX_RUNTIME_OUTPUT_BYTES = 64 * 1024
 
 
 def _metadata_value(envelope: RuntimeTaskEnvelope, key: str) -> str:
@@ -54,37 +58,84 @@ def _metadata_value(envelope: RuntimeTaskEnvelope, key: str) -> str:
     return value
 
 
-def parse_runtime_output(value: Any, *, runner_status: str = "passed", stderr: str = "", metadata: Mapping[str, Any] | None = None) -> RuntimeResult:
+def parse_runtime_output(value: Any, *, runner_status: str = "passed", stderr: str = "", metadata: Mapping[str, Any] | None = None, allow_plain_text: bool = False) -> RuntimeResult:
     """Convert untrusted runner output to a result, failing closed.
 
     Provider JSON fields (especially ``status``/``error``) are data and cannot
     control the result status. A successful runner status is accepted only
-    when a recognized, non-empty result field is present.
+    when a recognized, non-empty result field is present. Input is hard-capped
+    at ``MAX_RUNTIME_OUTPUT_BYTES`` (64 KiB); this applies to complete JSON,
+    JSONL streams, and plain text before parsing.
+
+    The Hermes ``--ignore-rules`` and Codex ``--skip-git-repo-check`` flags in
+    the named templates are smoke-policy opt-ins only, not production defaults.
+    No unsafe bypass flags are enabled by this parser or adapter.
     """
-    text = value if isinstance(value, str) else ("" if value is None else str(value))
+    if isinstance(value, bytes):
+        if len(value) > MAX_RUNTIME_OUTPUT_BYTES:
+            return RuntimeResult(RuntimeStatus.FAILED, RuntimeErrorCode.SANDBOX_FAILED)
+        text = value.decode("utf-8", errors="replace")
+    else:
+        text = value if isinstance(value, str) else ("" if value is None else str(value))
+        # Character-counting is deliberately conservative for Unicode: it is a
+        # smaller cap than the byte cap and avoids an unbounded encoding copy.
+        if len(text) > MAX_RUNTIME_OUTPUT_BYTES:
+            return RuntimeResult(RuntimeStatus.FAILED, RuntimeErrorCode.SANDBOX_FAILED)
+    if len(text.encode("utf-8", errors="replace")) > MAX_RUNTIME_OUTPUT_BYTES:
+        return RuntimeResult(RuntimeStatus.FAILED, RuntimeErrorCode.SANDBOX_FAILED)
     output = ""
     evidence = False
+    def collect(document: Any) -> list[str]:
+        found: list[str] = []
+        if isinstance(document, Mapping):
+            event_type = document.get("type")
+            if isinstance(event_type, str) and event_type.lower().startswith(("tool", "event")):
+                return found
+            for key in ("output", "result", "structured_output", "text", "content"):
+                candidate = document.get(key)
+                if isinstance(candidate, str) and candidate.strip():
+                    found.append(candidate)
+                elif key in ("output", "result", "structured_output") and candidate not in (None, "", {}, [], ()):
+                    rendered = json.dumps(candidate, ensure_ascii=True, sort_keys=True)
+                    if rendered.strip():
+                        found.append(rendered)
+        elif isinstance(document, list):
+            found.extend(item for item in document if isinstance(item, str) and item.strip())
+        return found
+
+    def output_is_bounded(items: Sequence[str]) -> bool:
+        # Include separators so the final join cannot exceed the cap.
+        return (sum(len(item.encode("utf-8", errors="replace")) for item in items)
+                + max(0, len(items) - 1)) <= MAX_RUNTIME_OUTPUT_BYTES
+
     try:
         document = json.loads(text)
     except (TypeError, ValueError, json.JSONDecodeError):
         document = None
-    if isinstance(document, Mapping):
-        for key in ("output", "result", "structured_output", "text", "content"):
-            candidate = document.get(key)
-            if isinstance(candidate, str) and candidate.strip():
-                output, evidence = candidate, True
-                break
-            if key in ("output", "result", "structured_output") and candidate not in (None, "", {}, [], ()):
-                output = json.dumps(candidate, ensure_ascii=True, sort_keys=True)
-                evidence = bool(output.strip())
-                break
-    elif isinstance(document, list):
-        items = [item for item in document if isinstance(item, str) and item.strip()]
-        if items:
-            output, evidence = "\n".join(items), True
+    items = collect(document)
+    if not output_is_bounded(items):
+        return RuntimeResult(RuntimeStatus.FAILED, RuntimeErrorCode.SANDBOX_FAILED)
+    if not items and text.strip() and "\n" in text:
+        # Providers commonly emit JSONL event streams.  Only recognized result
+        # fields count; status/event/tool metadata is deliberately ignored.
+        for line in text.splitlines():
+            if not line.strip():
+                continue
+            if len(line.encode("utf-8", errors="replace")) > MAX_RUNTIME_OUTPUT_BYTES:
+                return RuntimeResult(RuntimeStatus.FAILED, RuntimeErrorCode.SANDBOX_FAILED)
+            try:
+                items.extend(collect(json.loads(line)))
+                if not output_is_bounded(items):
+                    return RuntimeResult(RuntimeStatus.FAILED, RuntimeErrorCode.SANDBOX_FAILED)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+    if items:
+        output, evidence = "\n".join(items), True
+    elif allow_plain_text and text.strip():
+        output, evidence = text, True
     safe_meta = dict(metadata) if isinstance(metadata, Mapping) else {}
     safe_meta["stderr"] = stderr if isinstance(stderr, str) else str(stderr)
-    safe_status = runner_status.value if isinstance(runner_status, RuntimeStatus) else runner_status
+    safe_status = runner_status.value if isinstance(runner_status, RuntimeStatus) else str(runner_status)
     mapping = {
         "denied": (RuntimeStatus.DENIED, RuntimeErrorCode.SANDBOX_DENIED),
         "timeout": (RuntimeStatus.TIMEOUT, RuntimeErrorCode.SANDBOX_TIMEOUT),
@@ -118,11 +169,7 @@ class NamedRuntimeAdapter:
         values = {"prompt": envelope.prompt}
         if self.runtime == "openai-codex":
             values["model"] = _metadata_value(envelope, "model")
-        if self.runtime == "claude-code":
-            value = envelope.metadata.get("max_turns")
-            if type(value) is not int or isinstance(value, bool) or not (1 <= value <= 100):
-                raise RuntimeFactoryError(FACTORY_INVALID_MAX_TURNS)
-            values["max_turns"] = str(value)
+
         return tuple(part.format(**values) for part in template)
 
     def build_argv(self, envelope: RuntimeTaskEnvelope) -> tuple[str, ...]:
@@ -132,7 +179,7 @@ class NamedRuntimeAdapter:
     def execute(self, envelope: RuntimeTaskEnvelope, *, runner: Any = None) -> RuntimeResult:
         # Delegate sandbox checks and result mapping, then parse JSON payload.
         base = TemplateRuntimeAdapter(self.name, self.profile, self._template(envelope), self.command_metadata).execute(envelope, runner=runner)
-        return parse_runtime_output(base.output, runner_status=base.status.value, stderr=str(base.metadata.get("stderr", "")), metadata={"runtime": self.runtime})
+        return parse_runtime_output(base.output, runner_status=base.status.value, stderr=str(base.metadata.get("stderr", "")), metadata={"runtime": self.runtime}, allow_plain_text=self.runtime == "openai-codex" and runner is not None)
 
 
 HermesRuntimeAdapter = NamedRuntimeAdapter

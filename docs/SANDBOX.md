@@ -45,3 +45,12 @@ an approved process may still use the host network.
 This is a defense-in-depth execution boundary, not authorization to run
 arbitrary commands. The allowlist and tool root must be provisioned by a
 trusted operator; untrusted plans must not be allowed to construct them.
+
+# Runtime smoke-policy flags
+
+The named Hermes and Codex smoke adapters may use provider-specific repository
+checks as an explicit smoke-policy opt-in: Hermes `--ignore-rules` and Codex
+`--skip-git-repo-check`. These flags are **not production defaults** and must
+not be copied into production execution paths. The adapters do not enable
+unsafe bypass flags; production remains subject to the normal sandbox and
+capability policy.
