@@ -6,7 +6,7 @@ A comprehensive skill ecosystem for AI-assisted software development. Works with
 
 | Skill | Description | Size |
 |-------|-------------|------|
-| **pd** | Master orchestrator — full development pipeline | 34k |
+| **pd** | Master orchestrator — full development pipeline | 13.2k |
 | **clean-code** | Writing maintainable, readable code | 16k |
 | **ddd-development** | Domain-Driven Design patterns | 15k |
 | **design-patterns** | GoF 23 patterns + decision trees | 19k |
