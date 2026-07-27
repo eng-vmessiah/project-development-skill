@@ -37,20 +37,14 @@ The installer auto-detects which platforms you have installed.
 
 ## Manual Installation
 
-### Hermes Agent
+Use the repository installer so nested skills, platform transformations, stale-file cleanup, and Claude flat-name collisions are handled consistently:
+
 ```bash
-cp -r skills/* ~/.hermes/skills/software-development/
+chmod +x install.sh
+./install.sh
 ```
 
-### OpenCode
-```bash
-cp -r skills/* ~/.config/opencode/skills/
-```
-
-### Claude Code
-```bash
-cp skills/*.md ~/.claude/commands/
-```
+For a custom platform, reproduce the contracts in `skills/pd/references/multi-platform-skill-development.md`; do not copy `skills/*.md` because each skill lives in its own directory and may contain references/templates.
 
 ## Usage
 

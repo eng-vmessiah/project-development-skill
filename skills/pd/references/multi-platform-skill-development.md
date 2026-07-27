@@ -2,139 +2,87 @@
 
 Workflow for creating, validating, and distributing skills across Hermes Agent, OpenCode, and Claude Code.
 
-## Platform Formats
+## Source and platform contracts
 
-| Platform | Location | Format |
-|----------|----------|--------|
-| Hermes | `~/.hermes/skills/<category>/<skill>/SKILL.md` | Frontmatter + `metadata.hermes` |
-| OpenCode | `~/.config/opencode/skills/<skill>/SKILL.md` | Frontmatter (no metadata.hermes) |
-| Claude | `~/.claude/commands/<skill>.md` | Frontmatter (no metadata.hermes) |
+The repository is the canonical source. Installed copies are generated deployment artifacts and must not become an undocumented second source of truth.
 
-## Sync Script Pattern
+| Platform | Location | Deployment contract |
+|---|---|---|
+| Hermes | `~/.hermes/skills/<category>/<skill>/` | Complete tree: `SKILL.md`, `references/`, `templates/`, and scripts |
+| OpenCode | `~/.config/opencode/skills/<skill>/` | Complete tree, with only `metadata.hermes` removed from `SKILL.md` |
+| Claude | `~/.claude/commands/<skill>.md` | Flat, self-contained command rendering without `metadata.hermes` |
 
-```bash
-#!/bin/bash
-# Sync skills to all platforms
+A Claude command cannot assume sibling `references/` files. The canonical `SKILL.md` must therefore contain the core workflow without making optional references mandatory. Directory-based platforms receive the detailed references.
 
-SKILLS_DIR="skills"
-HERMES_DIR="$HOME/.hermes/skills/software-development"
-OPENCODE_DIR="$HOME/.config/opencode/skills"
-CLAUDE_DIR="$HOME/.claude/commands"
+## Installer requirements
 
-for skill_dir in "$SKILLS_DIR"/*/; do
-    skill_name=$(basename "$skill_dir")
+A reproducible installer must:
 
-    # Hermes (full copy with templates)
-    mkdir -p "$HERMES_DIR/$skill_name"
-    cp -r "$skill_dir"* "$HERMES_DIR/$skill_name/"
+1. copy the complete tree to Hermes;
+2. copy the complete tree to OpenCode, then apply only the documented frontmatter transformation;
+3. render the self-contained `SKILL.md` to Claude's flat command path, removing optional `references/` pointers from that rendering;
+4. preserve relative category paths for Hermes/OpenCode so nested skills do not overwrite one another;
+5. fail before copying when two source skills would collide in Claude's flat namespace;
+6. remove stale files belonging to the same skill before copying, so deleted references do not survive from an older installation;
+7. fail on copy or transformation errors;
+8. never copy credentials, runtime state, or project artifacts.
 
-    # OpenCode (remove metadata.hermes)
-    mkdir -p "$OPENCODE_DIR/$skill_name"
-    python3 -c "
-import re
-with open('$skill_dir/SKILL.md', 'r') as f:
-    content = f.read()
-content = re.sub(r'(metadata:\n  hermes:\n    tags: \[.*?\]\n    related_skills: \[.*?\]\n)', '', content)
-with open('$OPENCODE_DIR/$skill_name/SKILL.md', 'w') as f:
-    f.write(content)
-"
+The repository `install.sh` implements this contract for Unix-like hosts. Windows-native installations should use the same source/transform rules through an equivalent PowerShell wrapper rather than maintaining a separate hand-edited skill.
 
-    # Claude (flat structure, .md extension)
-    cp "$skill_dir/SKILL.md" "$CLAUDE_DIR/$skill_name.md"
-done
-```
+## Validation requirements
 
-## Analyzing External Repos
+For each destination, verify:
 
-Workflow for synthesizing skills from external sources:
+- expected frontmatter and platform transformation;
+- complete tree equality for Hermes/OpenCode except the allowed metadata difference;
+- no unresolved required references in the Claude rendering;
+- no stale files after reinstall;
+- the actual platform loader can discover the skill.
 
-1. **Fetch repo info**: `curl -s https://api.github.com/repos/{owner}/{repo}`
-2. **Read README**: Understand purpose and patterns
-3. **Identify patterns**: What problems does it solve?
-4. **Check license**: MIT, Apache, etc. (required for attribution)
-5. **Synthesize skill**: Rewrite in own words, don't copy
-6. **Add attribution**: Credit original in README or skill references
+Do not claim synchronization from a comparison of `SKILL.md` alone.
 
-## Attribution Requirements
+## External repositories
 
-| License | Requirement |
-|---------|-------------|
-| MIT | Include copyright notice |
-| Apache 2.0 | Include license file |
-| No license | Cannot use (all rights reserved) |
-| Public domain | No attribution required |
+When synthesizing a skill from an external repository:
 
-For skills derived from external sources:
-- Rewrite content in own words
-- Add attribution in skill references or README
-- Don't copy code verbatim
-- Focus on patterns, not implementation
+1. inspect the pinned revision and license;
+2. read the README and relevant implementation;
+3. identify reusable patterns rather than copying implementation;
+4. rewrite in the skill's own words;
+5. record attribution when required;
+6. keep project-specific paths, names, credentials, and historical commands out of the reusable skill.
 
-## Validation Script
+## Skill size
 
-```bash
-#!/bin/bash
-# Validate all skills
+Keep the primary `SKILL.md` focused on routing, mandatory gates, safety rules, and the minimal executable workflow. Move domain-specific procedures and long examples to `references/`.
 
-for skill in skills/*/SKILL.md; do
-    # Check frontmatter
-    # Check size (max 35k)
-    # Check required fields
-    # Check for code examples
-done
-```
+| Size | Guidance |
+|---|---|
+| `<15k` | Preferred for the primary skill |
+| `15–25k` | Review for extraction into references |
+| `>25k` | Split before distribution |
 
-## Skill Size Guidelines
+## Repository structure
 
-| Size | Category | Action |
-|------|----------|--------|
-| <5k | Small | Consider merging |
-| 5-15k | Ideal | Perfect |
-| 15-20k | Large | Consider splitting |
-| >20k | Too large | Must split |
-
-## Cross-Reference Pattern
-
-When creating new skills, update related skills' frontmatter:
-
-```yaml
-# In new skill
-metadata:
-  hermes:
-    related_skills: [existing-skill-1, existing-skill-2]
-
-# In existing skill (send PR)
-metadata:
-  hermes:
-    related_skills: [..., new-skill, ...]
-```
-
-## Repository Structure
-
-```
+```text
 project-name/
 ├── README.md
 ├── CONTRIBUTING.md
-├── CHANGELOG.md
 ├── LICENSE
 ├── install.sh
 ├── scripts/
-│   └── validate.sh
-├── docs/
-│   ├── ARCHITECTURE.md
-│   └── CREATING-SKILLS.md
-├── examples/
-│   └── <example>/
 └── skills/
     └── <skill-name>/
         ├── SKILL.md
-        └── templates/ (optional)
+        ├── references/  (optional)
+        └── templates/   (optional)
 ```
 
-## Common Pitfalls
+## Common pitfalls
 
-1. **Forgetting metadata.hermes** — OpenCode/Claude don't use it
-2. **Not testing all platforms** — Each has quirks
-3. **Missing attribution** — License violation risk
-4. **Copying verbatim** — Rewrite in own words
-5. **No validation** — Broken skills in production
+1. Copying only `SKILL.md` to a directory-based platform.
+2. Linking mandatory behavior from a reference unavailable to Claude.
+3. Removing metadata but leaving stale references/templates from an older version.
+4. Treating an installed copy as canonical without auditing it.
+5. Mixing project-specific examples into reusable guidance.
+6. Validating only file hashes while ignoring the actual platform loader.

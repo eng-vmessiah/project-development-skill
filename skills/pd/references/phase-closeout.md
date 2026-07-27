@@ -4,8 +4,8 @@ Depois que o código está implementado e testado, closeout é o processo de:
 1. Verificar que tudo está íntegro
 2. Separar o que pertence à feature do que são mudanças não relacionadas
 3. Atualizar a documentação de estado
-4. Commitar e push
-5. Registrar no diário e memória
+4. Prepare the approved delivery stage
+5. Register the result in the repository's adopted project record
 
 Use este checklist quando: testes passam, review foi feito, e você está pronto para "fechar o ciclo".
 
@@ -149,30 +149,32 @@ Files: N arquivos, +/-N linhas
 ### Exemplo real
 
 ```
-[verified] isis-omni-extraction: Phase 1 + Phase 2 completos
+[verified] feature-name: Fase 1 + Fase 2 completas
 
-Phase 1 — Router Evolution:
-- Circuit Breaker (2 falhas → cooldown exponencial) + LKGP
-- GET /api/arena/capabilities (8 testes)
-- MCP Server stdio com 5 tools
+Fase 1 — Fundação:
+- Contratos principais e persistência
+- Endpoint de capacidades e testes
+- Adaptador local com fronteira explícita
 
-Phase 2 — Security + Evaluation + A2A:
-- Guardrails/PII Masker (22 testes)
-- Eval Framework (17 testes)
-- A2A Metadata (trace + policy na resposta)
+Fase 2 — Segurança e integração:
+- Validação de entrada e redaction
+- Testes de avaliação
+- Metadados de rastreabilidade e política
 
-Quality: 77/77 testes, security scan limpo, fresh-eyes review
-Files: 24 arquivos, +2210 linhas novas
+Quality: N/N testes, security scan limpo, fresh-eyes review
+Files: N arquivos, +N linhas
 ```
 
-## Step 7 — Push
+## Step 7 — Delivery
+
+Only push when that delivery stage is explicitly approved:
 
 ```bash
 git push
-git status  # MUST show "up to date with origin"
+git status  # confirm the intended remote state
 ```
 
-**Regra:** Se o push falhar, resolva e retry. Não deixar trabalho no disco sem push.
+If an approved push fails, preserve the local commit, record the exact error, and retry only after correcting the cause. Do not claim delivery until the remote state is verified.
 
 ## Step 8 — Registrar no diário do projeto
 
@@ -198,9 +200,9 @@ Escrever uma entrada no diário ou registro de projeto adotado pelo repositório
 - Coisas que ficaram pra depois
 ```
 
-## Step 9 — Registrar na memória
+## Step 9 — Durable project record
 
-Use `memory action=add target=memory` para registrar o fato durável sobre o que foi concluído.
+If the repository maintains a durable project record, append the verified decision or convention there. Do not duplicate secrets, credentials, or temporary task progress.
 
 ---
 

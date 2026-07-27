@@ -44,24 +44,25 @@ git show :3:<path>  # incoming (theirs)
 
 ### Selective file exclusion during merge
 
-When a source branch contains files that MUST NOT enter the product tree (development artifacts, alternate frontend versions, session files, credentials):
+When a source branch contains files that MUST NOT enter the product tree (development artifacts, generated outputs, session files, credentials, or alternate product surfaces):
 
-1. Merge the branch normally (the unwanted files come in as part of the merge).
-2. Remove them before committing:
+1. Merge the branch normally so provenance is preserved.
+2. Inspect the incoming paths against the target repository's allowlist.
+3. Remove only the explicitly excluded paths before committing:
 
 ```bash
-git rm -rf .sisyphus/ frontend_version_k27/
+git rm -r -- path/to/excluded-artifact path/to/generated-output
 git add -A
 git commit
 ```
 
 Do NOT use `git merge --no-commit` + cherry-pick as a substitute — that loses provenance. The merge commit records the branch origin; the removal commit records the exclusion rationale. Both are auditable.
 
-If the unwanted files conflict during merge, accept the incoming version, remove them, and note the exclusion in the merge message:
+If an excluded path conflicts during merge, resolve the source-file conflict first, then remove the excluded artifact and record the rationale in the merge message or integration summary:
 
 ```bash
-git merge --no-ff feature/bsp -m "merge(bsp): integrate Cloud API (excl .sisyphus/ e frontend_version_k27/)"
-git rm -rf .sisyphus/ frontend_version_k27/
+git merge --no-ff feature/name -m "merge(area): integrate feature (exclude generated artifacts)"
+git rm -r -- path/to/excluded-artifact
 git commit --amend --no-edit   # or commit separately
 ```
 
@@ -77,15 +78,15 @@ git stash pop                        # MUST check this succeeded
 
 **Pitfall:** If the merge fails, `git stash pop` does NOT run automatically. The stash remains and subsequent `git checkout --ours` or `git add -A` will NOT restore it. After resolving conflicts and committing the merge, run `git stash pop` explicitly. Verify with `git stash list` — an empty list means all stashes were popped.
 
-### 2. Validate immediately
+### Validate immediately
+
+Use the candidate branch's canonical focused tests, typecheck, build, and smoke commands. Do not copy commands from another repository into the integration guide. Record the exact commands and results in the integration summary:
 
 ```bash
-# Run the feature's focused tests + typecheck
-cd backend && npm test -- --run src/tests/<feature-*.test.ts>
-npx tsc --noEmit
-cd ../nanoclaw/container/agent-runner && bun test && bun run typecheck
-cd ../..
-bash scripts/smoke/check-<feature>.sh
+<focused-test-command>
+<typecheck-command>
+<secondary-component-test-command>
+<feature-smoke-command>
 git diff --check main...HEAD
 ```
 
@@ -97,9 +98,9 @@ Maintain one append-only migration sequence. Use a reserved range per source bra
 
 | Range | Owner |
 |-------|-------|
-| v77–v78 | LLM telemetry |
-| v79–v80 | WhatsApp Platform |
-| v81–v83 | BSP / Cloud API |
+| v<range-1> | Foundation or shared infrastructure |
+| v<range-2> | Product surface A |
+| v<range-3> | Product surface B |
 
 Renumber during the merge resolution, update migration descriptions, and update any version-asserting tests.
 

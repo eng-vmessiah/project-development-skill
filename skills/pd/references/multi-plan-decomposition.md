@@ -34,7 +34,7 @@ Ferramentas de qualidade que garantem que o produto não alucina/quebra.
 O que o usuário final vê e usa. Consome Foundation e usa Tooling para garantir qualidade.
 
 **Características:**
-- Interfaces de usuário (WhatsApp, web)
+- Interfaces de usuário (portal web, CLI ou outros canais definidos pelo produto)
 - Autenticação, segurança, UX
 - Valor direto pro negócio
 

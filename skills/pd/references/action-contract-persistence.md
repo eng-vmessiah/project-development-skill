@@ -1,6 +1,6 @@
 # Action-contract persistence and replay reference
 
-Reusable implementation notes for FastAPI + SQLite action contracts.
+Reusable implementation notes for versioned HTTP action contracts with a durable persistence layer.
 
 ## Contract migration
 

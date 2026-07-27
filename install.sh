@@ -1,127 +1,126 @@
 #!/bin/bash
 # Project Development Skills — Multi-Platform Installer
-# Compatible with: Hermes Agent, OpenCode, Claude Code
+# Compatible with Hermes Agent, OpenCode, and Claude Code on Unix-like hosts.
 
-set -e
+set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_DIR="$REPO_DIR/skills"
-
-echo "🚀 Project Development Skills Installer"
-echo "========================================"
-echo ""
-
-# Detect platforms
 HERMES_DIR="$HOME/.hermes/skills/software-development"
 OPENCODE_DIR="$HOME/.config/opencode/skills"
 CLAUDE_DIR="$HOME/.claude/commands"
 
-INSTALLED=()
+declare -A CLAUDE_SOURCES=()
 
-# Install to Hermes
+strip_hermes_metadata() {
+    python3 - "$1" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+content = path.read_text()
+content = re.sub(
+    r"metadata:\n  hermes:\n    tags: \[.*?\]\n    related_skills: \[.*?\]\n",
+    "",
+    content,
+    count=1,
+)
+path.write_text(content)
+PY
+}
+
+strip_claude_optional_references() {
+    python3 - "$1" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+lines = path.read_text().splitlines(keepends=True)
+# Claude receives a flat command. Remove optional reference pointers that have
+# no corresponding sibling files in ~/.claude/commands.
+path.write_text(''.join(line for line in lines if 'references/' not in line))
+PY
+}
+
+preflight_flat_names() {
+    local skill_file skill_dir skill_name
+    while IFS= read -r -d '' skill_file; do
+        skill_dir="$(dirname "$skill_file")"
+        skill_name="$(basename "$skill_dir")"
+        if [[ -n "${CLAUDE_SOURCES[$skill_name]:-}" && "${CLAUDE_SOURCES[$skill_name]}" != "$skill_dir" ]]; then
+            printf 'ERROR: Claude flat-name collision for %q:\n  %s\n  %s\n' \
+                "$skill_name" "${CLAUDE_SOURCES[$skill_name]}" "$skill_dir" >&2
+            exit 1
+        fi
+        CLAUDE_SOURCES[$skill_name]="$skill_dir"
+    done < <(find "$SKILLS_DIR" -type f -name SKILL.md -print0)
+}
+
+install_hermes() {
+    local skill_dir="$1" relative_dir
+    relative_dir="${skill_dir#"$SKILLS_DIR"/}"
+    relative_dir="${relative_dir%/}"
+    mkdir -p "$HERMES_DIR/$(dirname "$relative_dir")"
+    rm -rf "$HERMES_DIR/$relative_dir"
+    cp -a "$skill_dir" "$HERMES_DIR/$relative_dir"
+}
+
+install_opencode() {
+    local skill_dir="$1" relative_dir
+    relative_dir="${skill_dir#"$SKILLS_DIR"/}"
+    relative_dir="${relative_dir%/}"
+    mkdir -p "$OPENCODE_DIR/$(dirname "$relative_dir")"
+    rm -rf "$OPENCODE_DIR/$relative_dir"
+    cp -a "$skill_dir" "$OPENCODE_DIR/$relative_dir"
+    strip_hermes_metadata "$OPENCODE_DIR/$relative_dir/SKILL.md"
+}
+
+install_claude() {
+    local skill_dir="$1" skill_name
+    skill_name="$(basename "$skill_dir")"
+    mkdir -p "$CLAUDE_DIR"
+    # Claude commands are flat and self-contained. Optional references are
+    # removed from the rendered command; directory platforms receive them.
+    cp "$skill_dir/SKILL.md" "$CLAUDE_DIR/$skill_name.md"
+    strip_hermes_metadata "$CLAUDE_DIR/$skill_name.md"
+    strip_claude_optional_references "$CLAUDE_DIR/$skill_name.md"
+}
+
+run_for_each_skill() {
+    local installer="$1" skill_file skill_dir
+    while IFS= read -r -d '' skill_file; do
+        skill_dir="$(dirname "$skill_file")"
+        "$installer" "$skill_dir"
+    done < <(find "$SKILLS_DIR" -type f -name SKILL.md -print0)
+}
+
+echo "🚀 Project Development Skills Installer"
+echo "========================================"
+preflight_flat_names
+
 if [ -d "$HOME/.hermes" ]; then
     echo "📦 Installing to Hermes Agent..."
-    mkdir -p "$HERMES_DIR"
-    
-    for skill_dir in "$SKILLS_DIR"/*/; do
-        skill_name=$(basename "$skill_dir")
-        mkdir -p "$HERMES_DIR/$skill_name"
-        cp -r "$skill_dir"* "$HERMES_DIR/$skill_name/"
-    done
-    
-    INSTALLED+=("Hermes")
+    run_for_each_skill install_hermes
     echo "   ✅ Done"
 fi
 
-# Install to OpenCode
 if [ -d "$HOME/.config/opencode" ]; then
     echo "📦 Installing to OpenCode..."
-    mkdir -p "$OPENCODE_DIR"
-    
-    for skill_dir in "$SKILLS_DIR"/*/; do
-        skill_name=$(basename "$skill_dir")
-        mkdir -p "$OPENCODE_DIR/$skill_name"
-        
-        # Copy SKILL.md and remove metadata.hermes section
-        python3 -c "
-import re
-
-with open('$skill_dir/SKILL.md', 'r') as f:
-    content = f.read()
-
-# Remove metadata.hermes section
-content = re.sub(
-    r'(metadata:\n  hermes:\n    tags: \[.*?\]\n    related_skills: \[.*?\]\n)',
-    '',
-    content
-)
-
-with open('$OPENCODE_DIR/$skill_name/SKILL.md', 'w') as f:
-    f.write(content)
-"
-        
-        # Copy templates if they exist
-        if [ -d "$skill_dir/templates" ]; then
-            mkdir -p "$OPENCODE_DIR/$skill_name/templates"
-            cp -r "$skill_dir/templates"* "$OPENCODE_DIR/$skill_name/templates/"
-        fi
-    done
-    
-    INSTALLED+=("OpenCode")
+    run_for_each_skill install_opencode
     echo "   ✅ Done"
 fi
 
-# Install to Claude
 if [ -d "$HOME/.claude" ]; then
     echo "📦 Installing to Claude Code..."
-    mkdir -p "$CLAUDE_DIR"
-    
-    for skill_dir in "$SKILLS_DIR"/*/; do
-        skill_name=$(basename "$skill_dir")
-        
-        # Copy SKILL.md and remove metadata.hermes section
-        python3 -c "
-import re
-
-with open('$skill_dir/SKILL.md', 'r') as f:
-    content = f.read()
-
-# Remove metadata.hermes section
-content = re.sub(
-    r'(metadata:\n  hermes:\n    tags: \[.*?\]\n    related_skills: \[.*?\]\n)',
-    '',
-    content
-)
-
-with open('$CLAUDE_DIR/$skill_name.md', 'w') as f:
-    f.write(content)
-"
-    done
-    
-    INSTALLED+=("Claude")
+    run_for_each_skill install_claude
     echo "   ✅ Done"
 fi
 
 echo ""
-echo "========================================"
-echo "✅ Installation complete!"
+echo "✅ Installation complete"
+echo "Source: $SKILLS_DIR"
 echo ""
-
-if [ ${#INSTALLED[@]} -eq 0 ]; then
-    echo "⚠️  No platforms detected. Skills available in:"
-    echo "   $SKILLS_DIR"
-else
-    echo "📋 Installed to:"
-    for platform in "${INSTALLED[@]}"; do
-        echo "   • $platform"
-    done
-fi
-
-echo ""
-echo "📚 Available skills:"
-ls -1 "$SKILLS_DIR" | sed 's/^/   • /'
-
-echo ""
-echo "🔧 Usage:"
-echo "   Hermes/OpenCode: skill_view(name='pd')"
-echo "   Claude: /pd"
+echo "Usage:"
+echo "  Hermes/OpenCode: skill_view(name='pd')"
+echo "  Claude: /pd"

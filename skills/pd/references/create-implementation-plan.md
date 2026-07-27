@@ -82,11 +82,11 @@ comando
 
 ---
 
-## Formato nexus-vellum
+## Formato repository-native
 
 ```
 plans/active/<feature-slug>/
-├── plan.md              — Plano com Goal + Architecture + File Structure + Tasks
+├── plan.md              — Plano no formato nativo do repositório
 └── checkpoints.md       — Tabelas de verificação por task
 ```
 
@@ -95,7 +95,7 @@ plans/active/<feature-slug>/
 ```md
 # [Feature] — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development ...
+> **For agentic workers:** Follow the repository's approved worker/review process and load the relevant execution skill when available.
 
 **Goal:** [uma frase]
 
@@ -217,7 +217,7 @@ cat > plans/<feature-name>/PLAN.md << 'EOF'
 # Plano: ...
 EOF
 
-# nexus-vellum format
+# repository-native format
 mkdir -p plans/active/<feature-slug>
 cat > plans/active/<feature-slug>/plan.md << 'EOF'
 # Feature — Plan

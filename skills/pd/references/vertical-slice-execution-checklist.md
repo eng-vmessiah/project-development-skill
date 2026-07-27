@@ -46,4 +46,4 @@ Test all of:
 
 ## Continuation and closeout
 
-When the user says `continuar`, a checkpoint is not a conversational stop. After updating state, start the next unblocked RED test or inspection in the same turn. Before a checkpoint is publishable, run the focused test, full suite, `pd validate --deep`, `git diff --check`, and verify the pushed branch status.
+When the user says `continuar`, do not treat a checkpoint as a conversational stop. First check the task DAG and current evidence. If the next task is unblocked, start it in the same turn; if the previous task failed, keep it failed and begin its documented remediation/retry before releasing dependents. Never skip a failed prerequisite.

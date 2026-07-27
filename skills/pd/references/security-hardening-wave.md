@@ -1,6 +1,6 @@
 # Security Hardening Wave — Reusable Recipe
 
-Use this reference when PD is applied to a personal agent bridge, local API, WebSocket terminal, or messaging gateway.
+Use this reference when PD is applied to security-sensitive local or networked systems, exposed APIs, stateful transports, gateways, or privileged control planes.
 
 ## Read-only reconnaissance
 
