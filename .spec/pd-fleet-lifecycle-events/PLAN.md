@@ -35,8 +35,13 @@
 - **Acceptance:** read-only diagnosis never creates/mutates log/state/lifecycle; stale owner events fail closed; malformed/inconsistent transitions produce deterministic degraded/blocked status; sequence gaps are reported without inventing events; raw payload/reasons/secrets are never exported; query/replay remains bounded and deterministic; no CLI/orchestrator/provider/network/process integration.
 - **Status:** implemented + independently verified (`21 focused`, `825 full`, final review CLOSED / E4 UNBLOCKED).
 
-## Gates
+## E4 — Supervisor facade event diagnostics
 
-- G0: spec/plan read and branch clean.
+- **Files:** `scripts/pd_fleet/supervisor.py`, `tests/fleet/test_supervisor_event_diagnostics.py`.
+- **Depends:** E3/E3R closed.
+- **Implementation:** add `FleetSupervisor.diagnose_events(event_log, active_owner_epoch=None, limit=...)` as a thin read-only facade over `diagnose_event_log`.
+- **Acceptance:** returns the same bounded immutable report; never increments dispatch count or mutates event log, lifecycle, checkpoint or STATE; owner/limit errors propagate fail-closed; no CLI/provider/network/process integration.
+- **Status:** implemented + independently verified (`6 focused`, `831 full`, final review CLOSED / E5 unblocked).
+
 - G1: E1 RED tests exist before implementation.
 - G2: E1 focused + full verification and fresh-eyes review.

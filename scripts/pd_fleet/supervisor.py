@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
 
+from .event_diagnostics import EventDiagnosticsReport, diagnose_event_log
+from .events import EventLog, MAX_QUERY
 from .handoff import HandoffArtifact, _freeze, _thaw, create_handoff
 from .supervision import HealthSnapshot, InterventionProposal, SupervisorDiagnosis, _bounded_id, reconcile_snapshot
 
@@ -67,6 +69,20 @@ class FleetSupervisor:
         )
         return SupervisorReport(diagnosis=diagnosis, interventions=diagnosis.proposals,
                                 lineage=snapshot.lineage_to_dict())
+
+    def diagnose_events(
+        self,
+        event_log: EventLog,
+        *,
+        active_owner_epoch: int | float | None = None,
+        limit: int = MAX_QUERY,
+    ) -> EventDiagnosticsReport:
+        """Return bounded event diagnostics without dispatching or mutating state."""
+        return diagnose_event_log(
+            event_log,
+            active_owner_epoch=active_owner_epoch,
+            limit=limit,
+        )
 
     def preview_handoff(
         self,
