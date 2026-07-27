@@ -25,6 +25,10 @@ PD is the **master orchestrator** for software development. It guides you throug
 
 **CLI tool reference:** See `references/cli-tool-architecture.md` for CLI commands, config, hooks, and testing patterns.
 
+**Cross-boundary TDD reference:** See `references/cross-boundary-tdd.md` for layered event/migration tests, correlation boundary assertions, Vitest hoisting, continuation discipline, sync→async batch telemetry migration, graceful shutdown flush hooks, and call-site telemetry integration patterns.
+
+**Fleet orchestration reference:** See `references/fleet-orchestration.md` for role contracts, wave gates, safe parallelism, prompt refinement, and the implementation sequence for supervised subagent fleets. For post-implementation grill, real-CLI probes, checkpoint round-trip, and honest PASS/PARTIAL closeout, see `references/fleet-orchestration-closeout.md`. For canonical identity, strict reconciliation envelopes, hostile-input probes, and cross-module hardening residuals, see `references/fleet-hardening-contracts.md`.
+
 ## 🚨 BLOCKER — DO NOT CODE FIRST
 
 **Before writing ANY code, you MUST complete:**
@@ -94,6 +98,24 @@ pd completion bash   # or zsh, fish
 
 **State is persisted in `.spec/<feature>/STATE.json` + `STATE.md`** — the CLI reads and updates both files.
 
+### Installing the PD CLI
+
+The PD CLI lives in the `project-development-skill` repo. Install it with:
+
+```bash
+# From the repo
+REPO_DIR=/path/to/project-development-skill
+ln -sf "$REPO_DIR/scripts/pd" ~/.local/bin/pd
+cp "$REPO_DIR/scripts/pd.py" ~/.local/bin/pd.py
+chmod +x ~/.local/bin/pd ~/.local/bin/pd.py
+
+# Verify
+pd init --help
+pd status --json
+```
+
+The bash wrapper resolves `pd.py` from the same directory the symlink points to, so both files must share a directory. The Python script has no external dependencies beyond the standard library.
+
 ## The Prime Directive
 
 ```
@@ -114,6 +136,70 @@ Task fits in one short prompt, completed in one turn without clarification. Vari
 - User says: "quero criar", "vamos implementar", "nova feature"
 - Coding task needing planning before implementation
 - Multi-file features, cross-cutting refactors, work spanning hours/sessions
+- Evaluating an external repository or framework for possible future adoption
+
+## Domain Action Contract Migrations
+
+When adapting an external agent-native action pattern into an existing API, use a compatibility-first, test-first migration rather than importing the framework wholesale:
+
+1. Audit legacy and target flows separately. Keep prompt-driven legacy routes out of the first action boundary when they mix model calls, parsing, persistence, chat, and status mutation.
+2. Create and verify a registered Git worktree from the intended implementation branch before reading/editing source.
+3. Select the smallest safe domain action, preferably read-only validation before dispatch.
+4. Write RED tests for a versioned action envelope, stable error codes, actor/source/request context, and durable audit evidence.
+5. Preserve legacy response shapes under a compatibility endpoint while introducing the new action endpoint. Update legacy tests to call the compatibility route explicitly.
+6. Use an additive durable audit table/event seam; never report an audit as recorded from a best-effort logger without a successful write.
+7. Verify RED, focused legacy regression tests, then the full suite; record exact counts and classify unrelated warnings/failures separately.
+8. Update `STATE`, `CHECKPOINT`, and verification artifacts with exact worktrees, commits, gates, and deferred surfaces before publishing.
+
+See `references/domain-action-contract-migrations.md` for the reusable checklist and envelope example.
+
+### Action-contract persistence and continuation gates
+
+For a domain action that crosses backend, frontend, audit, and future agent surfaces, keep the implementation incremental and compatibility-first:
+
+1. Separate the new versioned action route from a legacy route whose response shape is already consumed. Migrate tests and consumers explicitly; do not silently change the legacy contract.
+2. Add durable audit writes before exposing audit reads. The read API must be owner-scoped, resource/action-filterable, paginated with hard bounds, and redact owner/secrets.
+3. Add idempotency before any future dispatch surface: same owner/action/resource/key replays the same bounded response and audit ID; key reuse for another resource returns a stable conflict.
+4. When the local SQLite database may predate the feature, add an additive schema migration and test it against an existing database shape. Fresh-database tests alone are insufficient.
+5. Make test fixtures order-independent. Shared SQLite state requires unique resource-derived keys or an isolated database; fixed idempotency keys create false failures after prior runs.
+6. After each gate, run the focused slice and the full suite, then update `STATE`, `CHECKPOINT`, and `VERIFICATION` with exact counts and commit IDs. A checkpoint is not a stopping point when the user said “continue/seguir”: start the next unblocked gate in the same turn.
+7. For write-action migrations, introduce a parallel versioned route (`/api/actions/<action>`) before changing the legacy route. Reuse the legacy domain validators and persistence only after validation succeeds; add `dispatch_started: false` explicitly until dispatch is separately gated.
+8. Treat `create` and `update` actions as separate red-green slices. Test first-write status, replay status, stable audit identity, cross-resource idempotency conflict, and invalid mutation non-persistence. Keep the old endpoint tests pointed at the old response shape.
+9. Reconcile generic action names with the concrete host route before documenting completion (`validate_mission_plan`, not a stale `validate_mission`). Keep PDS names, frontend types, route names, and checkpoint evidence aligned.
+
+The reusable action-contract details remain in `references/domain-action-contract-migrations.md`; this subsection records the persistence, migration, fixture, write-action, naming, and continuation pitfalls found during implementation.
+
+## External Adoption PDS
+
+When an external repository is promising but adoption is deferred, create a **documentation-only PDS branch/worktree** instead of installing it into the active runtime or creating speculative code. Preserve existing WIP and keep the target branch clean.
+
+Required artifacts under `.spec/<feature>/`:
+
+```text
+README.md         # document map and guardrail
+SPEC.md           # problem, requirements, non-goals, success criteria
+RESEARCH.md       # audited revision, comparison, evidence and caveats
+CONTEXT.md        # host architecture, source-of-truth and integration boundaries
+PLAN.md           # staged spike/adoption waves with gates and rollback
+STATE.md          # human-readable persistent state
+STATE.json        # machine-readable persistent state
+CHECKPOINT.md     # exact resumption point and delivery boundary
+VERIFICATION.md   # what was verified vs explicitly not verified
+DECISIONS.md      # accepted and open architectural decisions
+```
+
+The PDS must explicitly distinguish **architectural relevance** from **adoption readiness**, classify the candidate as replacement/index/sidecar/adapter, and state whether it creates a competing source of truth. For memory/brain systems, map the candidate against the existing human-readable source, machine memory, provenance, stale-fact handling, retention/deletion, privacy/data egress and authority precedence.
+
+Recommended sequence:
+
+1. Audit the pinned external revision in an isolated clone; do not trust README claims as verification.
+2. Validate setup in the isolated clone when practical, recording runtime/version limitations precisely.
+3. Create a separate branch/worktree from a clean base; never absorb unrelated WIP.
+4. Write the complete PDS before implementation: sanitized spike, baseline, security, privacy, rollback and adoption gates.
+5. Keep the first future wave read-only/shadow/local where possible; defer remote exposure and active-runtime configuration.
+6. Validate JSON/diff hygiene and secret scans, then commit/push the documentation branch when delivery is requested.
+
+Do not execute an external agent-driven installer, import a full vault, add a second authoritative memory, restart services, or modify active Hermes configuration merely because a repository offers a convenient quickstart.
 
 ## Context Rot
 
@@ -137,6 +223,38 @@ Task fits in one short prompt, completed in one turn without clarification. Vari
 | 5-10 tasks | Parallel subagents, fresh context each |
 | >10 tasks | Wave-based execution (see below) |
 | Cross-session | STATE.md persists context |
+
+### Atomic Task Execution (Ralph Pattern)
+
+> **"One goal, one context window."** — Jeff Huntley
+
+For multi-step features, apply the **atomic task execution** pattern extracted from the `ralph-loop-skills` methodology. The insight: **compaction is the devil**. Never let a single context window extend across multiple implementation tasks.
+
+**The Loop:**
+
+```
+while tasks_remain:
+    1. Read PLAN.md → find first unchecked `- [ ]` task
+    2. Spawn FRESH subagent (zero compaction)
+    3. Subagent: read spec → implement → test → report
+    4. If success: mark `- [x]` in PLAN.md, commit
+    5. If failure: log error, continue to next task (don't block the loop)
+    6. Repeat
+```
+
+**Key rules:**
+- **One task per context window** — subagent never sees the previous task's code or reasoning
+- **Fresh subagent each iteration** — avoids context pollution
+- **PLAN.md as state machine** — checkboxes are the source of truth, not STATE.md
+- **Commit per task** — clean git history, rollback scope is one task
+- **Outer loop is cheap** — the cost of spawning a new subagent is negligible vs the cost of degraded output from compaction
+
+**When to use:** Features with 3+ implementation tasks. For 1-2 simple tasks, sequential in the main context is fine.
+
+**Pitfalls:**
+- Subagent timeout leaves dirty state. After timeout: check which files changed, handle remaining work manually.
+- Don't loop ASK for continuation between tasks. After marking `- [x]`, immediately dispatch the next subagent.
+- If a subagent fails 3 consecutive times, stop the loop and report the error to the user.
 
 ### The Orchestrator Principle
 
@@ -181,6 +299,36 @@ Wave 4 (Verification):
 2. **Waves execute sequentially** — Wave 2 starts after Wave 1 completes
 3. **Parallel within wave** — use `delegate_task` for tasks in same wave
 4. **Fresh context each** — each subagent gets clean context
+
+### Fleet Coordination Upgrade
+
+For goals that need a fleet rather than a single worker, treat PD as an executable coordination protocol, not merely a list of phases. Refine the goal before planning, compile a task DAG with explicit contracts, grill the plan, then release only dependency-ready tasks to bounded workers. The orchestrator owns state, blockers, retries, and evidence; it should not opportunistically implement source changes assigned to workers.
+
+Every fleet task must declare its role, dependencies, allowed and forbidden paths, inputs, outputs, acceptance criteria, validation commands, and blocked conditions. Parallel execution is allowed only when dependencies are complete, decisions are closed, inputs exist, and write ownership cannot conflict. Use separate worktrees or explicit path ownership for parallel writers.
+
+Use explicit gates for intake, discovery/spec, plan grill, implementation, integration, review/grill, smoke/evidence, and closeout. Worker reports are leads, not proof: independently verify critical files and rerun important commands before changing task state to completed.
+
+Run prompt refinement twice: first to turn a vague goal into an executable plan; last to turn the plan, grill findings, decisions, and residual risks into a reusable next-session prompt. Keep the prompt as a file artifact. See `references/fleet-orchestration.md` for the role table, task contract, gate sequence, anti-patterns, and staged adoption order.
+
+### Fleet closeout is a runtime gate, not a test-count gate
+
+After the first green implementation wave, dispatch independent spec, quality/security, and adversarial-grill reviews. Treat subagent reports as leads and independently verify files, test paths, counts, and the real CLI entrypoint. Confirm that runtime authorization consumes full contracts (for example, a policy-validated `GateResult`, never `status: passed` alone), that retry/inputs/readiness semantics agree, and that generated checkpoints load through the canonical parser. Exercise normal, dry-run, resume, malformed, missing-plan, and blocked-gate CLI paths in a temporary working directory. Turn confirmed blockers/high findings into explicit remediation waves, rerun fresh full verification, and write `VERIFICATION.md` with PASS/PARTIAL/BLOCKED per requirement. Do not report a global PASS while human/provider/command-execution or deployment-dependent scope remains unverified. Detailed probes and caveats live in `references/fleet-orchestration-closeout.md`.
+
+### Multi-wave merge-readiness gate
+
+For a long-running plan executed by multiple subagents, separate **implementation complete**, **verification complete**, and **merge-ready**. A green suite does not make a dirty worktree mergeable.
+
+Before saying “ready to merge with main”:
+
+1. Run `git status --short --branch`, `git branch -vv`, and `git log --graph --decorate --all`; identify the exact base and whether the branch is ahead/behind.
+2. Inventory every modified and untracked path. Do not assume the user changed only the original entrypoint: subagents may have created modules, tests, docs, fixtures, and artifacts across the plan.
+3. Independently verify each subagent claim (file existence, scoped ownership, exact test command, and output). Reports are leads, not evidence.
+4. Keep the worktree dirty until the scope is reviewed; never merge, rebase, stash, reset, or discard it implicitly. Group changes into logical commits only after the user approves delivery scope.
+5. Rebase/merge from the current base only after the feature work is committed or deliberately staged in an isolated checkpoint; never perform integration on an uncommitted worktree.
+6. Re-run the full suite, static checks, path/ownership checker, and changed-file review on the exact commit intended for merge.
+7. Distinguish an experimental/local merge from an operational release. Explicitly record deferred sandbox, provider, dispatch, deployment, and human-approval gates.
+
+If the user asks “why is the worktree dirty?” answer with the path inventory and explain whether the dirt is intentional subagent WIP, generated artifacts, or accidental scope creep. See `references/multi-wave-closeout.md` for the reusable checklist.
 
 ## Multi-Agent Orchestration Patterns
 
@@ -1128,13 +1276,26 @@ Skip any step = lying, not verifying
 
 **Goal:** Merge feature branch, cleanup worktree, update docs.
 
+**Closeout reference:** See `references/phase-closeout.md` for the complete end-to-end checklist covering: separating feature files from unrelated changes, STATE.md update, security scan, commit structure, push, project journal entry, and durable memory registration.
+
 ### Merge Checklist
 
 - [ ] All tests passing
 - [ ] Code review approved
 - [ ] No conflicts with main
+- [ ] Unrelated/uncommitted changes stashed or moved (check `git status`)
 - [ ] Documentation updated
 - [ ] `.spec/` archived (move to `.spec/archive/`)
+- [ ] Push to remote (`git push`)
+- [ ] Project journal entry written
+
+### Phase 6 → Phase 7 handoff
+
+Fixes found during Phase 6 review must be **applied and committed as part of Phase 6** before proceeding to Phase 7. Do not carry review-discovered bugs into the merge step. After fixes:
+1. Re-run full test suite (no regressions)
+2. Re-run security scan
+3. Update STATE.md with fix evidence
+4. Only then advance to Phase 7
 
 ### Worktree Cleanup
 
@@ -1167,7 +1328,7 @@ Two plan formats supported — see `references/create-implementation-plan.md`:
 
 | Format | When to Use | Structure |
 |--------|-------------|-----------|
-| **ISIS** (`PLAN.md` + checkpoints) | Features in Hermes/ISIS ecosystem | `plans/<feature>/PLAN.md` |
+| **PD** (`PLAN.md` + checkpoints) | Features using the standard PD format | `plans/<feature>/PLAN.md` |
 | **nexus-vellum** (`plan.md` + `checkpoints.md`) | Projects with own plan format | `plans/active/<feature>/plan.md` |
 
 ### Bite-Sized Task Writing
@@ -1265,12 +1426,218 @@ PD Phase 6 (Review):
 10. **pytest capsys captures ALL stdout.** When testing CLI output, earlier commands (init, checkpoint) print messages that mix with the command under test. For JSON output tests, use a helper that extracts the FIRST valid JSON block from captured output, not the entire string:
     ```python
     def extract_json(captured_out):
-        lines = captured_out.strip().split("\n")
+        lines = captured_out.strip().split("\\n")
         for i, line in enumerate(lines):
             if line.strip().startswith("{") or line.strip().startswith("["):
-                return json.loads("\n".join(lines[i:]))
+                return json.loads("\\n".join(lines[i:]))
         return None
     ```
+
+12. **`pd init` fails when `.spec/<feature>/` already exists.** If SPEC.md, PLAN.md, and STATE.md were created manually before the CLI was installed, `pd init <feature>` returns `{"error": "Feature '<feature>' already exists."}` because the CLI detects the existing directory and refuses to overwrite. Workaround: skip the init step entirely and use `pd advance --force` to jump into the correct phase. The CLI can only manage features it created.
+
+13. **Advancing through pre-existing phases requires `--force`.** When spec, plan, and structure were completed by hand before the CLI was available, use `pd advance --force` repeatedly until you reach the coding phase. Each `--force` skips the task-completion validation that would fail because the CLI's internal tracker is empty. After reaching the right phase, create a checkpoint with `pd checkpoint --note "description"` to record the manual progress and continue normally.
+
+14. **Worktree branch conflict.** When creating a new branch from one worktree (`git checkout -b feat/x`), git records it as checked out there. Another worktree cannot check out the same branch until the first worktree switches away. Workaround: push the branch to origin first, then create the second worktree from origin.
+
+15. **Migration renumbering during integration.** When merging branches with overlapping migration numbers, keep the earlier branch's numbers and renumber the later branch's migrations sequentially. Never keep duplicate version numbers — use the reserved range strategy (e.g., LLM v77-v78, WhatsApp v79-v80, BSP v81-v83). Update migration tests that hardcode version numbers.
+
+19. **Do not confuse a green slice with a finished plan.** For standing multi-phase goals, a phase checkpoint is only complete after (a) implementation, (b) fresh-eyes review, (c) fixes for confirmed findings, (d) fresh verification, and (e) an explicit record of deferred infrastructure-dependent work. Never report “finalizado” while the plan still has unverified or uncommitted work.
+
+20. **Trust but verify delegated reports.** Subagents may over-report tests or files after partial edits. Before marking a task done, independently check `git status`, file existence, the exact test paths, and rerun the claimed commands. Treat the report as a lead, not proof.
+
+21. **Long standing goals must keep executing across phase boundaries.** When the user says “continuar” or “finalizar todo o plano”, update state and immediately dispatch the next unblocked task. Do not stop at a checkpoint summary. If the tool/session ceiling interrupts execution, report the exact unfinished slice and preserve a resumable checkpoint.
+
+17. **Cross-branch conflict resolution preserves both intents.** When both branches modify the same file, read all three versions (`:1:path`, `:2:path`, `:3:path`), identify which hunks belong to which intent, and preserve both. Never resolve by accepting an entire file from one side — that silently drops the other branch's work.
+
+18. **Save summaries to files by default.** When producing a comprehensive summary, design document, or review report, write it to a file in the relevant directory (`plans/active/<feature>/`, `docs/`, etc.) instead of only outputting in chat. The user will ask "salvou em algum lugar?" if you don't.
+
+14. **Deferred gaps must be documented in the plan, not skipped silently.** When you intentionally defer a sub-task or known limitation (e.g. a field that needs infrastructure plumbing that doesn't exist yet), do not just move on. Document the gap visibly in the plan file (design.md, resumo.md, checkpoints.md) with a clear description and next steps. The schema or contract already accepts the field as optional — document the gap so the next session or reviewer finds it without asking.
+
+15. **Stash pop after interrupted merge.** If you `git stash` doc changes before a merge and the merge fails (conflicts), `git stash pop` does NOT run. The stash remains. After resolving conflicts and committing, you MUST `git stash pop` explicitly. Verify with `git stash list`. Failing to pop means losing the doc changes forever.
+
+## Continuation discipline for standing goals
+
+When the user says to continue a standing multi-phase goal (for example, "continue", "seguir", or "finalizar o plano"), a checkpoint update is not a stopping point. After recording state, immediately execute the next concrete task in the active phase, unless a real blocker requires user input. The response may summarize the checkpoint, but must not end the work loop merely because validation passed.
+
+Treat "continue" or equivalent instructions as execution authorization, not as a request for another status recap. Continue with the next unblocked task unless a real blocker requires user input, and keep the response language aligned with the user's request.
+
+**Operational continuation gate:** after writing a checkpoint, the very next assistant action in the same turn must be an execution tool call for the next unblocked task (for example, a RED test, repository inspection required by that task, or implementation step). Do not send a user-facing summary between phases and wait for another "continue". A phase boundary is internal bookkeeping, not a conversational boundary. If tool/time budget is exhausted, state that execution was interrupted; otherwise keep the loop running until the overall goal is complete or genuinely blocked.
+
+**Anti-pattern: phase-by-phase stopping.** Do not make one assistant turn per phase, boundary, or green test slice. Treat phase checkpoints as internal state writes, not conversational milestones. In the same turn, continue through the next unblocked task and its RED → GREEN → verification loop. Only stop when the overall standing goal is complete, genuinely blocked, or the user explicitly asks to pause. Do not say “the next step is X” unless X has already been started with a tool call in that turn.
+
+Use this loop:
+1. Read the active checkpoint and identify the next unblocked task.
+2. Execute that task now, preferably with RED → GREEN → focused validation.
+3. Run the relevant build/diff gate, then update the checkpoint.
+4. Continue until the turn's tool/time budget is exhausted or the plan is complete/blocked.
+
+If a user explicitly asks to update the skill library after the work, capture this continuation behavior here rather than as a one-off task note.
+
+## Security Hardening with Subagents
+
+When PD is applied to security-sensitive infrastructure (auth, WebSockets, gateways, shell/terminal access, Discord permissions, exposed listeners), use a dedicated discovery wave before writing the implementation spec.
+
+### Wave 1: read-only security reconnaissance
+
+Dispatch up to three fresh subagents in parallel, with non-overlapping scopes:
+
+1. **Boundary auditor** — map public/protected REST routes, WebSocket handshakes, middleware behavior, listeners, and fail-open paths.
+2. **Integration auditor** — inspect frontend clients, proxies, systemd units, gateway adapters, and compatibility constraints.
+3. **Test/operations auditor** — design deterministic RED/GREEN tests, smoke tests, rollback, and post-restart checks.
+
+For Discord or other messaging gateways, replace one lane with a **policy auditor** covering user/channel/role allowlists, mention/thread behavior, and administrative actions. All Wave 1 agents must be read-only: do not edit source, config, services, or restart processes.
+
+### Decision gate before SPEC
+
+Do not write the implementation SPEC until the reconnaissance results are independently checked and any architecture choice with meaningful compatibility impact is surfaced to the user. Typical choices include cookie session vs ephemeral WebSocket ticket, local-only bind vs remote access, and global vs scoped channel permissions. Ask one decision question at a time.
+
+### Preserve active WIP
+
+Before creating a hardening feature, inspect `git status`. Existing uncommitted changes are not scope to absorb, reset, stash, or rewrite implicitly. Do not reuse an unrelated active `.spec/<feature>` directory. Create a separate feature/worktree or remain read-only until the boundary is explicit.
+
+### Hardening acceptance gates
+
+The plan must include executable gates for:
+
+- public health endpoints remaining available;
+- unauthenticated REST returning `401` (or explicit fail-closed startup);
+- unauthenticated WebSockets rejected before `accept()`;
+- session/resource ownership checked after authentication;
+- CORS and WebSocket `Origin` allowlists being explicit;
+- docs/OpenAPI exposure following an explicit policy;
+- listeners bound only to the intended interface;
+- gateway users/channels/actions restricted by allowlist;
+- restart, health, rollback, and log-redaction smoke tests.
+
+Keep security tests offline and deterministic. Isolate pre-existing provider/OAuth failures from the security gate rather than skipping security assertions conditionally.
+
+### Evidence discipline
+
+Subagent reports are hypotheses until the orchestrator verifies critical claims independently. In particular, tool redaction can make valid source look truncated; run a syntax/import check before treating a file as corrupted. Never print secrets while validating configuration.
+
+A reusable security-hardening test matrix is documented in `references/security-hardening-wave.md`.
+
+## External dependency adoption: audit → PDS → reversible spike
+
+When evaluating an external repository as a possible future dependency or architectural source, do not jump from README enthusiasm to installation. Treat it as an adoption decision with its own branch and evidence trail:
+
+1. Audit the pinned upstream revision, license, runtime, package manager, architecture, integration seams, security docs, tests, and operational surface.
+2. Record what was actually verified versus what came only from upstream claims. A passing local audit must name the exact command and environment; missing runtime/tooling is a deferred verification item, not a conclusion about the project.
+3. Create an isolated documentation branch/worktree from a clean base. Preserve unrelated WIP worktrees and never install into the active runtime during the research pass.
+4. Use a repository-native PDS package with at least: `README.md`, `SPEC.md`, `RESEARCH.md`, `CONTEXT.md`, `PLAN.md`, `STATE.md`, `STATE.json`, `CHECKPOINT.md`, `VERIFICATION.md`, and `DECISIONS.md`.
+5. Keep the first adoption phase reversible and low-risk: a disposable runtime/data directory, sanitized fixtures, read-only or shadow mode, fixed baseline comparison, provenance/citation checks, privacy/secret/path checks, export/delete/rebuild verification, and explicit rollback.
+6. Integrate through the narrowest stable boundary first (usually local stdio MCP or an adapter) before modifying the core agent, gateway, systemd services, or source-of-truth memory.
+7. Commit and push the documentation branch only; do not merge or deploy until the spike, fresh-eyes review, and user adoption gate pass.
+
+The plan must explicitly distinguish:
+
+```text
+human source of truth
+  → machine index/brain
+  → retrieval/synthesis contract
+  → agent integration
+  → optional remote scale
+```
+
+For memory/knowledge systems, preserve the existing human source of truth and prohibit automatic write-back during evaluation. Compare candidates one at a time; do not install two competing memory systems into the same active runtime before a baseline exists. The reusable audit/PDS checklist is in `references/external-repo-adoption.md`.
+
+## Product/AI planning: canonical truth → contextual composition
+
+For AI-assisted products that transform user-owned artifacts (resumes, profiles, documents, messages), model the user artifact as structured canonical claims/evidence rather than a single mutable text blob. Separate:
+
+- **canonical refinement:** improve clarity, evidence, consistency, and positioning without creating facts;
+- **contextual composition:** select, prioritize, reorder, and render a version for a target context (job, audience, workflow) without mutating the canonical source.
+
+Every generated change should carry source claims/evidence, reason, confidence, risk, and an accept/edit/reject/ask path. Missing facts become questions; the model must not fill metrics, credentials, seniority, or experience by inference. Contextual outputs must be immutable, versioned packages with input/output hashes, prompt/model version, warnings, and a human approval gate before external side effects.
+
+For a first vertical slice, validate the complete value loop rather than building a broad dashboard: ingest real-shaped input → normalize → map requirements to evidence → compose a contextual artifact → policy-check → human review/approval dry-run. Keep external sending disabled until the dry-run is reproducible and auditable.
+
+See `references/product-ai-pds.md` for the reusable domain model, gate checklist, and SQLite-first persistence guidance. For the complete G0/G1 → contracts → TDD vertical-slice recipe, validator reconciliation, and evidence hygiene, see `references/vertical-slice-pds.md`.
+
+### Vertical-slice execution guardrail
+
+For a new AI-assisted product with a legacy adapter, do not stop after writing a plan or after a green checkpoint when the user says “continuar/seguir”. Close G0 with fresh repository/schema/fixture evidence, grill G1, compile full task envelopes, then execute the next unblocked contract/domain task in the same turn. Use canonical claims/evidence for user-owned artifacts, immutable contextual packages, hostile-input fixtures, and human approval before external effects. A planning CLI's parser is itself a contract: satisfy its required textual markers and rerun `pd validate --deep`; do not use `--force` to conceal stale state or missing evidence.
+
+**Execution evidence learned from a real vertical slice:**
+
+1. Create the isolated target repository before touching product source; if the legacy path resolves to a contaminated Git root, keep it read-only and record the boundary.
+2. Compile complete task envelopes for every planned task before dispatch. A short task list in `PLAN.md` is not equivalent to executable Fleet contracts.
+3. Reconcile the validator's actual textual contract: `pd validate --deep` may require checkbox-style requirements in `SPEC.md`, a non-empty `tests/` directory under the feature spec, and a literal `## Decisions` heading in `CONTEXT.md`. Fix the artifacts and rerun validation instead of forcing the CLI.
+4. Keep planning-state evidence cumulative. When adding a later task, append its RED/GREEN result; do not overwrite earlier evidence or duplicate section headings.
+5. Treat a green schema module as distinct from a formal migration gate. If the plan promises Alembic/additive migrations, leave that gate partial until a migration is executable and tested against an existing database shape.
+6. For legacy JSON ingestion, inspect the real payload shape with redacted output, preserve raw snapshots separately from normalized rows, and test both same-ID idempotency and different-ID fingerprint deduplication.
+7. Fixtures are executable contracts: write real line breaks (not literal `\\n` text), include hostile-input cases as data, and verify the fixture parser itself before relying on downstream security tests.
+8. Use strict RED → GREEN per domain slice, then run the full suite, `git diff --check`, `pd validate --deep`, and a clean branch/push gate before marking the checkpoint complete.
+9. For product/AI vertical slices, add one integrated smoke test using real-shaped fixtures that traverses ingestion → canonical claims/evidence → contextual composition → policy check → immutable package → human approval dry-run. Assert explicitly that no external dispatch occurred; unit tests alone do not close the vertical-slice gate.
+10. Treat safety-policy states separately: a clean local dry-run with external dispatch disabled should be `passed`/approvable locally while retaining `external_send_disabled` as an auditable warning; hostile instructions or prompt injection remain blocking violations.
+11. Use the real hostile fixture in an adversarial regression test, not only an invented unit string. Also validate strict domain models against real fixture shape before relying on them; model every required structured section explicitly instead of weakening `extra="forbid"`.
+12. If independent fresh-eyes review cannot run, keep the review gate `PARTIAL/BLOCKED` and document the exact transport/provider failure. Manual review, static scans, and green tests are complementary evidence, not an independent approval.
+13. If the tool/session ceiling interrupts a standing execution loop, do not present the overall plan as complete. Preserve the exact unfinished test/task, distinguish committed from uncommitted changes, and report the precise resumable command; do not claim a commit or push that was not freshly verified.
+
+See `references/vertical-slice-pds.md` for the reusable G0/G1, validator-reconciliation, fixture, and evidence checklist.
+
+### State reconciliation before a new integration wave
+
+Before starting an adjacent integration wave, reconcile every state artifact against observed code and fresh commands: `PLAN.md` task checkboxes, `STATE.md`, `STATE.json`, `VERIFICATION.md`, fleet/task metadata, and `git status`. Historical summaries and stale checkboxes are not evidence. If they disagree, preserve the most recent verified facts, document partial/deferred tasks explicitly, validate JSON/plan syntax, run the full suite, and commit the reconciliation before adding new work. For external integrations, record the boundary between implemented offline contracts and credential/provider-dependent work; never mark OAuth or live API verification complete without a real authorized probe.
+
+### Existing-project grill: reconciliation before execution
+
+When a user says to “start the grill” on an existing multi-surface project, the first deliverable is a **read-only reconciliation gate**, not new product code. Read the active product/architecture docs, all plan/checkpoint/state variants, current branch/base, modified and untracked paths, and the real test/build commands. Produce a short grill artifact with:
+
+1. the product value loop and canonical baseline;
+2. exact fresh verification evidence (backend, frontend, build/typecheck, static/diff checks);
+3. contradictions between plans, checkpoints, code, and branch state;
+4. blockers/high risks, especially uncommitted WIP, stale state, provider gates, canonical-hash binding, and incomplete browser QA;
+5. an ordered next-wave sequence with explicit forbidden side effects.
+
+A green suite proves the observed workspace executes; it does **not** prove the plan is current, the worktree is reproducible, the changes are merge-ready, or external actions are safe. Keep the result `PARTIAL/BLOCKED FOR RECONCILIATION` until the source of truth is chosen and the WIP is inventoried. Preserve unrelated changes; do not reset, clean, stash, commit, push, or merge implicitly. Record “implemented,” “verified,” “deferred,” and “blocked/disabled” as separate labels.
+
+#### Documentation/code freshness gate
+
+When auditing a project that contains an executable CLI or fleet/runtime implementation, reconcile documentation against live behavior before trusting roadmap or status claims:
+
+1. Run the real CLI help/status entrypoint and inventory commands that actually exist.
+2. Run the canonical full test suite and record the fresh count, duration, and exit code.
+3. Compare those results with README, roadmap, changelog, architecture, plan, and verification artifacts.
+4. Flag stale version numbers, test counts, “planned” features that are already implemented, and status labels that disagree across documents.
+5. Treat the freshest verified command output as evidence for the current implementation state, but do not silently rewrite documentation or claim release readiness.
+6. Report the reconciliation as a documentation/status gap and recommend one canonical status update before the next feature wave.
+
+A passing test count is evidence of executable behavior only; it is not evidence that the documentation is current, the release is production-ready, or external/provider execution is authorized. The reusable output format is: **observed**, **verified**, **stale/contradictory**, **deferred**, and **blocked**.
+
+## External provider integrations: adapter-first, credential-deferred
+
+When a product needs Gmail, Calendar, payments, storage, or another external provider, first audit whether an official CLI/SDK or mature self-hosted integration already covers OAuth, token refresh, and API translation. Do not rebuild credential mechanics before comparing reuse options.
+
+Use this sequence:
+
+1. Compare the official provider tool, a self-hostable integration manager, and direct SDK usage. Separate architectural relevance from adoption readiness, license, data egress, operational weight, and account-switching support.
+2. Select the narrowest reusable boundary. For local multi-account Google Workspace, an official CLI adapter can own OAuth/token encryption while the product owns account registry, account selection, policy, audit, and domain relationships.
+3. Isolate credentials per account using a project-scoped config/data directory. Never place provider tokens in a global assistant directory, source tree, CandidatePackage, logs, or agent context. Store only account metadata in the product database when the adapter already encrypts credentials.
+4. Implement offline contracts first: account model, registry, config-dir selection, safe command runner, timeout/JSON/error handling, and read-only service methods. Test all of these with mocked subprocesses; no credentials are needed.
+5. Treat provider authentication and live API probes as a separate, explicitly credential-dependent gate. Mark it `deferred` rather than blocking the local MVP, and do not claim OAuth/API verification without an authorized probe.
+6. Keep external writes behind the existing approval gate. Read-only Gmail/Calendar may be integrated before compose/send or event mutation; the latter require separate scopes, tests, idempotency, audit, and human confirmation.
+7. Reconcile `PLAN.md`, `STATE.md`, `STATE.json`, and `VERIFICATION.md` before and after adding the integration. Distinguish implemented offline seams from deferred OAuth/provider work.
+
+For the concrete Google Workspace CLI comparison, per-account config pattern, and `gws` probe evidence, see `references/google-workspace-adoption.md`.
+
+## Skill source and installation reconciliation
+
+When a versioned skill repository and installed copies disagree, follow `references/skill-source-reconciliation.md`: inspect every active profile and platform, audit installed-only content before overwriting it, promote accepted improvements into a versioned reconciliation branch, then reinstall and verify all destinations. Installed content is evidence to review, not an implicit source of truth.
+
+## Repository-native planning and scope boundaries
+
+When applying PD to an established repository, the generic CLI is optional. First verify that the repository's native plan structure is compatible with the CLI; if commands report no initialized feature or expect a different state layout, do not force-initialize or create a parallel `.spec/` tree. Use the repository-native design/plan/checkpoint files as the source of truth and record the CLI mismatch as an operational note.
+
+When applying PD to an established repository, the generic `.spec/` layout is guidance, not a mandate. If the project already has a canonical plan shape (for example `plans/active/<feature>/design.md`, `plan.md`, `checkpoints.md`, and `tests.md`), use those files as the specification/plan/state spine and record PD status there. Do not create a parallel planning tree just to satisfy the generic template.
+
+For **multi-branch integration** (assembling a release candidate from independent feature branches), see `references/multi-branch-integration.md`. It covers ordered merge strategy, conflict resolution with intent preservation, migration renumbering, and gap documentation.
+
+For long-running feature work, preserve uncommitted WIP and branch/worktree boundaries. Do not commit, push, create a PR, deploy, or merge as part of implementation unless the user explicitly requests that stage; verification can be complete while delivery remains pending.
+
+When a future initiative is adjacent to the active feature, make the split explicit before coding: preserve the shared seam/interface, name the deferred implementation, and leave the future plan/worktree untouched. Extensibility is not permission to build the second adapter/runtime early.
+
+If the user chooses a new branch for existing uncommitted WIP, preserve the full change set with `git switch -c <branch>` and verify status immediately. Do not reset, stash, split, or discard WIP implicitly; keep the old branch reference until the user decides whether to remove it.
 
 ## Verification Checklist
 
@@ -1281,5 +1648,6 @@ PD Phase 6 (Review):
 - [ ] Code follows `clean-code` principles
 - [ ] Tests follow `test-driven-development`
 - [ ] CHECKPOINT.md created
-- [ ] All changes committed
+- [ ] Delivery stage explicitly approved (commit/push/PR/deploy only when requested)
+- [ ] If delivery was approved: all changes committed
 - [ ] STATE.json exists and is valid
