@@ -29,7 +29,11 @@
 
 ## E3 — Supervisor read-only event diagnostics
 
-Pending E2 review. Expose bounded event-derived diagnostics without changing ownership or lifecycle.
+- **Files:** `scripts/pd_fleet/event_diagnostics.py`, `tests/fleet/test_event_diagnostics.py`.
+- **Depends:** E2/E2R closed.
+- **Implementation:** bounded `EventDiagnosticsReport` and `diagnose_event_log(EventLog, active_owner_epoch=...)`; aggregate only event kind, task state, checkpoint count, sequence range/gaps and bounded reasons. Return frozen/detached data.
+- **Acceptance:** read-only diagnosis never creates/mutates log/state/lifecycle; stale owner events fail closed; malformed/inconsistent transitions produce deterministic degraded/blocked status; sequence gaps are reported without inventing events; raw payload/reasons/secrets are never exported; query/replay remains bounded and deterministic; no CLI/orchestrator/provider/network/process integration.
+- **Status:** implemented + independently verified (`21 focused`, `825 full`, final review CLOSED / E4 UNBLOCKED).
 
 ## Gates
 

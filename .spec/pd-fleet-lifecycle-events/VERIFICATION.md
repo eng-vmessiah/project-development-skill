@@ -1,19 +1,19 @@
 # Verification — E1
 
-**Status:** CLOSED through E2; E3 unblocked.
+**Status:** CLOSED through E3; E4 unblocked.
 
 ## Verified
 
 - E1/E1R event envelope and local append-only log: `29 focused`, `778 full`.
-- E2 lifecycle/checkpoint projection: `55 focused`, `804 full`.
-- Compileall and diff check passed.
-- Fresh-eyes reviews closed E1 and E2.
-- Checkpoint projections are summary-only, bounded, deterministic and input-immutable.
-- No lifecycle/checkpoint/orchestrator source mutation, CLI, provider, network or subprocess integration was introduced.
+- E2/E2R lifecycle/checkpoint projection: `55 focused`, `804 full`.
+- E3/E3R read-only event diagnostics: `21 focused`, `825 full`.
+- Compileall and diff check passed after each gate.
+- Fresh-eyes reviews closed E1, E2 and E3.
+- Diagnostics are bounded, immutable, deterministic and do not mutate event logs, lifecycle, checkpoints or STATE.
 
 ## Next
 
-E3 — bounded read-only Supervisor diagnostics derived from event query/replay.
+E4 requires an explicit decision on the next integration boundary: Supervisor library facade or CLI exposure. No provider/live/distributed behavior is implied.
 
 ## Deferred
 
