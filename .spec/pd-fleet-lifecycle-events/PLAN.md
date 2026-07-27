@@ -51,4 +51,13 @@
 - **Acceptance:** command is independent of feature discovery and never opens `PDState`; missing log is `unknown` without mkdir; invalid owner/limit exits fail-closed; event bytes/mtime unchanged; old commands and completions remain compatible; no write/provider/network/process.
 - **Status:** implemented + independently verified (`6 focused`, `837 full`, final review CLOSED / E6 unblocked; fish runtime parser unavailable because `fish` is not installed).
 
+## E6 — RunStore/EventLog reconciliation
+
+- **Files:** `scripts/pd_fleet/run_event_reconciliation.py`, `tests/fleet/test_run_event_reconciliation.py`.
+- **Depends:** E5 closed.
+- **Decision:** do not create a second index. `FleetRunStore` already persists snapshot, `event_sequence`, events, checksum, lock and generation/CAS.
+- **Implementation:** read-only `RunEventReconciliationReport` comparing an existing `FleetRunStore` snapshot with `EventLog`: run identity, owner/generation, snapshot status, event sequence, last event sequence, bounded mismatch reasons. Accept existing store/log instances; never instantiate a missing store or write either source.
+- **Acceptance:** missing artifacts fail closed without mkdir; matching empty/valid sources report consistent; sequence/status/owner divergence reports deterministic degraded reasons without exporting raw payload; bytes/mtime of both sources unchanged; bounded detached JSON-safe report; no new persistence, broker, provider, network or process.
+- **Status:** implemented + independently verified (`13 focused`, `850 full`, final review CLOSED / E7 unblocked).
+
 - G2: E1 focused + full verification and fresh-eyes review.
