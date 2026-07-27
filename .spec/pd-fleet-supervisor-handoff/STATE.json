@@ -1,0 +1,28 @@
+{
+  "feature": "pd-fleet-supervisor-handoff",
+  "phase": 0,
+  "status": "initialized",
+  "tasks": [],
+  "checkpoints": [
+    {
+      "date": "2026-07-27 14:58",
+      "phase": 0,
+      "note": "Registered supervisor/handoff plan; S1 and S3 focused slices green; full suite 705 passed; continue with reconciliation and ownership epoch.",
+      "tasks_snapshot": []
+    }
+  ],
+  "created_at": "2026-07-27T14:55:00.088902",
+  "updated_at": "2026-07-27T14:58:13.814147",
+  "fleet_state": {
+    "updated_at": "2026-07-27T14:58:13.814147",
+    "schema_version": 1,
+    "agents": [],
+    "waves": [],
+    "tasks": [],
+    "gates": [],
+    "reports": [],
+    "attempts": [],
+    "blockers": [],
+    "evidence": []
+  }
+}

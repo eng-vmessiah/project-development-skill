@@ -1,0 +1,21 @@
+{
+  "feature": "pd-fleet-supervisor-handoff",
+  "phase": 0,
+  "status": "initialized",
+  "tasks": [],
+  "checkpoints": [],
+  "created_at": "2026-07-27T14:55:00.088902",
+  "updated_at": "2026-07-27T14:55:00.088946",
+  "fleet_state": {
+    "updated_at": "2026-07-27T14:55:00.088946",
+    "schema_version": 1,
+    "agents": [],
+    "waves": [],
+    "tasks": [],
+    "gates": [],
+    "reports": [],
+    "attempts": [],
+    "blockers": [],
+    "evidence": []
+  }
+}

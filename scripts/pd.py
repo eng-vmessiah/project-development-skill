@@ -9,6 +9,7 @@ Manages state, validates progress, and enforces the PD pipeline.
 import argparse
 import json
 import os
+import re
 import stat
 import shutil
 import subprocess
@@ -24,10 +25,12 @@ from pd_fleet.models import FleetPlan, FleetPlanError
 from pd_fleet.validation import compute_ready_tasks
 from pd_fleet.orchestrator import FleetOrchestrator
 from pd_fleet.checkpoint import Checkpoint
-from pd_fleet.contracts import canonicalize as canonicalize_v2, plan_hash as plan_hash_v2
+from pd_fleet.contracts import canonicalize as canonicalize_v2, plan_hash as plan_hash_v2, _redact_paths, _redact_sensitive_text, _EXTERNAL_URL
+from pd_fleet.state import FLEET_STATE_FIELDS
 from pd_fleet.scheduler import LeaseScheduler
 from pd_fleet.parallel import BoundedParallelExecutor
 from pd_fleet.run_store import FleetRunStore, RunStoreError
+from pd_fleet.handoff import HandoffStore
 
 try:
     import yaml
@@ -525,7 +528,7 @@ _pd() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    commands="init status validate checkpoint verify advance complete-task config list delete history report diff completion"
+    commands="init status fleet-status fleet-ready fleet-supervisor-status fleet-handoff-preview validate checkpoint verify advance complete-task config list delete history report diff completion"
 
     # Global flags
     if [[ "$cur" == -* ]]; then
@@ -554,7 +557,7 @@ _pd() {
         delete)
             COMPREPLY=( $(compgen -W "--archive --force" -- "$cur") )
             ;;
-        list|status|verify|advance|config|history|report|diff)
+        list|status|fleet-status|fleet-ready|fleet-supervisor-status|fleet-handoff-preview|verify|advance|config|history|report|diff)
             COMPREPLY=( $(compgen -W "--feature -f --json" -- "$cur") )
             ;;
         completion)
@@ -573,6 +576,10 @@ _pd() {
     commands=(
         'init:Initialize a new feature'
         'status:Show current status'
+        'fleet-status:Show fleet status'
+        'fleet-ready:Show ready fleet tasks'
+        'fleet-supervisor-status:Show read-only fleet supervisor status'
+        'fleet-handoff-preview:Preview a persisted handoff (read-only)'
         'validate:Validate progress'
         'checkpoint:Create checkpoint'
         'verify:Verify before completing'
@@ -612,7 +619,7 @@ _pd() {
                 delete)
                     _arguments '--archive[Archive instead of delete]' '--force[Skip confirmation]'
                     ;;
-                list|status|verify|advance|config|history|report|diff)
+                list|status|fleet-status|fleet-ready|fleet-supervisor-status|fleet-handoff-preview|verify|advance|config|history|report|diff)
                     _arguments \
                         '--feature[Target feature]:feature:' \
                         '-f[Target feature]:feature:' \
@@ -635,6 +642,10 @@ _FISH_COMPLETION = """\
 # Subcommands
 complete -c pd -n '__fish_use_subcommand' -a 'init' -d 'Initialize a new feature'
 complete -c pd -n '__fish_use_subcommand' -a 'status' -d 'Show current status'
+complete -c pd -n '__fish_use_subcommand' -a 'fleet-status' -d 'Show fleet status'
+complete -c pd -n '__fish_use_subcommand' -a 'fleet-ready' -d 'Show ready fleet tasks'
+complete -c pd -n '__fish_use_subcommand' -a 'fleet-supervisor-status' -d 'Show read-only fleet supervisor status'
+complete -c pd -n '__fish_use_subcommand' -a 'fleet-handoff-preview' -d 'Preview a persisted handoff (read-only)'
 complete -c pd -n '__fish_use_subcommand' -a 'validate' -d 'Validate progress'
 complete -c pd -n '__fish_use_subcommand' -a 'checkpoint' -d 'Create checkpoint'
 complete -c pd -n '__fish_use_subcommand' -a 'verify' -d 'Verify before completing'
@@ -726,12 +737,24 @@ class PD:
         subparsers.add_parser("status", parents=[global_parent], help="Show current status")
 
         # fleet inspection (strictly read-only)
-        for fleet_command, help_text in (("fleet-status", "Show fleet status"), ("fleet-ready", "Show ready fleet tasks")):
+        for fleet_command, help_text in (("fleet-status", "Show fleet status"), ("fleet-ready", "Show ready fleet tasks"),
+                                         ("fleet-supervisor-status", "Show read-only fleet supervisor status")):
             fleet_parser = subparsers.add_parser(fleet_command, parents=[global_parent], help=help_text)
             fleet_parser.add_argument(
                 "--plan", "--manifest", "--fleet-plan", dest="plan_path", default=None,
                 help="Explicit path to a FleetPlan YAML/JSON manifest",
             )
+
+        handoff_parser = subparsers.add_parser("fleet-handoff-preview", parents=[global_parent],
+                                               help="Preview a persisted handoff (read-only)")
+        handoff_parser.add_argument("--store", dest="store_root", default=".pd-fleet-handoffs",
+                                    help="Handoff store root")
+        handoff_parser.add_argument("--run-id", dest="run_id", required=True,
+                                    help="Mission run identifier")
+        handoff_parser.add_argument("--handoff-id", dest="handoff_id", required=True,
+                                    help="Handoff identifier")
+        handoff_parser.add_argument("--owner-epoch", dest="owner_epoch", type=int, default=None,
+                                    help="Expected owner epoch")
 
         # fleet execution (local simulated/default-deny dispatcher)
         run_parser = subparsers.add_parser("fleet-run", parents=[global_parent], help="Run a FleetPlan locally")
@@ -836,6 +859,10 @@ class PD:
             if parsed.command == "v2":
                 return self._cmd_v2(parsed)
 
+            if parsed.command == "fleet-handoff-preview":
+                return self._cmd_fleet_handoff_preview(parsed.store_root, parsed.run_id, parsed.handoff_id,
+                                                       parsed.owner_epoch, as_json)
+
             # Everything else requires a feature
             feature_dir = self._find_feature_dir(parsed.feature)
             if not feature_dir:
@@ -844,7 +871,9 @@ class PD:
                 )
 
             config = PDConfig(feature_dir.parent.parent)
-            state = PDState(feature_dir, config, read_only=parsed.command in {"fleet-status", "fleet-ready"})
+            state = PDState(feature_dir, config, read_only=parsed.command in {
+                "fleet-status", "fleet-ready", "fleet-supervisor-status", "fleet-handoff-preview"
+            })
 
             # Dispatch
             cmd = parsed.command
@@ -854,6 +883,8 @@ class PD:
                 self._cmd_fleet_status(state, parsed.plan_path, as_json)
             elif cmd == "fleet-ready":
                 self._cmd_fleet_ready(state, parsed.plan_path, as_json)
+            elif cmd == "fleet-supervisor-status":
+                self._cmd_fleet_supervisor_status(state, parsed.plan_path, as_json)
             elif cmd == "fleet-run":
                 return self._cmd_fleet_run(state, parsed.plan_path, parsed.dry_run, parsed.resume, as_json)
             elif cmd == "validate":
@@ -1081,6 +1112,107 @@ class PD:
                 print(f"   ✅ {task_id}")
             if not data["ready_tasks"]:
                 print("   Nenhuma task elegível (verifique dependências e gates).")
+
+    @staticmethod
+    def _supervisor_fleet_projection(value: Any) -> Dict[str, Any]:
+        """Bound and redact the known persisted fleet namespace for inspection."""
+        unsafe_key = re.compile(r"(?i)(?:debug|password|secret|token|credential|api[_ -]?key|pid|process|path|handle)")
+        def project(item: Any, depth: int = 0) -> Any:
+            if depth > 4:
+                return None
+            if isinstance(item, Mapping):
+                result: Dict[str, Any] = {}
+                for key, child in list(item.items())[:32]:
+                    if not isinstance(key, str) or unsafe_key.search(key):
+                        continue
+                    projected = project(child, depth + 1)
+                    if projected is not None:
+                        result[key] = projected
+                return result
+            if isinstance(item, (list, tuple)):
+                result_list = []
+                for child in list(item)[:32]:
+                    projected = project(child, depth + 1)
+                    if projected is not None:
+                        result_list.append(projected)
+                return result_list
+            if isinstance(item, str):
+                text = _redact_sensitive_text(_redact_paths(item))
+                text = _EXTERNAL_URL.sub("[URL REDACTED]", text)
+                text = re.sub(r"(?i)\b(?:pid|process\s+id|native[_ -]?handle|handle)\s*[:=]?\s*(?:0x[0-9a-f]+|\d+)", "[REDACTED]", text)
+                return text[:2000]
+            if item is None or type(item) is bool or type(item) is int or type(item) is float:
+                return item
+            return None
+        source = value if isinstance(value, Mapping) else {}
+        result: Dict[str, Any] = {}
+        for key in FLEET_STATE_FIELDS:
+            if key in source:
+                projected = project(source[key])
+                if projected is not None:
+                    result[key] = projected
+        return result
+
+    def _supervisor_plan_display(self, state: PDState, path: Optional[Path]) -> Optional[str]:
+        if path is None:
+            return None
+        try:
+            relative = path.resolve().relative_to(state.feature_dir.resolve())
+        except ValueError:
+            return None
+        return str(relative) if len(relative.parts) <= 4 else None
+
+    def _cmd_fleet_supervisor_status(self, state: PDState, plan_path: Optional[str], as_json: bool) -> None:
+        """Emit a bounded supervisor view from persisted contracts only."""
+        inspection = self._load_fleet_inspection(state, plan_path)
+        data = {
+            "feature": inspection["feature"],
+            "feature_available": True,
+            "fleet_available": inspection["fleet_available"],
+            "fleet_state": self._supervisor_fleet_projection(inspection["fleet_state"]),
+            "plan": inspection["plan"],
+            "plan_path": self._supervisor_plan_display(state, self._fleet_plan_path(state, plan_path)),
+            "ready_tasks": inspection["ready_tasks"],
+            "read_only": True,
+            "supervisor": {
+                "available": True,
+                "diagnosis": {
+                    "status": "unknown",
+                    "reason": "live worker/process data unavailable",
+                    "source": "persisted fleet state only",
+                },
+                "interventions": [],
+                "live_workers": "unavailable",
+                "processes": "unavailable",
+            },
+        }
+        if as_json:
+            print(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
+            return
+        print(f"🔎 Fleet supervisor status (read-only): {data['feature']}")
+        print(f"   FleetPlan: {data['plan_path'] or 'não disponível'}")
+        print(f"   Fleet disponível: {'sim' if data['fleet_available'] else 'não'}")
+        print(f"   Tasks prontas: {', '.join(data['ready_tasks']) or 'nenhuma'}")
+        print("   Supervisor: diagnosis unknown; live worker/process data unavailable")
+
+    def _cmd_fleet_handoff_preview(self, store_root: str, run_id: str, handoff_id: str,
+                                   owner_epoch: Optional[int], as_json: bool) -> None:
+        """Load and display one validated handoff without creating persistence."""
+        try:
+            envelope = HandoffStore(store_root, run_id=run_id, owner_epoch=owner_epoch).load(handoff_id)
+        except (OSError, ValueError) as exc:
+            raise PDError(f"Unable to load handoff: {exc}") from exc
+        envelope_data = envelope.to_dict()
+        data = {"artifact": envelope_data["artifact"], "envelope": envelope_data, "read_only": True}
+        if as_json:
+            print(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
+            return
+        artifact = data["artifact"]
+        print(f"📦 Handoff preview (read-only): {artifact['handoff_id']}")
+        print(f"   Status: {envelope_data['status']}")
+        print(f"   Summary: {artifact['summary']}")
+        print(f"   Remaining: {', '.join(artifact['remaining']) or 'none'}")
+        print(f"   Next action: {artifact['next_action']}")
 
     def _cmd_fleet_run(self, state: PDState, plan_path: Optional[str], dry_run: bool,
                        resume: bool, as_json: bool) -> int:
