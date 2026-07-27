@@ -43,5 +43,12 @@
 - **Acceptance:** returns the same bounded immutable report; never increments dispatch count or mutates event log, lifecycle, checkpoint or STATE; owner/limit errors propagate fail-closed; no CLI/provider/network/process integration.
 - **Status:** implemented + independently verified (`6 focused`, `831 full`, final review CLOSED / E5 unblocked).
 
-- G1: E1 RED tests exist before implementation.
+## E5 — CLI read-only event diagnostics
+
+- **Files:** `scripts/pd.py`, shell completion blocks, `tests/fleet/test_cli_event_diagnostics.py`.
+- **Depends:** E4 closed.
+- **Implementation:** add `fleet-supervisor-events --store --run-id --owner-epoch --limit`; instantiate `EventLog` + `FleetSupervisor.diagnose_events`; output stable bounded text or exact sorted JSON report.
+- **Acceptance:** command is independent of feature discovery and never opens `PDState`; missing log is `unknown` without mkdir; invalid owner/limit exits fail-closed; event bytes/mtime unchanged; old commands and completions remain compatible; no write/provider/network/process.
+- **Status:** implemented + independently verified (`6 focused`, `837 full`, final review CLOSED / E6 unblocked; fish runtime parser unavailable because `fish` is not installed).
+
 - G2: E1 focused + full verification and fresh-eyes review.

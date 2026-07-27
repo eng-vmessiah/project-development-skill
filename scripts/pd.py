@@ -31,6 +31,8 @@ from pd_fleet.scheduler import LeaseScheduler
 from pd_fleet.parallel import BoundedParallelExecutor
 from pd_fleet.run_store import FleetRunStore, RunStoreError
 from pd_fleet.handoff import HandoffStore
+from pd_fleet.events import EventError, EventLog, MAX_QUERY
+from pd_fleet.supervisor import FleetSupervisor
 
 try:
     import yaml
@@ -528,11 +530,11 @@ _pd() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    commands="init status fleet-status fleet-ready fleet-supervisor-status fleet-handoff-preview validate checkpoint verify advance complete-task config list delete history report diff completion"
+    commands="init status fleet-status fleet-ready fleet-supervisor-status fleet-supervisor-events fleet-handoff-preview validate checkpoint verify advance complete-task config list delete history report diff completion"
 
     # Global flags
     if [[ "$cur" == -* ]]; then
-        COMPREPLY=( $(compgen -W "--feature --json --dry-run --force --no-color -f -h --help" -- "$cur") )
+        COMPREPLY=( $(compgen -W "--feature --json --dry-run --force --no-color --store --run-id --owner-epoch --limit -f -h --help" -- "$cur") )
         return 0
     fi
 
@@ -553,6 +555,9 @@ _pd() {
             ;;
         validate)
             COMPREPLY=( $(compgen -W "--deep" -- "$cur") )
+            ;;
+        fleet-supervisor-events)
+            COMPREPLY=( $(compgen -W "--store --run-id --owner-epoch --limit --json" -- "$cur") )
             ;;
         delete)
             COMPREPLY=( $(compgen -W "--archive --force" -- "$cur") )
@@ -579,6 +584,7 @@ _pd() {
         'fleet-status:Show fleet status'
         'fleet-ready:Show ready fleet tasks'
         'fleet-supervisor-status:Show read-only fleet supervisor status'
+        'fleet-supervisor-events:Diagnose fleet supervisor events (read-only)'
         'fleet-handoff-preview:Preview a persisted handoff (read-only)'
         'validate:Validate progress'
         'checkpoint:Create checkpoint'
@@ -619,6 +625,14 @@ _pd() {
                 delete)
                     _arguments '--archive[Archive instead of delete]' '--force[Skip confirmation]'
                     ;;
+                fleet-supervisor-events)
+                    _arguments \
+                        '--store[Event store root]:directory:' \
+                        '--run-id[Mission run identifier]:' \
+                        '--owner-epoch[Expected owner epoch]:' \
+                        '--limit[Maximum events to inspect]:' \
+                        '--json[Output as JSON]'
+                    ;;
                 list|status|fleet-status|fleet-ready|fleet-supervisor-status|fleet-handoff-preview|verify|advance|config|history|report|diff)
                     _arguments \
                         '--feature[Target feature]:feature:' \
@@ -645,6 +659,7 @@ complete -c pd -n '__fish_use_subcommand' -a 'status' -d 'Show current status'
 complete -c pd -n '__fish_use_subcommand' -a 'fleet-status' -d 'Show fleet status'
 complete -c pd -n '__fish_use_subcommand' -a 'fleet-ready' -d 'Show ready fleet tasks'
 complete -c pd -n '__fish_use_subcommand' -a 'fleet-supervisor-status' -d 'Show read-only fleet supervisor status'
+complete -c pd -n '__fish_use_subcommand' -a 'fleet-supervisor-events' -d 'Diagnose fleet supervisor events (read-only)'
 complete -c pd -n '__fish_use_subcommand' -a 'fleet-handoff-preview' -d 'Preview a persisted handoff (read-only)'
 complete -c pd -n '__fish_use_subcommand' -a 'validate' -d 'Validate progress'
 complete -c pd -n '__fish_use_subcommand' -a 'checkpoint' -d 'Create checkpoint'
@@ -671,6 +686,10 @@ complete -c pd -n '__fish_seen_subcommand_from validate' -l deep -d 'Run deep va
 complete -c pd -n '__fish_seen_subcommand_from delete' -l archive -d 'Archive instead of delete'
 complete -c pd -n '__fish_seen_subcommand_from delete' -l force -d 'Skip confirmation'
 complete -c pd -n '__fish_seen_subcommand_from checkpoint' -l note -s n -d 'Checkpoint note'
+complete -c pd -n '__fish_seen_subcommand_from fleet-supervisor-events' -l store -d 'Event store root'
+complete -c pd -n '__fish_seen_subcommand_from fleet-supervisor-events' -l run-id -d 'Mission run identifier'
+complete -c pd -n '__fish_seen_subcommand_from fleet-supervisor-events' -l owner-epoch -d 'Expected owner epoch'
+complete -c pd -n '__fish_seen_subcommand_from fleet-supervisor-events' -l limit -d 'Maximum events to inspect'
 complete -c pd -n '__fish_seen_subcommand_from completion' -a 'bash zsh fish'
 """
 
@@ -755,6 +774,17 @@ class PD:
                                     help="Handoff identifier")
         handoff_parser.add_argument("--owner-epoch", dest="owner_epoch", type=int, default=None,
                                     help="Expected owner epoch")
+
+        events_parser = subparsers.add_parser("fleet-supervisor-events", parents=[global_parent],
+                                              help="Diagnose fleet supervisor events (read-only)")
+        events_parser.add_argument("--store", dest="store_root", default=".pd-fleet-events",
+                                   help="Event store root")
+        events_parser.add_argument("--run-id", dest="run_id", required=True,
+                                   help="Mission run identifier")
+        events_parser.add_argument("--owner-epoch", dest="owner_epoch", type=int, default=None,
+                                   help="Expected owner epoch")
+        events_parser.add_argument("--limit", dest="limit", type=int, default=MAX_QUERY,
+                                   help="Maximum number of events to inspect")
 
         # fleet execution (local simulated/default-deny dispatcher)
         run_parser = subparsers.add_parser("fleet-run", parents=[global_parent], help="Run a FleetPlan locally")
@@ -862,6 +892,16 @@ class PD:
             if parsed.command == "fleet-handoff-preview":
                 return self._cmd_fleet_handoff_preview(parsed.store_root, parsed.run_id, parsed.handoff_id,
                                                        parsed.owner_epoch, as_json)
+            if parsed.command == "fleet-supervisor-events":
+                event_log = EventLog(parsed.store_root, parsed.run_id, owner_epoch=parsed.owner_epoch)
+                report = FleetSupervisor().diagnose_events(
+                    event_log, active_owner_epoch=parsed.owner_epoch, limit=parsed.limit
+                )
+                if as_json:
+                    print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2, sort_keys=True))
+                else:
+                    self._print_event_diagnostics(report)
+                return
 
             # Everything else requires a feature
             feature_dir = self._find_feature_dir(parsed.feature)
@@ -909,7 +949,7 @@ class PD:
             elif cmd == "diff":
                 self._cmd_diff(state, as_json)
 
-        except PDError as e:
+        except (EventError, PDError) as e:
             if as_json:
                 print(json.dumps({"error": str(e)}, indent=2))
             else:
@@ -921,6 +961,25 @@ class PD:
             else:
                 print(_red(f"❌ Unexpected error: {e}"))
             sys.exit(1)
+
+    @staticmethod
+    def _print_event_diagnostics(report: Any) -> None:
+        """Print a bounded, deterministic human-readable event report."""
+        print("Fleet supervisor events")
+        print(f"Status: {report.status}")
+        print(f"Events: {report.event_count}")
+        print(f"Transitions: {report.transition_count}")
+        print(f"Checkpoints: {report.checkpoint_count}")
+        if report.first_sequence is None:
+            print("Sequence range: none")
+        else:
+            print(f"Sequence range: {report.first_sequence}-{report.last_sequence}")
+        print("Gaps: " + (", ".join(str(value) for value in report.sequence_gaps)
+                              if report.sequence_gaps else "none"))
+        print("Task states: " + (", ".join(
+            f"{task}={report.task_states[task]}" for task in sorted(report.task_states)
+        ) if report.task_states else "none"))
+        print("Reasons: " + (", ".join(report.reasons) if report.reasons else "none"))
 
     # ── feature discovery ────────────────────────────────────────────────
 
