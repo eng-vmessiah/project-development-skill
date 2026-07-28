@@ -191,3 +191,11 @@ Artefato: `artifacts/v2/GRILL-001-findings.json`. A classificação formal é **
 - Evidência: focused **36 passed**; full **997 passed**; review independente PASS; probe M03/M03R2 PASS.
 - Artefato: `artifacts/v2/GRILL-001-M03-resolution.json`.
 - M02/M04–M06 e L01–L02 continuam abertos.
+
+## GRILL-M04 — resolução local
+
+- Status: **RESOLVED_LOCALLY** no commit `f04bb6e`.
+- Claim/renewal usam uma única amostra authoritative do clock dentro do lock; old-lease validation, expiry, token e resposta persistida permanecem consistentes.
+- Evidência: focused **59 passed**; full **998 passed**; review independente PASS; advancing-clock/stale-token probes PASS.
+- Artefato: `artifacts/v2/GRILL-001-M04-resolution.json`.
+- M02/M05–M06 e L01–L02 continuam abertos.

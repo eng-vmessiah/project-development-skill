@@ -1,0 +1,15 @@
+{
+  "change": "Lease claim expiry, old-lease validation, token generation, and renewal expiry are sampled/calculated inside the store lock using one authoritative clock value; returned claims are read from persisted state.",
+  "commit": "f04bb6e",
+  "evidence": [
+    "focused lease/store/scheduler/concurrency: 59 passed",
+    "full suite: 998 passed",
+    "independent review: PASS",
+    "advancing-clock and stale-token probes passed",
+    "git diff --check: clean"
+  ],
+  "finding_id": "GRILL-M04",
+  "residual": "M02, M05-M06 and L01-L02 remain open; no human G1/G6 approval or release authorization.",
+  "schema_version": "pd-fleet-grill-001-resolution:v1",
+  "status": "RESOLVED_LOCALLY"
+}
