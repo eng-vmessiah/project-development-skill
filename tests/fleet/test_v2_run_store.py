@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -65,6 +66,27 @@ def test_claim_rejects_unknown_task_and_nan_lease(tmp_path: Path):
         store.claim("run", "unknown", "owner")
     with pytest.raises(LeaseError, match="lease duration must be positive"):
         store.claim("run", "a", "owner", lease_seconds=float("nan"))
+
+
+def test_claim_expiry_is_based_on_time_sampled_under_store_lock(tmp_path: Path, monkeypatch):
+    now = ["2026-01-01T00:00:00.000000Z"]
+    store = FleetRunStore(tmp_path, clock=lambda: now[0])
+    store.create("run", PLAN, "owner")
+    original_guard = store._guard
+
+    @contextmanager
+    def advancing_guard():
+        with original_guard():
+            # Simulate waiting for another writer after claim() starts but
+            # before its mutation callback gets the lock.
+            now[0] = "2026-01-01T00:00:10.000000Z"
+            yield
+
+    monkeypatch.setattr(store, "_guard", advancing_guard)
+    token = store.claim("run", "a", "owner", lease_seconds=5)
+
+    assert token["expires_at"] == "2026-01-01T00:00:15.000000Z"
+    assert store.load("run")["leases"]["a"]["expires_at"] == token["expires_at"]
 
 
 def test_claim_many_refuses_task_committed_terminal_under_store_lock(tmp_path: Path):

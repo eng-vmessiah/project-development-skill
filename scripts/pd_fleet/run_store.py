@@ -380,15 +380,21 @@ class FleetRunStore:
             item["sequence"]=s["event_sequence"]+1; s["events"].append(item); s["event_sequence"]+=1
         return self._mutate(run_id,owner,expected_generation,add)
     def claim(self,run_id,task_id,owner,*,lease_seconds=60,expected_generation=None):
-        _safe_id(task_id); expiry=_plus_seconds(_clock_value(self._clock),lease_seconds); token=secrets.token_hex(16)
+        _safe_id(task_id)
         def add(s):
             plan_tasks = s["plan"].get("tasks", [])
             known = {item.get("id") for item in plan_tasks if isinstance(item, Mapping)}
             if task_id not in known: raise RunStoreError("unknown task id")
+            # Sample lease time only after the store lock is acquired.
+            now = _clock_value(self._clock)
             old=s["leases"].get(task_id)
-            if old and old["expires_at"] > _clock_value(self._clock): raise LeaseError("task already leased")
+            if old and old["expires_at"] > now: raise LeaseError("task already leased")
+            expiry = _plus_seconds(now,lease_seconds)
+            token = secrets.token_hex(16)
             s["leases"][task_id]={"owner":owner,"lease_id":token,"expires_at":expiry,"generation":s["generation"]+1}; s["attempts"][task_id]=s["attempts"].get(task_id,0)+1
-        state=self._mutate(run_id,owner,expected_generation,add); return {"run_id":run_id,"task_id":task_id,"lease_id":token,"generation":state["generation"],"expires_at":expiry}
+        state=self._mutate(run_id,owner,expected_generation,add)
+        lease = state["leases"][task_id]
+        return {"run_id":run_id,"task_id":task_id,"lease_id":lease["lease_id"],"generation":lease["generation"],"expires_at":lease["expires_at"]}
 
     def claim_many(self, run_id, task_ids, owner, *, max_parallel, lease_seconds: float = 60,
                    select: Callable[..., list[str]] | None = None):
@@ -495,10 +501,11 @@ class FleetRunStore:
             candidate["updated_at"] = _clock_value(self._clock)
             self._write(run_id, candidate)
             return tokens
-    def _check_token(self,s,task_id,token):
+    def _check_token(self,s,task_id,token,now=None):
         if not isinstance(token,Mapping) or type(token.get("generation")) is not int or type(token.get("lease_id")) is not str: raise LeaseError("invalid lease")
         lease=s["leases"].get(task_id)
-        if not lease or lease.get("lease_id")!=token["lease_id"] or lease.get("generation")!=token["generation"] or lease.get("expires_at","")<=_clock_value(self._clock): raise LeaseError("stale or expired lease")
+        if now is None: now = _clock_value(self._clock)
+        if not lease or lease.get("lease_id")!=token["lease_id"] or lease.get("generation")!=token["generation"] or lease.get("expires_at","")<=now: raise LeaseError("stale or expired lease")
         return lease
     def use(self,run_id,task_id,token,owner):
         with self._guard():
@@ -510,9 +517,10 @@ class FleetRunStore:
         if type(lease_seconds) not in (int,float) or isinstance(lease_seconds,bool) or not math.isfinite(lease_seconds) or lease_seconds<=0: raise LeaseError("lease duration must be positive")
         refreshed = {}
         def change(s):
-            lease = self._check_token(s,task_id,token)
+            now = _clock_value(self._clock)
+            lease = self._check_token(s,task_id,token,now)
             new_id = secrets.token_hex(16)
-            expiry = _plus_seconds(_clock_value(self._clock), lease_seconds)
+            expiry = _plus_seconds(now, lease_seconds)
             # _mutate increments the snapshot generation immediately after
             # this callback; bind the new lease to that next generation.
             lease.update(lease_id=new_id, expires_at=expiry, generation=s["generation"] + 1)
