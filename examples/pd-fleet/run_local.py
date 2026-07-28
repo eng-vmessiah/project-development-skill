@@ -125,6 +125,8 @@ def _local_evidence(task_id: str, fingerprint: str) -> EvidenceRecord:
         artifacts=[f"results/{task_id}.json"],
         timestamp="2026-01-01T00:00:00Z",
         source="local-simulated",
+        provenance="pd-fleet-local-example",
+        verified_at="2026-01-01T00:00:00Z",
         stdout=f"simulated result {task_id} {fingerprint[:16]}",
     )
 

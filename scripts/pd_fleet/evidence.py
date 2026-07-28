@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from hashlib import sha256 as _sha256
 from copy import deepcopy
+import math
 import re
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
@@ -19,7 +20,11 @@ class EvidenceError(ValueError):
 
 
 class EvidenceValidationError(EvidenceError):
-    """Evidence failed a gate validation."""
+    """Evidence failed a gate validation with a stable machine-readable code."""
+
+    def __init__(self, message: str, *, code: str = "invalid_evidence") -> None:
+        self.code = code
+        super().__init__(message)
 
 
 _URL = re.compile(r"(?i)\b(?:https?|ftp|wss?)://[^\s\"'<>]+")
@@ -65,14 +70,18 @@ def _relative(path: Any) -> str:
     return "/".join(part for part in parts if part) or "."
 
 
-def _timestamp(value: Any) -> str:
+def _timestamp(value: Any, field_name: str = "timestamp", *, required: bool = False) -> str:
     if value is None or value == "":
+        if required:
+            raise EvidenceValidationError(f"{field_name} ausente", code=f"missing_{field_name}")
         return datetime.now(timezone.utc).isoformat()
-    text = _text(value, "timestamp")
+    text = _text(value, field_name)
     try:
-        datetime.fromisoformat(text.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError as exc:
-        raise EvidenceValidationError("timestamp inválido") from exc
+        raise EvidenceValidationError(f"{field_name} inválido", code=f"invalid_{field_name}") from exc
+    if field_name == "verified_at" and (parsed.tzinfo is None or parsed.utcoffset() != timezone.utc.utcoffset(parsed)):
+        raise EvidenceValidationError("verified_at deve ser UTC", code="invalid_verified_at")
     return text
 
 
@@ -86,6 +95,8 @@ class EvidenceRecord:
     sha256: str | Mapping[str, str] | None = None
     timestamp: str = ""
     source: str = "manual"
+    provenance: str = ""
+    verified_at: str = ""
 
     # artifact_paths is accepted by callers using the contract's terminology.
     def __post_init__(self) -> None:
@@ -104,6 +115,12 @@ class EvidenceRecord:
         self.source = "" if self.source is None else _text(self.source, "source")
         if _URL.search(self.source) or _SECRET_ASSIGNMENT.search(self.source) or _SECRET_TOKEN.search(self.source):
             raise EvidenceValidationError("source contém segredo ou URL")
+        if self.provenance is None or self.provenance == "":
+            raise EvidenceValidationError("provenance ausente", code="missing_provenance")
+        self.provenance = _text(self.provenance, "provenance")
+        if _URL.search(self.provenance) or _SECRET_ASSIGNMENT.search(self.provenance) or _SECRET_TOKEN.search(self.provenance) or _ABSOLUTE_PATH.search(self.provenance):
+            raise EvidenceValidationError("provenance contém segredo, URL ou caminho", code="unsafe_provenance")
+        self.verified_at = _timestamp(self.verified_at, "verified_at", required=True)
         if not self.command and not self.artifacts:
             raise EvidenceValidationError("evidência declarativa exige comando ou artefato")
         self._validate_hash_shape()
@@ -136,7 +153,13 @@ class EvidenceRecord:
             return cls(**value.to_dict())
         if not isinstance(value, Mapping):
             raise EvidenceValidationError("evidence deve ser objeto")
-        return cls(command=value.get("command", ""), exit_code=value.get("exit_code"), stdout=value.get("stdout", ""), stderr=value.get("stderr", ""), artifacts=value.get("artifacts", value.get("artifact_paths", [])), sha256=value.get("sha256"), timestamp=value.get("timestamp", value.get("created_at", "")), source=value.get("source", "manual"))
+        allowed = {"command", "exit_code", "stdout", "stderr", "artifacts", "artifact_paths", "sha256", "timestamp", "created_at", "source", "provenance", "verified_at"}
+        if any(not isinstance(key, str) or key not in allowed for key in value):
+            raise EvidenceValidationError("evidence contém campo desconhecido", code="unknown_field")
+        for canonical, alias in (("artifacts", "artifact_paths"), ("timestamp", "created_at")):
+            if canonical in value and alias in value:
+                raise EvidenceValidationError("evidence contém alias conflitante", code="conflicting_alias")
+        return cls(command=value.get("command", ""), exit_code=value.get("exit_code"), stdout=value.get("stdout", ""), stderr=value.get("stderr", ""), artifacts=value.get("artifacts", value.get("artifact_paths", [])), sha256=value.get("sha256"), timestamp=value.get("timestamp", value.get("created_at", "")), source=value.get("source", "manual"), provenance=value.get("provenance", ""), verified_at=value.get("verified_at", ""))
 
     def to_dict(self) -> dict[str, Any]:
         # Return an independent, canonical structure; callers cannot mutate the
@@ -144,21 +167,27 @@ class EvidenceRecord:
         hashes = deepcopy(self.sha256)
         if isinstance(hashes, dict):
             hashes = dict(sorted(hashes.items()))
-        return {"command": self.command, "exit_code": self.exit_code, "stdout": self.stdout, "stderr": self.stderr, "artifacts": list(self.artifacts), "sha256": hashes, "timestamp": self.timestamp, "source": self.source}
+        return {"command": self.command, "exit_code": self.exit_code, "stdout": self.stdout, "stderr": self.stderr, "artifacts": list(self.artifacts), "sha256": hashes, "timestamp": self.timestamp, "source": self.source, "provenance": self.provenance, "verified_at": self.verified_at}
 
 
 @dataclass
 class EvidenceStore:
     allowed_paths: Sequence[str | Path] = field(default_factory=list)
     records: list[EvidenceRecord] = field(default_factory=list)
+    max_age_seconds: float = 86400
+    clock: Callable[[], datetime | str] = field(default=lambda: datetime.now(timezone.utc), repr=False)
 
     def __post_init__(self) -> None:
+        if type(self.max_age_seconds) not in (int, float) or isinstance(self.max_age_seconds, bool) or not math.isfinite(self.max_age_seconds) or self.max_age_seconds <= 0:
+            raise EvidenceValidationError("max_age_seconds deve ser positivo e finito", code="invalid_max_age_seconds")
+        if not callable(self.clock):
+            raise EvidenceValidationError("clock inválido", code="invalid_clock")
         self.allowed_paths = tuple(Path(p).resolve() for p in self.allowed_paths)
         self.records = [EvidenceRecord.from_dict(r) for r in self.records]
 
     def capture(self, command: str, *, executor: Callable[[str], Any] | None = None,
                 artifacts: Sequence[str | Path] = (), sha256: str | Mapping[str, str] | None = None,
-                source: str = "injected") -> EvidenceRecord:
+                source: str = "injected", provenance: str = "") -> EvidenceRecord:
         """Capture a command result through an explicitly injected test double.
 
         No executor means fail closed; notably, this does not fall back to shell.
@@ -173,6 +202,11 @@ class EvidenceStore:
         source = _text(source, "source")
         if _URL.search(source) or _SECRET_ASSIGNMENT.search(source) or _SECRET_TOKEN.search(source):
             raise EvidenceValidationError("source contém segredo ou URL")
+        if provenance is None or provenance == "":
+            raise EvidenceValidationError("provenance ausente", code="missing_provenance")
+        provenance = _text(provenance, "provenance")
+        if _URL.search(provenance) or _SECRET_ASSIGNMENT.search(provenance) or _SECRET_TOKEN.search(provenance) or _ABSOLUTE_PATH.search(provenance):
+            raise EvidenceValidationError("provenance contém segredo, URL ou caminho", code="unsafe_provenance")
         if executor is None or not callable(executor):
             raise EvidenceError("capture exige executor injetado; shell/rede desabilitados")
         try:
@@ -185,7 +219,9 @@ class EvidenceStore:
             code, out, err = result
         else:
             raise EvidenceError("executor deve retornar mapping ou (exit_code, stdout, stderr)")
-        record = EvidenceRecord(command=command, exit_code=code, stdout=out, stderr=err, artifacts=[str(p) for p in artifacts], sha256=sha256, timestamp="", source=source)
+        now = _clock_datetime(self.clock)
+        stamp = now.isoformat().replace("+00:00", "Z")
+        record = EvidenceRecord(command=command, exit_code=code, stdout=out, stderr=err, artifacts=[str(p) for p in artifacts], sha256=sha256, timestamp=stamp, source=source, provenance=provenance, verified_at=stamp)
         self.validate(record)
         self.records.append(record)
         return record
@@ -198,6 +234,13 @@ class EvidenceStore:
 
     def validate(self, record: EvidenceRecord | Mapping[str, Any]) -> EvidenceRecord:
         record = EvidenceRecord.from_dict(record)
+        now = _clock_datetime(self.clock)
+        verified = _parse_utc(record.verified_at, "verified_at")
+        age = (now - verified).total_seconds()
+        if age < 0:
+            raise EvidenceValidationError("verified_at está no futuro", code="verified_at_future")
+        if age > self.max_age_seconds:
+            raise EvidenceValidationError("evidence está stale", code="evidence_stale")
         if record.exit_code != 0:
             raise EvidenceValidationError("evidence exige exit_code=0")
         if not record.command and not record.artifacts:
@@ -238,3 +281,24 @@ class EvidenceStore:
     def to_dict(self) -> list[dict[str, Any]]:
         self.validate_all()
         return [record.to_dict() for record in self.records]
+
+
+def _parse_utc(value: str, field_name: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise EvidenceValidationError(f"{field_name} inválido", code=f"invalid_{field_name}") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() != timezone.utc.utcoffset(parsed):
+        raise EvidenceValidationError(f"{field_name} deve ser UTC", code=f"invalid_{field_name}")
+    return parsed.astimezone(timezone.utc)
+
+
+def _clock_datetime(clock: Callable[[], datetime | str]) -> datetime:
+    value = clock()
+    if isinstance(value, datetime):
+        if value.tzinfo is None or value.utcoffset() != timezone.utc.utcoffset(value):
+            raise EvidenceValidationError("clock deve retornar UTC", code="invalid_clock")
+        return value.astimezone(timezone.utc)
+    if type(value) is str:
+        return _parse_utc(value, "clock")
+    raise EvidenceValidationError("clock deve retornar datetime ou string UTC", code="invalid_clock")
