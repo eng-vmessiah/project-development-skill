@@ -134,6 +134,50 @@ def test_cwd_descriptor_is_pinned_across_replacement_before_popen(tmp_path: Path
     assert int(str(observed["cwd"]).rsplit("/", 1)[1]) in pass_fds
 
 
+def test_root_replacement_between_checks_and_cwd_open_is_denied_without_leak(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+):
+    root = tmp_path / "root"
+    cwd = root / "cwd"
+    cwd.mkdir(parents=True)
+    replacement = tmp_path / "replacement-root"
+    (replacement / "cwd").mkdir(parents=True)
+    tool = _tool(root, "tool", "print('must not run')")
+    argv = (str(tool),)
+    runner = LocalSandboxRunner(root, allowlist=(argv,), env={})
+    real_open = sandbox_module.os.open
+    replaced = False
+
+    def replacing_open(path, flags, mode=0o777, *, dir_fd=None):
+        nonlocal replaced
+        if path == cwd and not replaced:
+            replaced = True
+            root.rename(tmp_path / "old-root")
+            replacement.rename(root)
+        if dir_fd is None:
+            return real_open(path, flags, mode)
+        return real_open(path, flags, mode, dir_fd=dir_fd)
+
+    def unexpected_popen(*args, **kwargs):
+        raise AssertionError("replaced root must be rejected before child creation")
+
+    before_fds = set(os.listdir("/proc/self/fd"))
+    monkeypatch.setattr(sandbox_module.os, "open", replacing_open)
+    monkeypatch.setattr(sandbox_module.subprocess, "Popen", unexpected_popen)
+    result = runner.run(argv, cwd=cwd)
+    after_fds = set(os.listdir("/proc/self/fd"))
+
+    assert result == {
+        "status": "denied",
+        "returncode": -1,
+        "stdout": "",
+        "stderr": "",
+        "error": "cwd_changed",
+    }
+    assert replaced
+    assert after_fds == before_fds
+
+
 def test_relative_cwd_is_rejected(tmp_path: Path):
     tool = _tool(tmp_path, "tool", "print('ok')")
     runner = LocalSandboxRunner(tmp_path, allowlist=((str(tool),),), env={})

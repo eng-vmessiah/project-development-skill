@@ -266,6 +266,12 @@ class LocalSandboxRunner:
                 cwd_path,
                 os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
             )
+            # The configured root may have been renamed and replaced while the
+            # cwd pathname was being opened. Re-pin it after opening the cwd;
+            # otherwise a replacement root/cwd could pass the pathname checks
+            # and the descriptor containment check below.
+            if _pin(self._tool_root) != self._root_pin:
+                raise SandboxConfigurationError("cwd_changed")
             cwd_st = os.fstat(cwd_fd)
             if not stat.S_ISDIR(cwd_st.st_mode):
                 raise SandboxConfigurationError("cwd_changed")
