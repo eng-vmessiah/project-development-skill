@@ -1,6 +1,7 @@
 """TDD checks for the pure runtime adapter boundary."""
 from __future__ import annotations
 
+from collections.abc import Mapping
 import ast
 import json
 from pathlib import Path
@@ -46,6 +47,38 @@ def test_envelope_is_immutable_and_serialization_is_stable_redacted() -> None:
     assert rendered["metadata"]["api_key"] == "[REDACTED]"
     with pytest.raises(TypeError):
         envelope.metadata["x"] = 1  # type: ignore[index]
+
+
+@pytest.mark.parametrize("operation", ["iter", "items", "get"])
+def test_hostile_metadata_mapping_failures_are_stable_and_do_not_leak(operation) -> None:
+    class BadMap(Mapping):
+        def __init__(self, data):
+            self._data = data
+
+        def __len__(self):
+            return len(self._data)
+
+        def __iter__(self):
+            if operation == "iter":
+                raise RuntimeError("secret /home/vitor/private")
+            return iter(self._data)
+
+        def items(self):
+            if operation == "items":
+                raise RuntimeError("secret /home/vitor/private")
+            return super().items()
+
+        def __getitem__(self, key):
+            if operation == "get":
+                raise RuntimeError("secret /home/vitor/private")
+            return self._data[key]
+
+    with pytest.raises(RuntimeConfigurationError) as exc:
+        RuntimeTaskEnvelope("task-1", "inspect", _envelope().provider_profile,
+                            metadata=BadMap({"value": "ok"}))
+    assert str(exc.value) == RuntimeErrorCode.INVALID_ENVELOPE.value
+    assert "secret" not in str(exc.value)
+    assert "/home/vitor" not in str(exc.value)
 
 
 def test_nested_agents_and_host_paths_are_denied() -> None:

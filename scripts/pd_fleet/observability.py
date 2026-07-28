@@ -24,6 +24,12 @@ def _redact_text(value: str, limit: int) -> str:
     value = _SECRET.sub("[SECRET REDACTED]", value)
     return safe_text(_SECRET_VALUE.sub("[SECRET REDACTED]", value), "[UNSUPPORTED TYPE]", limit=limit)
 
+def _mapping_items(value: Mapping[str, Any]) -> tuple[tuple[Any, Any], ...]:
+    try:
+        return tuple(value.items())
+    except Exception:
+        raise ObservabilityError("invalid mapping") from None
+
 def _immutable(value: Any, *, depth: int = 0, max_depth: int = 8,
                max_fields: int = 32, max_string_length: int = 1024) -> Any:
     if depth > max_depth: return "[DEPTH REDACTED]"
@@ -33,13 +39,15 @@ def _immutable(value: Any, *, depth: int = 0, max_depth: int = 8,
         return value
     if type(value) is str: return _redact_text(value, max_string_length)
     if isinstance(value, Mapping):
-        keys = list(value)
+        items = _mapping_items(value)
+        keys = [key for key, _ in items]
         if any(type(key) is not str or not key for key in keys):
             raise ObservabilityError("field keys must be non-empty strings")
         result = {}
         for key in sorted(keys)[:max_fields]:
             normalized = re.sub(r"[^a-z0-9]", "", key.lower())
-            result[key] = "[SECRET REDACTED]" if any(word in normalized for word in ("credential", "secret", "token", "password", "apikey", "accesskey", "accesstoken", "privatekey", "authorization")) else _immutable(value[key], depth=depth + 1, max_depth=max_depth, max_fields=max_fields, max_string_length=max_string_length)
+            item = next(item for item_key, item in items if item_key == key)
+            result[key] = "[SECRET REDACTED]" if any(word in normalized for word in ("credential", "secret", "token", "password", "apikey", "accesskey", "accesstoken", "privatekey", "authorization")) else _immutable(item, depth=depth + 1, max_depth=max_depth, max_fields=max_fields, max_string_length=max_string_length)
         return MappingProxyType(result)
     if isinstance(value, (list, tuple)):
         return tuple(_immutable(item, depth=depth + 1, max_depth=max_depth, max_fields=max_fields, max_string_length=max_string_length) for item in value[:max_fields])
@@ -50,7 +58,7 @@ def _immutable(value: Any, *, depth: int = 0, max_depth: int = 8,
     return "[UNSUPPORTED TYPE]"
 
 def _plain(value: Any) -> Any:
-    if isinstance(value, Mapping): return {key: _plain(item) for key, item in value.items()}
+    if isinstance(value, Mapping): return {key: _plain(item) for key, item in _mapping_items(value)}
     if isinstance(value, (tuple, list)): return [_plain(item) for item in value]
     return value
 

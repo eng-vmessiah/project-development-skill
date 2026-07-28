@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Mapping
 import copy
 import sys
 from pathlib import Path
@@ -21,6 +22,37 @@ from pd_fleet.provider import (  # noqa: E402
     ProviderStatus,
     create_provider,
 )
+
+
+@pytest.mark.parametrize("operation", ["iter", "items", "get"])
+def test_hostile_metadata_mapping_failures_are_stable_and_do_not_leak(operation) -> None:
+    class BadMap(Mapping):
+        def __init__(self, data):
+            self._data = data
+
+        def __len__(self):
+            return len(self._data)
+
+        def __iter__(self):
+            if operation == "iter":
+                raise RuntimeError("secret /home/vitor/private")
+            return iter(self._data)
+
+        def items(self):
+            if operation == "items":
+                raise RuntimeError("secret /home/vitor/private")
+            return super().items()
+
+        def __getitem__(self, key):
+            if operation == "get":
+                raise RuntimeError("secret /home/vitor/private")
+            return self._data[key]
+
+    with pytest.raises(ProviderConfigurationError) as exc:
+        create_provider(metadata=BadMap({"value": "ok"}))
+    assert str(exc.value) == "provider configuration rejected"
+    assert "secret" not in str(exc.value)
+    assert "/home/vitor" not in str(exc.value)
 
 
 def test_factory_default_is_disabled_and_auditable() -> None:

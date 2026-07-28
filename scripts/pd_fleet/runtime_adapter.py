@@ -45,6 +45,13 @@ class RuntimeRunnerRequiredError(RuntimeAdapterError):
     pass
 
 
+def _mapping_items(value: Mapping[str, Any]) -> tuple[tuple[Any, Any], ...]:
+    try:
+        return tuple(value.items())
+    except Exception:
+        raise RuntimeConfigurationError(RuntimeErrorCode.INVALID_ENVELOPE.value) from None
+
+
 class RuntimeStatus(str, Enum):
     OK = "ok"
     DENIED = "denied"
@@ -71,9 +78,10 @@ class RuntimeErrorCode(str, Enum):
 
 def _immutable(value: Any) -> Any:
     if isinstance(value, Mapping):
-        if any(type(k) is not str for k in value):
+        items = _mapping_items(value)
+        if any(type(k) is not str for k, _ in items):
             raise RuntimeConfigurationError(RuntimeErrorCode.INVALID_ENVELOPE.value)
-        return MappingProxyType({k: _immutable(v) for k, v in value.items()})
+        return MappingProxyType({k: _immutable(v) for k, v in items})
     if isinstance(value, (list, tuple)):
         return tuple(_immutable(v) for v in value)
     if type(value) in (str, int, float, bool) or value is None:
@@ -113,7 +121,7 @@ def _redact(value: Any, *, key: str = "") -> Any:
     if _SENSITIVE.search(key):
         return "[REDACTED]"
     if isinstance(value, Mapping):
-        return {k: _redact(v, key=k) for k, v in value.items()}
+        return {k: _redact(v, key=k) for k, v in _mapping_items(value)}
     if isinstance(value, (list, tuple)):
         return [_redact(v) for v in value]
     if isinstance(value, str):

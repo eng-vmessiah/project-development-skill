@@ -53,16 +53,22 @@ def _configuration_rejected() -> ProviderConfigurationError:
     return ProviderConfigurationError("provider configuration rejected")
 
 
+def _mapping_items(value: Mapping[str, Any]) -> tuple[tuple[Any, Any], ...]:
+    try:
+        return tuple(value.items())
+    except Exception:
+        raise _configuration_rejected() from None
+
+
 def _immutable(value: Any) -> Any:
     """Copy supported data into immutable containers; never retain user objects."""
     if callable(value):
         raise _configuration_rejected()
     if isinstance(value, Mapping):
-        # Keys cross the boundary as data too. Validate their exact type before
-        # any redaction/stringification can invoke user-defined behavior.
-        if any(type(key) is not str for key in value):
+        items = _mapping_items(value)
+        if any(type(key) is not str for key, _ in items):
             raise _configuration_rejected()
-        return MappingProxyType({key: _immutable(item) for key, item in value.items()})
+        return MappingProxyType({key: _immutable(item) for key, item in items})
     if isinstance(value, (list, tuple)):
         return tuple(_immutable(item) for item in value)
     if type(value) in (str, int, float, bool) or value is None:
@@ -111,9 +117,10 @@ def _redact(value: Any, *, key: str = "") -> Any:
     if _SENSITIVE.search(key):
         return "[REDACTED]"
     if isinstance(value, Mapping):
-        if any(type(k) is not str for k in value):
+        items = _mapping_items(value)
+        if any(type(k) is not str for k, _ in items):
             raise _configuration_rejected()
-        return {k: _redact(v, key=k) for k, v in value.items()}
+        return {k: _redact(v, key=k) for k, v in items}
     if isinstance(value, (list, tuple)):
         return [_redact(item) for item in value]
     if isinstance(value, str):
@@ -125,7 +132,7 @@ def _validate_injection(value: Any) -> None:
     if callable(value):
         raise _configuration_rejected()
     if isinstance(value, Mapping):
-        for key, item in value.items():
+        for key, item in _mapping_items(value):
             if type(key) is not str:
                 raise _configuration_rejected()
             if _SENSITIVE.search(key):
@@ -140,7 +147,7 @@ def _validate_metadata(value: Any) -> None:
     if callable(value):
         raise _configuration_rejected()
     if isinstance(value, Mapping):
-        for key, item in value.items():
+        for key, item in _mapping_items(value):
             if type(key) is not str:
                 raise _configuration_rejected()
             _validate_metadata(item)

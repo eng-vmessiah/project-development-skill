@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 import json
 import sys
 from pathlib import Path
@@ -101,6 +102,37 @@ def test_mapping_keys_are_validated_before_sorting_without_stringifying_them():
         sink.record("diagnostic", fields={_HostileObject(): "value", "valid": "ok"})
 
     assert _HostileObject.renders == 0
+
+
+@pytest.mark.parametrize("operation", ["iter", "items", "get"])
+def test_hostile_mapping_failures_are_stable_and_do_not_leak(operation):
+    class BadMap(Mapping):
+        def __init__(self, data):
+            self._data = data
+
+        def __len__(self):
+            return len(self._data)
+
+        def __iter__(self):
+            if operation == "iter":
+                raise RuntimeError("secret /home/vitor/private")
+            return iter(self._data)
+
+        def __getitem__(self, key):
+            if operation == "get":
+                raise RuntimeError("secret /home/vitor/private")
+            return self._data[key]
+
+        def items(self):
+            if operation == "items":
+                raise RuntimeError("secret /home/vitor/private")
+            return super().items()
+
+    with pytest.raises(ObservabilityError) as exc:
+        AuditSink().record("diagnostic", fields=BadMap({"value": "ok"}))
+    assert str(exc.value) == "invalid mapping"
+    assert "secret" not in str(exc.value)
+    assert "/home/vitor" not in str(exc.value)
 
 
 def test_sets_are_deterministic_without_repr_or_string_conversion():
