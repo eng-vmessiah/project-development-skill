@@ -128,3 +128,11 @@ Próxima fatia recomendada: corrigir os seis HIGH com testes red-first e revisã
 - Review independente: PASS; full rerun: 952 passed.
 - Artefato: `artifacts/v2/GRILL-001-H04-resolution.json`.
 - **Status global:** permanece **BLOCKED_NOT_READY**; HIGH-05 e HIGH-06 continuam abertos.
+
+## Atualização GRILL-H05 — 2026-07-28
+
+- HIGH-05 resolvido localmente no commit `6c34aca3362828b6352cab95243c8f8b41515990`.
+- RED reproduziu autorização por `GateResult` estrutural; GREEN exige human gate explícito e atualizou o exemplo local.
+- Review independente: PASS; full rerun: 956 passed.
+- Artefato: `artifacts/v2/GRILL-001-H05-resolution.json`.
+- **Status global:** permanece **BLOCKED_NOT_READY**; HIGH-06 continua aberto.

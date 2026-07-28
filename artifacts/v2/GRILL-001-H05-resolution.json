@@ -1,0 +1,15 @@
+{
+  "change": "Orchestrator governance gates review/grill now require explicit HumanVerificationGate; structural GateResult/mappings cannot authorize them. Automatic smoke_test/evidence GateResult policy behavior remains unchanged.",
+  "commit": "6c34aca3362828b6352cab95243c8f8b41515990",
+  "evidence": [
+    "RED: structural review accepted and valid human gate rejected",
+    "focused governance/human/gates/example: 33 passed",
+    "independent review: 32 focused and 956 full passed",
+    "real orchestrator path: governance result blocked/no dispatch; valid human gate completed",
+    "git diff --check: clean"
+  ],
+  "finding_id": "GRILL-H05",
+  "residual": "H06 remains open: current-run/scope binding and canonical scope matching are not implemented. Historical GRILL-001 remains BLOCKED.",
+  "schema_version": "pd-fleet-grill-001-resolution:v1",
+  "status": "RESOLVED_LOCALLY"
+}

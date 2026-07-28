@@ -145,3 +145,11 @@ Artefato: `artifacts/v2/GRILL-001-findings.json`. A classificação formal é **
 - Artefato: `artifacts/v2/GRILL-001-H04-resolution.json`.
 - Review independente: PASS; 126 focados. Full rerun parent: 952 passed.
 - O relatório histórico GRILL-001 permanece BLOCKED pelos HIGH restantes.
+
+## GRILL-H05 — resolução local
+
+- Status: **RESOLVED_LOCALLY** no commit `6c34aca3362828b6352cab95243c8f8b41515990`.
+- Gates de governança `review`/`grill` agora exigem `HumanVerificationGate`; `GateResult` estrutural não autoriza. Gates automáticos `smoke_test`/`evidence` mantêm policy evaluation.
+- Artefato: `artifacts/v2/GRILL-001-H05-resolution.json`.
+- Review independente: PASS; 32 focados e 956 totais.
+- H06 permanece aberto para binding de `scope/run`; o relatório histórico GRILL-001 continua BLOCKED.
