@@ -1,11 +1,10 @@
 # T2-18 — Verification e handoff
 
-**Data da coleta:** 2026-07-17  
-**Branch:** `feat/pd-fleet-orchestration-plan`  
-**Commit observado:** `2b4f219 docs: plan fleet orchestration hardening v2`  
+**Data da coleta inicial:** 2026-07-17 (snapshot histórico; atualizações append-only abaixo)
+**Branch/commit inicial:** `feat/pd-fleet-orchestration-plan` / `2b4f219 docs: plan fleet orchestration hardening v2`
 **Decisão:** **NOT READY / PARTIAL**. GRILL-001 permanece **PENDING**; não existe decisão humana `APPROVED` de G6.
 
-Este documento separa evidência executada de planejamento e não transforma uma suíte verde em aprovação de release.
+Este documento separa evidência executada de planejamento e não transforma uma suíte verde em aprovação de release. O cabeçalho acima preserva o snapshot inicial; a atualização final identifica o commit de código verificado e o pacote documental.
 
 ## Comandos e resultados frescos
 
@@ -216,5 +215,5 @@ Próxima fatia recomendada: corrigir os seis HIGH com testes red-first e revisã
 - A revisão independente final encontrou uma fronteira inconsistente: `HumanVerificationGate.from_dict` aceitava mappings hostis no nível superior e em `scope`/`blockers`.
 - Correção aplicada no commit `ab3b73a`: entradas de desserialização agora exigem plain `dict`; estruturas aninhadas são normalizadas por validação JSON plain antes de congelamento; aliases `run`/`run_id` exigem strings antes da comparação.
 - RED reproduziu os três casos com exceções hostis; focused `tests/fleet/test_v2_human_gate.py` → **13 passed**; suíte completa → **1046 passed**; compileall, diff-check e doc checker → exit 0.
-- `artifacts/v2/GRILL-001-rerun-current.json` foi regenerado para o pacote final `0c511c9` (código de segurança em `ab3b73a`); artefatos anteriores permanecem históricos.
+- `artifacts/v2/GRILL-001-rerun-current.json` registra o código verificado `ab3b73a` e o pacote documental `0c511c9`; artefatos anteriores permanecem históricos.
 - **Status:** findings H/M/L continuam `RESOLVED_LOCALLY`; G1–G6 continuam pendentes. O pacote permanece **NOT_READY_HUMAN_GATE** até revisão final e decisão humana explícita.

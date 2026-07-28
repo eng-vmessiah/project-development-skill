@@ -1,8 +1,10 @@
 # PD Fleet Orchestration V2 — Research
 
-**Data da verificação:** 2026-07-17  
-**Branch/commit:** `feat/pd-fleet-orchestration-plan` / `2b4f219`
+**Data da verificação:** 2026-07-17 (snapshot histórico; atualizações append-only abaixo)
+**Branch/commit inicial:** `feat/pd-fleet-orchestration-plan` / `2b4f219`
 **Escopo:** baseline T2-01 e testes de contrato; nenhum runtime ou documento V1 é alterado.
+
+> A evidência corrente está nas atualizações finais deste documento e em `VERIFICATION.md`; este cabeçalho preserva a proveniência do snapshot inicial.
 
 ## Estado atual verificado
 
@@ -245,4 +247,4 @@ Artefato: `artifacts/v2/GRILL-001-findings.json`. A classificação formal é **
 - Revisão independente encontrou e reproduziu exceções de `Mapping` hostil em `HumanVerificationGate.from_dict`, incluindo o nível superior e mappings aninhados.
 - O commit `ab3b73a` exige plain `dict` na entrada, valida `scope`/`blockers` como JSON plain antes de congelar e rejeita aliases `run`/`run_id` não-string antes de comparação.
 - Evidência fresca: `tests/fleet/test_v2_human_gate.py` **13 passed**; suíte completa **1046 passed**; compileall, diff-check e checker de paths válidos.
-- A proveniência do artefato `GRILL-001-rerun-current.json` foi atualizada para o pacote final `0c511c9` (código de segurança em `ab3b73a`). Findings H/M/L permanecem `RESOLVED_LOCALLY`; G1–G6 permanecem sem aprovação humana formal.
+- A proveniência do artefato `GRILL-001-rerun-current.json` separa o código verificado `ab3b73a` do pacote documental `0c511c9`. Findings H/M/L permanecem `RESOLVED_LOCALLY`; G1–G6 permanecem sem aprovação humana formal.

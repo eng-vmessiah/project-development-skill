@@ -1,10 +1,12 @@
 # GRILL-001 — Grill pré-código V2 (adversarial/read-only)
 
-**Data:** 2026-07-17
-**Branch/commit observado:** `feat/pd-fleet-orchestration-plan` / `2b4f219`
+**Data do snapshot inicial:** 2026-07-17
+**Branch/commit inicial observado:** `feat/pd-fleet-orchestration-plan` / `2b4f219`
 **Escopo:** handoff documental e evidência local de T2-01…T2-17; nenhum provider, rede, dispatch externo, commit/push ou documento V1 foi usado.
 **Status:** **PENDING** — GRILL-001 não substitui rerun formal nem decisão humana; G6 não está APPROVED.
 **Regra de evidência:** suíte verde, checker válido e artefatos locais comprovam apenas os comandos indicados. Não convertem implementação parcial em PASS global.
+
+> Este arquivo preserva o grill histórico; a revisão corrente e as resoluções locais estão registradas em `VERIFICATION.md`, `RESEARCH.md` e `artifacts/v2/GRILL-001-rerun-current.json`.
 
 ## Baseline/checks executados
 

@@ -133,9 +133,10 @@ unresolved references fail closed. Output paths are resolved and contained benea
 
 ### Fleet V2: local-first and fail-closed
 
-Fleet V2 is **MERGED as experimental/local** in `main`; it is not an operational
-production release. The human approval authorizes this merge scope only. The safe
-default is local simulation with an explicit plan and output directory; no shell,
+Fleet V2 is currently **local/experimental on the feature branch**; it is not
+merged into `main`, not an operational production release, and has no human
+G1–G6 approval recorded in this workspace. The safe default is local simulation
+with an explicit plan and output directory; no shell,
 network, external provider, credentials, or undeclared validation command is invoked.
 External execution requires exact argv allowlist, containment/sandbox, timeout,
 redacted bounded output, and a separate explicit release decision. Migration

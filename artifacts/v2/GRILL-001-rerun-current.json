@@ -1,6 +1,7 @@
 {
   "branch": "feat/pd-fleet-lifecycle-events",
-  "commit": "0c511c9",
+  "commit": "ab3b73a",
+  "evidence_package_commit": "0c511c9",
   "decision": "NOT_READY_HUMAN_GATE",
   "governance": "No human G1/G6 approval, merge authorization, provider authorization, or release PASS.",
   "high_findings": {
