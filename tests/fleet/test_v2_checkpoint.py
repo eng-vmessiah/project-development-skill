@@ -10,6 +10,11 @@ from pd_fleet.checkpoint import (
 )
 
 
+class _HostileRepr(str):
+    def __repr__(self):
+        raise AssertionError("repr must not be called")
+
+
 def cp(status="pending"):
     return Checkpoint.create("demo", 1, tasks={"done":{"id":"done"}, "run":{"id":"run"}}, lifecycle={
         "done":{"task_id":"done", "status":"completed"},
@@ -112,3 +117,23 @@ def test_v2_checkpoint_redacts_unc_and_tilde_paths_as_a_whole(tmp_path, path):
     redacted = saved["checkpoint"]["tasks"]["task"]["path"]
     assert redacted == "[PATH REDACTED]"
     assert "alice" not in json.dumps(saved, ensure_ascii=False)
+
+
+def test_checkpoint_invalid_values_never_call_repr():
+    cases = [
+        {"schema_version": object()},
+        {"lifecycle": {"run": {"task_id": "run", "status": _HostileRepr("secret\x1bstatus")}}},
+    ]
+    for kwargs in cases:
+        with pytest.raises(CheckpointError) as exc:
+            Checkpoint(feature="demo", wave=1, tasks={"run": {"id": "run"}}, **kwargs)
+        assert "repr must not be called" not in str(exc.value)
+        assert "secret" not in str(exc.value)
+
+
+def test_checkpoint_diagnostic_escapes_controls_in_valid_string_boundary():
+    with pytest.raises(CheckpointError) as exc:
+        Checkpoint(feature="demo", wave=1, tasks={"run": {"id": "run"}},
+                   lifecycle={"run": {"task_id": "run", "status": "bad\x1bstatus"}})
+    assert "\\x1b" in str(exc.value)
+    assert "\x1b" not in str(exc.value)

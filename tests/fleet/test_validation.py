@@ -141,3 +141,27 @@ def test_transitive_dependencies_and_readiness_are_deterministic():
     assert compute_ready_tasks(value, completed=("A",)) == ("A", "B")
     assert compute_ready_tasks(value, completed=("A", "B")) == ("A", "B", "C")
     assert compute_ready_tasks(value, completed=("B", "A")) == compute_ready_tasks(value, completed=("A", "B"))
+
+
+class _HostileRepr(str):
+    def __repr__(self):
+        raise AssertionError("repr must not be called")
+
+
+def test_validation_diagnostics_never_call_repr_on_untrusted_values():
+    missing = _HostileRepr("secret\x1bdep")
+    value = plan(task("A", depends_on=("missing",), paths=("src",), forbidden_paths=["src/private"]))
+    value.tasks[0].depends_on = [missing]
+    errors = validate_dag(value) + validate_ownership(value)
+    assert errors and all("repr must not be called" not in error for error in errors)
+    assert all("secret" not in error for error in errors)
+
+
+def test_validation_gate_and_parallel_diagnostics_never_call_repr():
+    value = FleetPlan.from_dict({"waves": [{"id": "wave-1"}], "tasks": [
+        task("A", paths=("src",)), task("B", paths=("src/file",))
+    ]})
+    value.waves[0].gates.append(_HostileRepr("secret\x1bgate"))
+    errors = validate_wave_gates(value) + validate_ownership(value)
+    assert errors and all("repr must not be called" not in error for error in errors)
+    assert all("secret" not in error for error in errors)

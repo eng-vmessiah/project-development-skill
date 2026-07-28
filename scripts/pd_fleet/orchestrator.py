@@ -30,7 +30,7 @@ except ImportError:  # pragma: no cover
     HumanVerificationGate = None
 from .models import FleetPlan, TaskSpec
 from .validation import ValidationReport, compute_ready_tasks, validate_plan
-from .safe_rendering import RUNTIME_ERROR, safe_text
+from .safe_rendering import RUNTIME_ERROR, safe_repr, safe_repr_list, safe_text
 try:
     from .scheduler import LeaseScheduler
     from .parallel import BoundedParallelExecutor, TaskResult
@@ -1237,11 +1237,11 @@ class FleetOrchestrator:
         if task.owner is not None:
             owner = next((agent for agent in self.plan.agents if agent.id == task.owner), None)
             if owner is None:
-                return (f"owner incompatível: agente {task.owner!r} não existe",
+                return (f"owner incompatível: agente {safe_repr(task.owner)} não existe",
                         {"agent_matching": {"owner": task.owner, "role": task.role,
                                              "capabilities": sorted(required), "candidates": []}})
             if owner not in candidates:
-                return (f"owner incompatível: agente {task.owner!r} não atende role/capabilities",
+                return (f"owner incompatível: agente {safe_repr(task.owner)} não atende role/capabilities",
                         {"agent_matching": {"owner": owner.id, "role": task.role,
                                              "capabilities": sorted(required),
                                              "missing_capabilities": sorted(required - set(owner.capabilities)),
@@ -1249,7 +1249,7 @@ class FleetOrchestrator:
             return None
         if candidates:
             return None
-        return (f"nenhum agente compatível para role {task.role!r} e capabilities {sorted(required)!r}",
+        return (f"nenhum agente compatível para role {safe_repr(task.role)} e capabilities {safe_repr_list(sorted(required))}",
                 {"agent_matching": {"role": task.role, "capabilities": sorted(required),
                                      "candidates": [agent.id for agent in self.plan.agents]}})
 

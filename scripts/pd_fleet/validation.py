@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Iterable, Mapping
 
 from .models import FleetPlan, TaskSpec
+from .safe_rendering import safe_repr
 
 
 class FleetValidationError(ValueError):
@@ -88,7 +89,7 @@ def validate_dag(plan: FleetPlan) -> tuple[str, ...]:
     for task in sorted(plan.tasks, key=lambda item: item.id):
         for dep in sorted(set(task.depends_on)):
             if dep not in by_id:
-                errors.append(f"task {task.id}: dependência inexistente {dep!r}; crie-a ou remova-a")
+                errors.append(f"task {task.id}: dependência inexistente {safe_repr(dep)}; crie-a ou remova-a")
     # Não tenta percorrer arestas inválidas: a referência já tem diagnóstico melhor.
     color: dict[str, int] = {}
     stack: list[str] = []
@@ -125,7 +126,7 @@ def validate_wave_gates(plan: FleetPlan) -> tuple[str, ...]:
         for gate_id in sorted(set(wave.gates)):
             if gate_id not in gate_ids:
                 errors.append(
-                    f"wave {wave.id}: gate inexistente {gate_id!r}; "
+                    f"wave {wave.id}: gate inexistente {safe_repr(gate_id)}; "
                     "adicione-o a FleetPlan.gates ou remova-o de wave.gates"
                 )
     return tuple(sorted(errors))
@@ -140,7 +141,7 @@ def validate_ownership(plan: FleetPlan) -> tuple[str, ...]:
         for a in allowed:
             for f in forbidden:
                 if _path_overlap(a, f):
-                    errors.append(f"task {task.id}: allowed_path {a!r} conflita com forbidden_path {f!r}; ajuste um dos paths")
+                    errors.append(f"task {task.id}: allowed_path {safe_repr(a)} conflita com forbidden_path {safe_repr(f)}; ajuste um dos paths")
     by_id = {task.id: task for task in plan.tasks}
     for index, left in enumerate(tasks):
         for right in tasks[index + 1:]:
@@ -149,7 +150,7 @@ def validate_ownership(plan: FleetPlan) -> tuple[str, ...]:
             for path_left in sorted(set(left.allowed_paths)):
                 for path_right in sorted(set(right.allowed_paths)):
                     if _path_overlap(path_left, path_right):
-                        errors.append(f"ownership conflitante: tasks {left.id} e {right.id} podem rodar em paralelo e sobrepõem {path_left!r}/{path_right!r}; serialize ou separe os paths")
+                        errors.append(f"ownership conflitante: tasks {left.id} e {right.id} podem rodar em paralelo e sobrepõem {safe_repr(path_left)}/{safe_repr(path_right)}; serialize ou separe os paths")
     return tuple(sorted(errors))
 
 

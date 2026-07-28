@@ -180,3 +180,20 @@ def test_declared_agents_incompatible_owner_blocks_even_when_other_agent_matches
 def test_empty_or_absent_agents_preserve_simulated_dispatch():
     for plan in ({"tasks": [task("a")]}, {"agents": [], "tasks": [task("a")]}):
         assert FleetOrchestrator(plan).run().completed == ("a",)
+
+
+class _HostileRepr(str):
+    def __repr__(self):
+        raise AssertionError("repr must not be called")
+
+
+def test_owner_matching_diagnostic_never_calls_repr_on_untrusted_owner():
+    orchestrator = FleetOrchestrator({
+        "agents": [{"id": "a1", "role": "coder"}],
+        "tasks": [task("a") | {"owner": "missing"}],
+    })
+    orchestrator.plan.tasks[0].owner = _HostileRepr("secret\x1bowner")
+    result = orchestrator.run()
+    assert result.blocked == ("a",)
+    assert "repr must not be called" not in result.reports[0]["reason"]
+    assert "secret" not in result.reports[0]["reason"]

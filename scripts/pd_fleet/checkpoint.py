@@ -22,6 +22,7 @@ from typing import Any, Iterator, Mapping
 import fcntl
 
 from .lifecycle import LifecycleState, TaskLifecycle
+from .safe_rendering import safe_repr
 
 SCHEMA_VERSION = 1
 
@@ -86,7 +87,7 @@ class Checkpoint:
 
     def validate(self) -> None:
         if isinstance(self.schema_version, bool) or not isinstance(self.schema_version, int) or self.schema_version != SCHEMA_VERSION:
-            raise CheckpointError(f"schema_version incompatível: {self.schema_version!r}")
+            raise CheckpointError(f"schema_version incompatível: {safe_repr(self.schema_version)}")
         if not isinstance(self.feature, str) or not self.feature.strip():
             raise CheckpointError("feature deve ser string não vazia")
         if isinstance(self.wave, bool) or not isinstance(self.wave, int) or self.wave < 0:
@@ -117,7 +118,7 @@ class Checkpoint:
                 raise CheckpointError(f"lifecycle.{task_id}.task_id inconsistente")
             status = snapshot.get("status", snapshot.get("state"))
             if status is not None and (not isinstance(status, str) or status not in {s.value for s in LifecycleState}):
-                raise CheckpointError(f"estado inválido para task {task_id}: {status!r}")
+                raise CheckpointError(f"estado inválido para task {task_id}: {safe_repr(status)}")
             _validate_lifecycle_fields(task_id, snapshot)
         payload = {"schema_version": self.schema_version, "feature": self.feature, "wave": self.wave,
                    "tasks": self.tasks, "lifecycle": self.lifecycle, "reports": self.reports,
