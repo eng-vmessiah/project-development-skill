@@ -431,14 +431,21 @@ class FleetRunStore:
             # Expired leases are reclaimed as part of the locked claim
             # transaction. This keeps the selector's snapshot authoritative
             # and prevents stale leases from surviving beside a replacement.
+            reclaimed = False
             for tid, lease in list(state["leases"].items()):
                 if lease.get("expires_at", "") <= now:
                     state["leases"].pop(tid, None)
+                    reclaimed = True
             active = set(state["leases"])
             capacity = max_parallel - len(active)
             if capacity <= 0:
                 raise RunStoreError("bounded capacity exceeded")
             available = [tid for tid in ids if tid not in active]
+            # Keep the authoritative post-reclamation state separate from the
+            # selector's input. Selectors are extension code and must not be
+            # able to persist arbitrary changes by mutating their snapshot.
+            selector_state = deepcopy(state)
+            available_for_validation = frozenset(available)
             if select:
                 # Keep the original three-argument selector contract while
                 # allowing lease-aware selectors to use the exact clock value
@@ -458,17 +465,22 @@ class FleetRunStore:
                 if now_parameter is not None and now_parameter.kind == inspect.Parameter.POSITIONAL_ONLY:
                     # A positional-only ``now`` cannot be supplied as a
                     # keyword, despite being discoverable by name.
-                    chosen = select(state, available, capacity, now)
+                    chosen = select(selector_state, available, capacity, now)
                 elif now_parameter is not None or accepts_kwargs:
-                    chosen = select(state, available, capacity, now=now)
+                    chosen = select(selector_state, available, capacity, now=now)
                 else:
                     # Preserve the original three-argument selector contract.
-                    chosen = select(state, available, capacity)
+                    chosen = select(selector_state, available, capacity)
             else:
                 chosen = available[:capacity]
-            if not isinstance(chosen, list) or len(chosen) > capacity or any(tid not in available for tid in chosen) or len(set(chosen)) != len(chosen):
+            if not isinstance(chosen, list) or len(chosen) > capacity or any(tid not in available_for_validation for tid in chosen) or len(set(chosen)) != len(chosen):
                 raise RunStoreError("invalid claim selection")
             if not chosen:
+                if reclaimed:
+                    candidate = deepcopy(state)
+                    candidate["generation"] += 1
+                    candidate["updated_at"] = now
+                    self._write(run_id, candidate)
                 return []
             expiry = _plus_seconds(now, lease_seconds)
             generation = state["generation"] + 1

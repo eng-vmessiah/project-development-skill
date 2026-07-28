@@ -108,6 +108,55 @@ def test_claim_many_selector_supports_now_signatures(tmp_path: Path, selector_ki
         assert seen[0] < claimed[0]["expires_at"]
 
 
+def test_claim_many_isolates_selector_mutations_from_persisted_state(tmp_path: Path):
+    store = FleetRunStore(tmp_path)
+    store.create("run", PLAN, "owner")
+
+    def hostile_select(state, available, capacity):
+        state["metrics"]["hostile"] = {"persist": True}
+        state["leases"]["injected"] = {
+            "owner": "attacker", "lease_id": "fake", "expires_at": "2999-01-01T00:00:00Z",
+            "generation": 999,
+        }
+        state["tasks"][available[0]] = {"status": "failed"}
+        available.append("injected")
+        return [available[0]]
+
+    claimed = store.claim_many(
+        "run", ["a"], "owner", max_parallel=1, select=hostile_select,
+    )
+
+    state = store.load("run")
+    assert [token["task_id"] for token in claimed] == ["a"]
+    assert "hostile" not in state["metrics"]
+    assert set(state["leases"]) == {"a"}
+    assert state["tasks"] == {}
+
+
+def test_claim_many_persists_expired_reclaim_when_selector_returns_empty(
+    tmp_path: Path,
+):
+    now = ["2026-01-01T00:00:00Z"]
+    store = FleetRunStore(tmp_path, clock=lambda: now[0])
+    store.create("run", PLAN, "owner")
+    expired = store.claim("run", "a", "owner", lease_seconds=1)
+    before = store.load("run")
+    now[0] = "2026-01-01T00:00:02Z"
+
+    assert store.claim_many(
+        "run", ["a"], "owner", max_parallel=1,
+        select=lambda state, available, capacity: [],
+    ) == []
+
+    state = store.load("run")
+    assert state["leases"] == {}
+    assert state["generation"] == before["generation"] + 1
+    assert state["updated_at"] == now[0]
+    assert expired["lease_id"] not in {
+        lease.get("lease_id") for lease in state["leases"].values()
+    }
+
+
 def test_unrelated_event_does_not_fence_surviving_lease(tmp_path: Path):
     plan = {"schema_version": "pd-fleet-plan:v2", "tasks": [{"id": "a"}, {"id": "b"}]}
     store = FleetRunStore(tmp_path)
