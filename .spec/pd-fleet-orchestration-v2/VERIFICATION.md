@@ -13,7 +13,7 @@ Este documento separa evidência executada de planejamento e não transforma uma
 | `pytest -q -W error` | `577 passed`, exit `0` | Evidência de testes presentes; não PASS global |
 | `python -m compileall scripts/pd_fleet` | exit `0` | Compilação dos módulos presentes |
 | `git diff --check` | exit `0`, sem saída | Whitespace limpo |
-| `python scripts/pd_fleet/v2_doc_paths.py /home/vitor/project/project-development-skill` | `{"repo_root":".","schema_version":"pd-fleet-doc-paths:v1","summary":{"documents":7,"status":"valid","violation_count":0},"violations":[]}`, exit `0` | Checker de paths/links válido |
+| `python scripts/pd_fleet/v2_doc_paths.py <repo-root>` | `{"repo_root":".","schema_version":"pd-fleet-doc-paths:v1","summary":{"documents":7,"status":"valid","violation_count":0},"violations":[]}`, exit `0` | Checker de paths/links válido |
 | `pytest -q tests/fleet/test_v2_doc_paths.py` | `7 passed`, exit `0` | Checker/teste de contrato |
 | `pytest -q tests/fleet/test_v2_run_store.py -k claim_use_commit` | `1 passed, 6 deselected`, exit `0` | Evidência focal TOCTOU |
 | `pytest -q tests/fleet/test_run_store.py tests/fleet/test_v2_run_store.py` | `29 passed`, exit `0` | Testes direcionados do run store |

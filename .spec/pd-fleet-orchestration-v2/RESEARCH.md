@@ -52,7 +52,7 @@
 - O teste captura branch e commit com `subprocess.run` usando argv (sem shell), `check=True`, e rejeita valores vazios, multilinha ou fora do conjunto seguro de identificadores.
 - O contrato local rejeita claim global `PASS` sem gate explícito `approved` e `evidence_digest`; ausência/pending não é aprovação.
 - A classificação V1→V2 está congelada no teste como `verified`, `partial`, `open` ou `superseded`; o baseline atual contém itens `open` e não contém status `PASS`.
-- Verificação corrente T2-18: `pytest -q -W error` → **577 passed**; `python -m compileall scripts/pd_fleet`, `git diff --check` e `python scripts/pd_fleet/v2_doc_paths.py /home/vitor/project/project-development-skill` → exit 0. Checker: `violation_count=0`.
+- Verificação corrente T2-18: `pytest -q -W error` → **577 passed**; `python -m compileall scripts/pd_fleet`, `git diff --check` e `python scripts/pd_fleet/v2_doc_paths.py <repo-root>` → exit 0. Checker: `violation_count=0`.
 - Status honesto: T2-01…T2-17 têm caminhos/testes presentes no working tree e evidência local, mas gates G1…G6 e decisão humana final continuam pendentes. Consulte `VERIFICATION.md` para tabela determinística, residuais e rollback.
 
 1. A fonte de verdade será um store de domínio por `run_id`; CLI apenas traduz comandos/saída.

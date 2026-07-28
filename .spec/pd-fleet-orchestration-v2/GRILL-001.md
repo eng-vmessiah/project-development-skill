@@ -15,7 +15,7 @@
 | `pytest -q -W error` | **577 passed** (exit 0) | execução fresca; inclui testes V1/V2 presentes |
 | `git diff --check` | **PASS** (exit 0) | execução fresca |
 | `python -m compileall scripts/pd_fleet` | **PASS** (exit 0) | execução fresca |
-| `python scripts/pd_fleet/v2_doc_paths.py /home/vitor/project/project-development-skill` | **VALID**, `violation_count=0`, exit 0 | JSON determinístico; checker existente |
+| `python scripts/pd_fleet/v2_doc_paths.py <repo-root>` | **VALID**, `violation_count=0`, exit 0 | JSON determinístico; checker existente |
 | `git status --short --branch` | **OBSERVADO**, branch `feat/pd-fleet-orchestration-plan`; working tree contém mudanças prévias de código/testes/docs e artifacts | status não é PASS de release |
 | `git log -1 --oneline` | `2b4f219 docs: plan fleet orchestration hardening v2` | commit-base observado; sem commit nesta execução |
 | `pytest -q tests/fleet/test_v2_doc_paths.py` | **7 passed** | checker/path contract |
@@ -37,7 +37,7 @@ Legenda: **CLOSED (design)** = ameaça coberta por contrato explícito; teste/im
 | G-06 | `;`, `&&`, glob, traversal, cwd/env inválidos, timeout/output excedidos e sandbox ausente | **CLOSED (design):** caminho default é declarativo; executor opt-in exige argv sem shell, allowlist exata, root/cwd/env/limits e sandbox; capability ausente falha fechado sem fallback. | PENDING — G4 |
 | G-07 | Ausência de config/credential e fake network tenta provider/fallback | **CLOSED (design):** protocolo/`DisabledProvider`, factory default-deny e proibição explícita de SDK/rede/credenciais/fallback em SPEC/PLAN/PROMPT-NEXT. | PENDING — G4 |
 | G-08 | `AgentReport.completed` vazio/incoerente ou com failed/blocked sem motivo | **CLOSED (design):** completude semântica, motivos estruturados e `reject_unknown_fields=True` estão normativos em SPEC/PLAN T2-06. | PENDING — G2 |
-| G-09 | Persistir URL/token/bearer, `/home`, `/mnt`, symlink/traversal em output/audit | **CLOSED (design + testes presentes):** redaction, paths relativos e rejeição de traversal/symlink estão implementados em normalizer/observability T2-03/T2-11; revisão formal G3 ainda pendente. | MEDIUM — G3 pending |
+| G-09 | Persistir URL/token/bearer, paths absolutos, symlink/traversal em output/audit | **CLOSED (design + testes presentes):** redaction, paths relativos e rejeição de traversal/symlink estão implementados em normalizer/observability T2-03/T2-11; revisão formal G3 ainda pendente. | MEDIUM — G3 pending |
 | G-10 | Gate pending/ownerless/identity vazia, digest stale/artifact alterado; tentar release | **CLOSED (design):** gate exige owner, identity string auditável, APPROVED, escopo/hash, digest e freshness; mudança reabre. **Não existe aprovação humana nem autorização G6 para T2-01 nesta revisão**; a decisão persistida de release continua exigida em T2-16/G6. | PENDING — G6 |
 | G-11 | Regressão V1; carregar `STATE.json`/`STATE.md` sem bloco V2 e preservar desconhecidos | **CLOSED (baseline/design):** a contagem histórica de 278 não é fresca; a verificação corrente é 577 passed. SPEC exige API aditiva, CLI/imports/estado legado preservados e namespace V2 separado. | PENDING — G2/G6 compatibility |
 | G-12 | Crash após efeito simulado antes do commit; resume não repete terminal | **CLOSED (design):** attempt/idempotent commit e no-replay estão programados em T2-05/T2-10; evidência ainda não exigida para G1. | MEDIUM — G3 pending |
