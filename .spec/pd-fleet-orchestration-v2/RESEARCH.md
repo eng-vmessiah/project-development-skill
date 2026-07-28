@@ -239,3 +239,10 @@ Artefato: `artifacts/v2/GRILL-001-findings.json`. A classificação formal é **
 - Evidência: gate tests **35 passed**; review independente PASS; full **1043 passed**.
 - Artefato: `artifacts/v2/GRILL-001-L02-resolution.json`.
 - Todos os findings L/M estão resolvidos localmente.
+
+## Atualização pós-revisão fresca — 2026-07-28
+
+- Revisão independente encontrou e reproduziu exceções de `Mapping` hostil em `HumanVerificationGate.from_dict`, incluindo o nível superior e mappings aninhados.
+- O commit `ab3b73a` exige plain `dict` na entrada, valida `scope`/`blockers` como JSON plain antes de congelar e rejeita aliases `run`/`run_id` não-string antes de comparação.
+- Evidência fresca: `tests/fleet/test_v2_human_gate.py` **13 passed**; suíte completa **1046 passed**; compileall, diff-check e checker de paths válidos.
+- A proveniência do artefato `GRILL-001-rerun-current.json` foi atualizada para `ab3b73a`. Findings H/M/L permanecem `RESOLVED_LOCALLY`; G1–G6 permanecem sem aprovação humana formal.

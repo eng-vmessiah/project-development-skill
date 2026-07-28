@@ -208,5 +208,13 @@ Próxima fatia recomendada: corrigir os seis HIGH com testes red-first e revisã
 - L02 resolvido localmente no commit `1f95d56`; review independente PASS.
 - Pacote corrente atualizado para full `1043 passed`, L02 focused `35 passed`.
 - Todos os findings H/M/L estão `RESOLVED_LOCALLY`.
-- Status global: **NOT_READY_HUMAN_GATE**. Restam G1/G6: revisão/aprovação humana e decisão explícita de release; nenhum push, merge ou release foi realizado.
+- Status global: **NOT_READY_HUMAN_GATE**. G1–G6 permanecem separados e sem aprovação humana formal; nenhum push, merge ou release foi realizado.
 - Artefato: `artifacts/v2/GRILL-001-L02-resolution.json`.
+
+## Atualização pós-revisão fresca — 2026-07-28
+
+- A revisão independente final encontrou uma fronteira inconsistente: `HumanVerificationGate.from_dict` aceitava mappings hostis no nível superior e em `scope`/`blockers`.
+- Correção aplicada no commit `ab3b73a`: entradas de desserialização agora exigem plain `dict`; estruturas aninhadas são normalizadas por validação JSON plain antes de congelamento; aliases `run`/`run_id` exigem strings antes da comparação.
+- RED reproduziu os três casos com exceções hostis; focused `tests/fleet/test_v2_human_gate.py` → **13 passed**; suíte completa → **1046 passed**; compileall, diff-check e doc checker → exit 0.
+- `artifacts/v2/GRILL-001-rerun-current.json` foi regenerado para `ab3b73a`; artefatos anteriores permanecem históricos.
+- **Status:** findings H/M/L continuam `RESOLVED_LOCALLY`; G1–G6 continuam pendentes. O pacote permanece **NOT_READY_HUMAN_GATE** até revisão final e decisão humana explícita.
