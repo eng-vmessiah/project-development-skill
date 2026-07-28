@@ -135,9 +135,84 @@ class _V2Executor:
 class _V2Store:
     def __init__(self): self.commits = []
     def load(self, run_id): return {"attempts": {"task": 1}}
+    def use(self, run_id, task_id, token, owner):
+        return self.load(run_id)
     def commit(self, run_id, task_id, token, owner, value, *, status):
         self.commits.append((task_id, value, status))
     def append_event(self, run_id, event, owner): return None
+
+
+class _FenceStore(_V2Store):
+    def __init__(self, *, reject=False):
+        super().__init__()
+        self.reject = reject
+        self.use_calls = []
+        self.events = []
+
+    def use(self, run_id, task_id, token, owner):
+        self.use_calls.append((run_id, task_id, token, owner))
+        self.events.append("use")
+        if self.reject:
+            raise RuntimeError("stale or expired lease")
+        return self.load(run_id)
+
+
+def test_v2_adapter_is_fenced_immediately_before_effect_and_stale_lease_blocks():
+    token = {"task_id": "task", "lease_id": "lease-1", "generation": 0,
+             "expires_at": "2999-01-01T00:00:00Z"}
+    task = _task()
+    store = _FenceStore(reject=True)
+    calls = []
+
+    def adapter(received_task, received_token):
+        calls.append((received_task, received_token))
+        store.events.append("adapter")
+        return "must-not-run"
+
+    orchestrator = FleetOrchestrator(_ORCH_PLAN, scheduler=_V2Scheduler(), store=store,
+        executor=_V2Executor(), adapter=adapter, run_id="run", run_owner="worker")
+    with pytest.raises(RuntimeError, match="stale or expired lease"):
+        orchestrator._adapter_run(task, token)
+    assert calls == []
+    assert store.use_calls == [("run", "task", token, "worker")]
+    assert store.events == ["use"]
+
+
+def test_v2_adapter_uses_exact_claim_before_fresh_effect():
+    token = {"task_id": "task", "lease_id": "lease-1", "generation": 0,
+             "expires_at": "2999-01-01T00:00:00Z"}
+    task = _task()
+    store = _FenceStore()
+    calls = []
+
+    def adapter(received_task, received_token):
+        calls.append((received_task, received_token))
+        store.events.append("adapter")
+        return "ran"
+
+    orchestrator = FleetOrchestrator(_ORCH_PLAN, scheduler=_V2Scheduler(), store=store,
+        executor=_V2Executor(), adapter=adapter, run_id="run", run_owner="worker")
+    assert orchestrator._adapter_run(task, token) == "ran"
+    assert store.use_calls == [("run", "task", token, "worker")]
+    assert calls == [(task, {**token, "run_id": "run", "owner": "worker", "attempt": 1})]
+    assert store.events == ["use", "adapter"]
+
+
+def test_v2_adapter_typeerror_compatibility_does_not_retry_after_call():
+    token = {"task_id": "task", "lease_id": "lease-1", "generation": 0,
+             "expires_at": "2999-01-01T00:00:00Z"}
+    store = _FenceStore()
+    calls = []
+
+    def adapter(received_task):
+        calls.append(received_task)
+        return "ran"
+
+    orchestrator = FleetOrchestrator(_ORCH_PLAN, scheduler=_V2Scheduler(), store=store,
+        executor=_V2Executor(), adapter=adapter, run_id="run", run_owner="worker")
+    assert orchestrator._adapter_run(_task(), token) == "ran"
+    assert len(calls) == 1
+    assert store.use_calls == [("run", "task", token, "worker")]
 
 
 def _run_provider_status(runtime_status):

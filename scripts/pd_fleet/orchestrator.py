@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from copy import deepcopy
+import inspect
 import math
 import re
 from numbers import Real
@@ -638,12 +639,26 @@ class FleetOrchestrator:
             else:
                 raise OrchestratorError("V2 adapter must be callable")
         lease = self._adapter_lease(task, token) if self._v2_integration_enabled else deepcopy(token)
-        # Adapters in early V2 tests used either task or task+lease.  Supporting
-        # both keeps the capability boundary explicit while remaining injectable.
+        if self._v2_integration_enabled and callable(getattr(self.store, "use", None)):
+            # Claim -> use is the final fence: the original scheduler token is
+            # checked under the store lock immediately before the external
+            # effect.  The enriched lease is only the adapter-facing copy.
+            self.store.use(self.run_id, task.id, token, self.run_owner)
+        # Adapters in early V2 tests used either task or task+lease.  Resolve
+        # that compatibility before calling: retrying after a TypeError from
+        # inside an adapter could repeat a side-effecting invocation.
+        task_arg, lease_arg = deepcopy(task), deepcopy(lease)
         try:
-            return fn(deepcopy(task), deepcopy(lease))
-        except TypeError:
-            return fn(deepcopy(task))
+            signature = inspect.signature(fn)
+        except (TypeError, ValueError):
+            signature = None
+        if signature is not None:
+            try:
+                signature.bind(task_arg, lease_arg)
+            except TypeError:
+                signature.bind(task_arg)
+                return fn(task_arg)
+        return fn(task_arg, lease_arg)
 
     @staticmethod
     def _task_result_parts(item: Any) -> tuple[str, str, Any, str | None]:
