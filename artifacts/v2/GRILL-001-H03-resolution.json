@@ -1,0 +1,16 @@
+{
+  "change": "V2 orchestrator now performs store.use with the original claim token immediately before adapter invocation; stale/expired/replaced leases block before effect. Adapter arity is resolved by signature binding without retrying side-effecting calls.",
+  "commit": "44b4b75524c618198f3ea1ef8746864996701b5a",
+  "evidence": [
+    "RED: 3 fencing tests failed before fix",
+    "focused orchestrator/provider: 8 passed",
+    "focused concurrency integration: 13 passed",
+    "parent scheduler/run-store/orchestrator slice: 27 passed",
+    "independent review: 62 focused and 942 full passed",
+    "git diff --check: clean"
+  ],
+  "finding_id": "GRILL-H03",
+  "residual": "The historical GRILL-001 report remains BLOCKED; HIGH-04 through HIGH-06 remain open.",
+  "schema_version": "pd-fleet-grill-001-resolution:v1",
+  "status": "RESOLVED_LOCALLY"
+}

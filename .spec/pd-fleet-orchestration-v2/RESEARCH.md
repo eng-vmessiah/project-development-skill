@@ -127,3 +127,12 @@ Artefato: `artifacts/v2/GRILL-001-findings.json`. A classificação formal é **
 - Artefato: `artifacts/v2/GRILL-001-H02-resolution.json`.
 - Review independente: PASS; 121 testes focados e 939 totais.
 - O relatório histórico GRILL-001 permanece BLOCKED pelos HIGH restantes.
+
+## GRILL-H03 — resolução local
+
+- Status: **RESOLVED_LOCALLY** no commit `44b4b75524c618198f3ea1ef8746864996701b5a`.
+- Orchestrator V2 agora executa `store.use(run_id, task_id, original_token, owner)` imediatamente antes do adapter. Lease stale/expired/replaced bloqueia antes do efeito.
+- Compatibilidade de aridade usa signature binding; não há retry após `TypeError` interno do adapter.
+- Artefato: `artifacts/v2/GRILL-001-H03-resolution.json`.
+- Review independente: PASS; 62 focados e 942 totais.
+- O relatório histórico GRILL-001 permanece BLOCKED pelos HIGH restantes.

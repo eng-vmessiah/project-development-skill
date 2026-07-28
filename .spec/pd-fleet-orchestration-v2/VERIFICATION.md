@@ -112,3 +112,11 @@ Próxima fatia recomendada: corrigir os seis HIGH com testes red-first e revisã
 - Review independente: PASS; 121 focados, 939 totais.
 - Artefato: `artifacts/v2/GRILL-001-H02-resolution.json`.
 - **Status global:** permanece **BLOCKED_NOT_READY**; HIGH-03…HIGH-06 continuam abertos.
+
+## Atualização GRILL-H03 — 2026-07-28
+
+- HIGH-03 resolvido localmente no commit `44b4b75524c618198f3ea1ef8746864996701b5a`.
+- RED reproduziu ausência de fencing e execução com lease stale; GREEN adicionou `store.use` antes do adapter e eliminou retry duplicado por `TypeError`.
+- Review independente: PASS; 62 focados, 942 totais.
+- Artefato: `artifacts/v2/GRILL-001-H03-resolution.json`.
+- **Status global:** permanece **BLOCKED_NOT_READY**; HIGH-04…HIGH-06 continuam abertos.
