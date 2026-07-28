@@ -200,3 +200,42 @@ def test_local_probe_discards_output_and_fails_closed(monkeypatch) -> None:
     result = LocalRuntimeReadinessProbe(FakeRunner()).probe("claude-code")
     assert not result.authenticated and result.status == "auth_absent"
     assert "secret@example.test" not in repr(result)
+
+
+def test_local_probe_without_runner_never_executes_ambient_path(tmp_path: Path, monkeypatch) -> None:
+    marker = tmp_path / "executed"
+    hermes = tmp_path / "hermes"
+    hermes.write_text(f"#!/bin/sh\ntouch {marker}\nprintf 'openai-codex: logged in\\n'\n")
+    hermes.chmod(0o700)
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    result = LocalRuntimeReadinessProbe().probe("openai-codex")
+
+    assert not marker.exists()
+    assert result.installed is False
+    assert result.authenticated is False
+    assert result.status == "denied"
+    assert result.reason == "trusted_runner_required"
+
+
+def test_local_probe_injected_runner_preserves_readiness_contract(monkeypatch) -> None:
+    class FakeRunner:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def run(self, argv, **kwargs):
+            self.calls.append((argv, kwargs))
+            return {"status": "passed", "returncode": 0,
+                    "stdout": "openai-codex: logged in"}
+
+    runner = FakeRunner()
+    monkeypatch.setattr("pd_fleet.provider_readiness.shutil.which", lambda _: "/trusted/hermes")
+
+    result = LocalRuntimeReadinessProbe(runner, timeout=100, output_limit=999999).probe("openai-codex")
+
+    assert result.installed is True
+    assert result.authenticated is True
+    assert result.status == "authenticated"
+    assert result.reason == "auth_confirmed"
+    assert runner.calls[0][1]["timeout"] == 10.0
+    assert runner.calls[0][1]["output_limits"] == (4096, 4096)

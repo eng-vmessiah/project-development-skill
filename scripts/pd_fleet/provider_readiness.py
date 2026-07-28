@@ -38,6 +38,7 @@ _LOCAL_EXECUTABLES = MappingProxyType({key: value[0] for key, value in _LOCAL_CO
 _LOCAL_OUTPUT_LIMIT = 4096
 _COMBINED_OUTPUT_LIMIT = 4096
 _LOCAL_TIMEOUT = 10.0
+_DEFAULT_DENIED_REASON = "trusted_runner_required"
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,10 +59,11 @@ class LocalReadinessResult:
 class LocalRuntimeReadinessProbe:
     """Check the four supported local runtimes using fixed read-only commands.
 
-    ``runner`` is injectable for tests and may be a callable or an object with
-    ``run``.  The default runner uses ``subprocess.Popen`` with an empty
-    environment, no shell, stdin closed, bounded output, and a ten second
-    timeout.  Captured bytes are parsed and then immediately discarded.
+    ``runner`` is injectable and may be a callable or an object with ``run``.
+    No runner is selected implicitly: omitted runners fail closed before PATH
+    discovery or subprocess execution.  The legacy ``_default_runner`` helper
+    remains available only to explicit internal callers and is never used by
+    ``probe`` without a trusted runner.
     """
 
     def __init__(self, runner: Any = None, *, timeout: float = _LOCAL_TIMEOUT,
@@ -151,7 +153,9 @@ class LocalRuntimeReadinessProbe:
                             pass
 
     def _invoke(self, argv: tuple[str, ...]) -> Any:
-        runner = self._runner or self._default_runner
+        runner = self._runner
+        if runner is None:
+            return {"status": "denied"}
         if hasattr(runner, "run"):
             return runner.run(argv, timeout=self._timeout,
                               output_limits=(self._output_limit, self._output_limit), env={})
@@ -197,6 +201,8 @@ class LocalRuntimeReadinessProbe:
     def probe(self, runtime_id: str) -> LocalReadinessResult:
         if runtime_id not in _LOCAL_COMMANDS:
             return LocalReadinessResult(str(runtime_id), False, False, "unknown", "runtime_unknown")
+        if self._runner is None:
+            return LocalReadinessResult(runtime_id, False, False, "denied", _DEFAULT_DENIED_REASON)
         executable = shutil.which(_LOCAL_EXECUTABLES[runtime_id])
         if not executable:
             return LocalReadinessResult(runtime_id, False, False, "not_installed", "executable_not_found")
