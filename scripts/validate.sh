@@ -18,10 +18,21 @@ YELLOW='\033[1;33m'
 GREEN='\033[0;32m'
 NC='\033[0m' # No Color
 
+# Discover every SKILL.md, including skills nested below category directories.
+# Keep the list NUL-delimited so valid skill paths can contain whitespace.
+SKILL_LIST=$(mktemp)
+trap 'rm -f "$SKILL_LIST"' EXIT
+if ! find "$SKILLS_DIR" -type f -name 'SKILL.md' -print0 > "$SKILL_LIST"; then
+    echo -e "${RED}❌ Unable to discover skills${NC}"
+    exit 1
+fi
+
+sort -z -o "$SKILL_LIST" "$SKILL_LIST"
+
 # Check each skill
-for skill_dir in "$SKILLS_DIR"/*/; do
-    skill_name=$(basename "$skill_dir")
-    skill_file="$skill_dir/SKILL.md"
+while IFS= read -r -d '' skill_file; do
+    skill_name="${skill_file#"$SKILLS_DIR"/}"
+    skill_name="${skill_name%/SKILL.md}"
     
     echo -n "📋 $skill_name: "
     
@@ -81,7 +92,7 @@ for skill_dir in "$SKILLS_DIR"/*/; do
     fi
     
     echo -e "${GREEN}OK${NC} ($SIZE chars)"
-done
+done < "$SKILL_LIST"
 
 echo ""
 echo "========================================"
