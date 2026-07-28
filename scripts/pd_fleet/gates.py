@@ -313,10 +313,13 @@ class GatePolicy:
             raise GateError("policy contém campos desconhecidos")
         has_requirements = "requirements" in value
         has_gates = "gates" in value
-        if has_requirements and has_gates and value["requirements"] != value["gates"]:
+        requirements = _safe(value["requirements"], "requirements") if has_requirements else None
+        gates = _safe(value["gates"], "gates") if has_gates else None
+        if has_requirements and has_gates and requirements != gates:
             raise GateError("requirements e gates conflitantes")
-        req = value["requirements"] if has_requirements else value.get("gates", {})
-        defaults = value.get("default_requirements", cls().default_requirements)
+        req = cast(Mapping[str, Mapping[str, bool]], requirements if has_requirements else gates if has_gates else {})
+        defaults = (_safe(value["default_requirements"], "default_requirements")
+                    if "default_requirements" in value else cls().default_requirements)
         return cls(req, defaults)
 
     def evaluate(self, result: GateResult | Mapping[str, Any]) -> GateStatus:

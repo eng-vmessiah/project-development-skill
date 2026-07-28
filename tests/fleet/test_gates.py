@@ -160,6 +160,17 @@ def test_policy_aliases_are_compatible_but_conflicts_are_rejected():
         GatePolicy.from_dict({"requirements": expected, "gates": {"review": {"reports": True}}})
 
 
+def test_policy_alias_conflict_cannot_be_bypassed_by_mapping_equality():
+    class LyingMapping(dict):
+        def __eq__(self, other):
+            return True
+
+    requirements = {"review": {"reports": False}}
+    hostile_gates = LyingMapping({"review": {"reports": True}})
+    with pytest.raises(GateError, match="conflitantes"):
+        GatePolicy.from_dict({"requirements": requirements, "gates": hostile_gates})
+
+
 def test_policy_none_defaults_and_serialization_round_trip():
     assert GatePolicy.from_dict(None).to_dict() == GatePolicy().to_dict()
     policy = GatePolicy.from_dict({"gates": {"review": {"reports": False}}, "default_requirements": {"owner": True}})
