@@ -93,6 +93,9 @@ class LeaseScheduler:
             deps = task.get("depends_on", task.get("dependencies", ()))
             if isinstance(deps, str) or not isinstance(deps, (list, tuple, set, frozenset)):
                 raise SchedulerError("task dependencies must be a list")
+            for dep in deps:
+                if type(dep) is not str:
+                    raise SchedulerError("dependency elements must be exact strings")
             if all(dep in completed for dep in deps):
                 result.append(task_id)
         return result

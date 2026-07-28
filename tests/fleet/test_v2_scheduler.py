@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 from pd_fleet.run_store import FleetRunStore, LeaseError
-from pd_fleet.scheduler import CapacityExceeded, LeaseScheduler, OwnershipConflict
+from pd_fleet.scheduler import CapacityExceeded, LeaseScheduler, OwnershipConflict, SchedulerError
 
 PLAN = {"schema_version": "pd-fleet-plan:v2", "tasks": [
     {"id": "b", "depends_on": [], "allowed_paths": ["src/b.py"]},
@@ -22,6 +22,21 @@ def test_ready_ids_are_sorted_and_dependencies_are_barriers(tmp_path: Path):
     store.create("run", PLAN, "owner", initial={"tasks": {"a": {"status": "completed"}}})
     scheduler = LeaseScheduler(store, "run", "owner", max_parallel=2)
     assert scheduler.ready_ids() == ["b", "child"]
+
+
+@pytest.mark.parametrize("dependency", [["nested"], {"nested": True}, 42, None])
+def test_non_string_dependency_elements_fail_closed_before_claim(tmp_path: Path, dependency):
+    plan = {"schema_version": "pd-fleet-plan:v2", "tasks": [
+        {"id": "blocked", "depends_on": [dependency], "allowed_paths": ["src/blocked.py"]},
+    ]}
+    store = FleetRunStore(tmp_path)
+    store.create("run", plan, "owner")
+    scheduler = LeaseScheduler(store, "run", "owner")
+
+    with pytest.raises(SchedulerError, match="dependency elements must be exact strings"):
+        scheduler.claim("worker", limit=1)
+
+    assert store.load("run")["leases"] == {}
 
 
 def test_claim_rechecks_dependency_barrier_when_ready_ids_is_stale(tmp_path: Path, monkeypatch):
