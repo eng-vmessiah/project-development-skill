@@ -79,10 +79,10 @@ _SENSITIVE = re.compile(
 # as "tokenization" remains valid.
 _SECRET_ASSIGNMENT = re.compile(
     r"(?ix)(?<![a-z0-9_])(?:"
-    + "|".join(("token", "password", r"api[_ -]?key", r"access[_ -]?(?:key|token)", "secret", "credential", "authorization"))
+    + "|".join(("token", "password", r"api[_ -]?key", r"access[_ -]?(?:key|token)", "secret", "credential", "authorization", r"private[_ -]?key"))
     + r")\s*(?:=|:)\s*(?:\"[^\"\r\n]*\"|'[^'\r\n]*'|[^\s,;}\]]+)"
 )
-_BEARER_VALUE = re.compile(r"(?ix)(?<![a-z0-9_])bearer\s+[^\s,;}\]]+")
+_BEARER_VALUE = re.compile(r"(?ix)(?<![a-z0-9_])bearer(?:\s+|\s*(?:=|:)\s*)[^\s,;}\]]+")
 _URL = re.compile(r"(?i)(?:https?|ftp|wss?)://[^\s\"'<>]+")
 # Keep path redaction whole-value and cross-platform. In particular, UNC and
 # home-relative paths must not leave a username or filename suffix behind.

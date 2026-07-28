@@ -96,6 +96,12 @@ def test_provider_redacts_unc_and_tilde_paths_as_a_whole(path: str) -> None:
         {"owner": "password" + ": LEAKVALUE"},
         {"owner": "Authorization" + ": Bearer " + "LEAKVALUE"},
         {"owner": "api_key" + "=LEAKVALUE"},
+        {"owner": "private-key" + "=LEAKVALUE"},
+        {"owner": "PRIVATE_KEY" + ": LEAKVALUE"},
+        {"owner": "private key" + " = \"LEAKVALUE\""},
+        {"owner": "Bearer" + "=LEAKVALUE"},
+        {"owner": "bEaReR" + ": LEAKVALUE"},
+        {"owner": "Bearer" + " = 'LEAKVALUE'"},
         {"owner": "token" + '=\"LEAKVALUE\"'},
         {"owner": "password" + ":\\n  LEAKVALUE"},
         {"nested": {"label": "token" + "=LEAKVALUE"}},
@@ -118,6 +124,17 @@ def test_metadata_preserves_inert_text_while_redacting_urls_and_paths() -> None:
     assert provider.metadata["owner"] == "tokenization is ordinary text"
     assert provider.metadata["description"] == "see [URL REDACTED]"
     assert provider.metadata["path_info"] == "[PATH REDACTED]"
+
+
+def test_metadata_preserves_inert_credential_lookalikes() -> None:
+    provider = create_provider(
+        metadata={
+            "owner": "private-keyword and private key rotation",
+            "description": "Bearerish prose; tokenization remains ordinary text",
+        }
+    )
+    assert provider.metadata["owner"] == "private-keyword and private key rotation"
+    assert provider.metadata["description"] == "Bearerish prose; tokenization remains ordinary text"
 
 
 def test_provider_module_has_no_external_execution_or_dynamic_loading_imports() -> None:
