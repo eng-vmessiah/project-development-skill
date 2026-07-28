@@ -1,7 +1,7 @@
 {
   "branch": "feat/pd-fleet-lifecycle-events",
-  "commit": "c12148d",
-  "decision": "NOT_READY_PARTIAL",
+  "commit": "1f95d56",
+  "decision": "NOT_READY_HUMAN_GATE",
   "governance": "No human G1/G6 approval, merge authorization, provider authorization, or release PASS.",
   "high_findings": {
     "H01": "RESOLVED_LOCALLY",
@@ -11,20 +11,20 @@
     "H05": "RESOLVED_LOCALLY",
     "H06": "RESOLVED_LOCALLY"
   },
-  "remaining_findings": {
-    "L02": "OPEN unknown gate policy requirements ignored"
-  },
-  "review": "independent L01 review PASS; L02 remains open",
+  "remaining_findings": {},
+  "review": "independent L02 review PASS; all local L/M findings resolved; human G1/G6 remain",
   "schema_version": "pd-fleet-grill-001-rerun:v1",
   "scope": "consolidated local rerun after H01-H06 remediation",
   "stale_evidence_note": "artifacts/v2/G1-fresh-verification.json records older commit 3036786 and older counts; it is historical, not current rerun evidence.",
+  "status": "NOT_READY_HUMAN_GATE",
   "verification": {
     "compileall": "passed",
     "doc_checker": "valid; 0 violations",
-    "full_pytest": 1026,
+    "full_pytest": 1043,
     "git_diff_check": "passed",
     "governance_contracts_reports": 147,
     "l01_focused": 87,
+    "l02_focused": 35,
     "m01_focused": 227,
     "m02_focused": 60,
     "m03_focused": 36,

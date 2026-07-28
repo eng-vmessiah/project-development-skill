@@ -202,3 +202,11 @@ Próxima fatia recomendada: corrigir os seis HIGH com testes red-first e revisã
 - Pacote corrente atualizado para full `1026 passed`, L01 focused `87 passed`.
 - Artefato: `artifacts/v2/GRILL-001-L01-resolution.json`.
 - Residual: somente L02 permanece OPEN; decisão global continua `NOT_READY_PARTIAL` até closeout humano.
+
+## Atualização L02 e handoff técnico — 2026-07-28
+
+- L02 resolvido localmente no commit `1f95d56`; review independente PASS.
+- Pacote corrente atualizado para full `1043 passed`, L02 focused `35 passed`.
+- Todos os findings H/M/L estão `RESOLVED_LOCALLY`.
+- Status global: **NOT_READY_HUMAN_GATE**. Restam G1/G6: revisão/aprovação humana e decisão explícita de release; nenhum push, merge ou release foi realizado.
+- Artefato: `artifacts/v2/GRILL-001-L02-resolution.json`.

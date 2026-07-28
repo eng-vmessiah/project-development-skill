@@ -1,0 +1,15 @@
+{
+  "change": "GatePolicy now accepts only recursively plain JSON dictionaries/lists/primitives, rejects unknown/non-string keys, non-boolean requirements, custom mappings/subclasses, cycles, non-finite values, and conflicting aliases before comparison. Policy aliases/defaults/None/JSON roundtrip remain compatible.",
+  "commit": "1f95d56",
+  "evidence": [
+    "GatePolicy tests: 35 passed",
+    "independent adversarial review: PASS",
+    "full suite: 1043 passed",
+    "hostile mapping equality/items/contains/iter tests passed at multiple nesting depths",
+    "git diff --check clean"
+  ],
+  "finding_id": "GRILL-L02",
+  "residual": "All L/M findings are resolved locally. Human G1/G6 approval and explicit release decision remain required; no push/release performed.",
+  "schema_version": "pd-fleet-grill-001-resolution:v1",
+  "status": "RESOLVED_LOCALLY"
+}

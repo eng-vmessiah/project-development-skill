@@ -231,3 +231,11 @@ Artefato: `artifacts/v2/GRILL-001-findings.json`. A classificação formal é **
 - Evidência: focused **87 passed**; review independente PASS; full **1026 passed**; monotonic timeout paths preservados.
 - Artefato: `artifacts/v2/GRILL-001-L01-resolution.json`.
 - L02 continua aberto.
+
+## GRILL-L02 — resolução local
+
+- Status: **RESOLVED_LOCALLY** no commit `1f95d56`.
+- GatePolicy agora aceita somente plain JSON recursivo; unknown/non-string keys, non-bool values, custom mappings/subclasses, cycles, non-finite values e alias conflicts falham fechado antes de comparação.
+- Evidência: gate tests **35 passed**; review independente PASS; full **1043 passed**.
+- Artefato: `artifacts/v2/GRILL-001-L02-resolution.json`.
+- Todos os findings L/M estão resolvidos localmente.
