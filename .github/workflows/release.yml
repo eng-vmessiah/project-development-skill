@@ -109,9 +109,10 @@ jobs:
 
       - name: Validate release documentation
         run: |
+          version="$(tr -d '[:space:]' < VERSION)"
           test -s VERSION
           for file in README.md CONTRIBUTING.md CHANGELOG.md LICENSE ROADMAP.md; do test -f "$file"; done
-          grep -q '^## \[1\.1\.0\]' CHANGELOG.md
+          grep -Fq "## [$version]" CHANGELOG.md
           grep -q '| Skill |' README.md
 
       - name: Build source archive and checksum
@@ -122,6 +123,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version="$(tr -d '[:space:]' < VERSION)"
+          heading="## [$version]"
           gh release create "$GITHUB_REF_NAME" dist/* \
             --title "Project Development Skills $version" \
-            --notes-file <(awk '/^## \[1\.1\.0\]/{found=1; next} found && /^## \[/{exit} found{print}' CHANGELOG.md)
+            --notes-file <(awk -v heading="$heading" '$0 == heading {found=1; next} found && /^## \[/{exit} found{print}' CHANGELOG.md)

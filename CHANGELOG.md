@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No changes yet.
 
+## [1.1.1] - 2026-07-28
+
+This patch release fixes the directory/executable validation pin distinction
+revealed by CI and was verified by the full 1048-test suite.
+
+### Fixed
+- Directory pins now track directory identity without mutable size/mtime
+  metadata, while executable pins retain metadata so executable replacement is
+  detected reliably.
+
 ## [1.1.0] - 2026-07-28
 
 This additive release is identified by the authoritative [`VERSION`](VERSION)

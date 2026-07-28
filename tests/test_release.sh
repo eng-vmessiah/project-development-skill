@@ -6,8 +6,9 @@ REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-version=$(tr -d '[:space:]' < "$REPO_DIR/VERSION")
-[[ "$version" == "1.1.0" ]]
+expected_version=$(tr -d '[:space:]' < "$REPO_DIR/VERSION")
+[[ "$expected_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+version="$expected_version"
 
 bash "$REPO_DIR/scripts/create-source-archive.sh" HEAD "$TMP_DIR/one" >/dev/null
 bash "$REPO_DIR/scripts/create-source-archive.sh" HEAD "$TMP_DIR/two" >/dev/null
