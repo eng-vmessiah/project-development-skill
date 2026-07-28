@@ -73,6 +73,16 @@ def _immutable(value: Any) -> Any:
 _SENSITIVE = re.compile(
     r"(?i)(credential|secret|token|password|api[_ -]?key|access[_ -]?(key|token)|private[_ -]?key|authorization|bearer)"
 )
+# Metadata is descriptive, but free-form strings can still smuggle a credential
+# under an innocuous key. Match only explicit, non-empty credential assignments
+# (including quoted and multiline values) and bearer tokens; ordinary prose such
+# as "tokenization" remains valid.
+_SECRET_ASSIGNMENT = re.compile(
+    r"(?ix)(?<![a-z0-9_])(?:"
+    + "|".join(("token", "password", r"api[_ -]?key", r"access[_ -]?(?:key|token)", "secret", "credential", "authorization"))
+    + r")\s*(?:=|:)\s*(?:\"[^\"\r\n]*\"|'[^'\r\n]*'|[^\s,;}\]]+)"
+)
+_BEARER_VALUE = re.compile(r"(?ix)(?<![a-z0-9_])bearer\s+[^\s,;}\]]+")
 _URL = re.compile(r"(?i)(?:https?|ftp|wss?)://[^\s\"'<>]+")
 # Keep path redaction whole-value and cross-platform. In particular, UNC and
 # home-relative paths must not leave a username or filename suffix behind.
@@ -137,6 +147,8 @@ def _validate_metadata(value: Any) -> None:
     elif isinstance(value, (list, tuple)):
         for item in value:
             _validate_metadata(item)
+    elif type(value) is str and (_SECRET_ASSIGNMENT.search(value) or _BEARER_VALUE.search(value)):
+        raise _configuration_rejected()
 
 
 def _caps(values: Sequence[str] | None) -> tuple[str, ...]:

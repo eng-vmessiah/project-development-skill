@@ -89,6 +89,37 @@ def test_provider_redacts_unc_and_tilde_paths_as_a_whole(path: str) -> None:
     assert "alice" not in str(provider.metadata)
 
 
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"owner": "token" + "=LEAKVALUE"},
+        {"owner": "password" + ": LEAKVALUE"},
+        {"owner": "Authorization" + ": Bearer " + "LEAKVALUE"},
+        {"owner": "api_key" + "=LEAKVALUE"},
+        {"owner": "token" + '=\"LEAKVALUE\"'},
+        {"owner": "password" + ":\\n  LEAKVALUE"},
+        {"nested": {"label": "token" + "=LEAKVALUE"}},
+        {"items": ["api_key" + "='LEAKVALUE'"]},
+    ],
+)
+def test_metadata_rejects_secret_assignments_before_storage(metadata) -> None:
+    with pytest.raises(ProviderConfigurationError, match="configuration rejected"):
+        create_provider(metadata=metadata)
+
+
+def test_metadata_preserves_inert_text_while_redacting_urls_and_paths() -> None:
+    provider = create_provider(
+        metadata={
+            "owner": "tokenization is ordinary text",
+            "description": "see https://provider.invalid/docs",
+            "path_info": "/home/alice/private",
+        }
+    )
+    assert provider.metadata["owner"] == "tokenization is ordinary text"
+    assert provider.metadata["description"] == "see [URL REDACTED]"
+    assert provider.metadata["path_info"] == "[PATH REDACTED]"
+
+
 def test_provider_module_has_no_external_execution_or_dynamic_loading_imports() -> None:
     tree = ast.parse(Path(__file__).parents[2].joinpath("scripts/pd_fleet/provider.py").read_text())
     forbidden = {"socket", "subprocess", "importlib", "requests", "httpx", "urllib"}
