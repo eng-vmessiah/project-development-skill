@@ -108,6 +108,36 @@ def test_claim_limit_above_max_parallel_is_stable_capacity_error(tmp_path: Path)
     assert store.load("run") == before
 
 
+def test_expired_lease_path_is_reusable_but_live_lease_still_blocks(tmp_path: Path):
+    now = ["2026-01-01T00:00:00Z"]
+    clock = lambda: now[0]
+    plan = {"schema_version": "pd-fleet-plan:v2", "tasks": [
+        {"id": "a", "allowed_paths": ["src/shared.py"]},
+        {"id": "b", "allowed_paths": ["src/shared.py"]},
+        {"id": "c", "allowed_paths": ["src/shared.py"]},
+    ]}
+    store = FleetRunStore(tmp_path, clock=clock)
+    store.create("run", plan, "owner")
+    scheduler = LeaseScheduler(store, "run", "owner", max_parallel=2, clock=clock)
+
+    expired = scheduler.claim("w", limit=1, lease_seconds=1)[0]
+    now[0] = "2026-01-01T00:00:02Z"
+    replacement = scheduler.claim("w", limit=1, lease_seconds=10)[0]
+
+    assert replacement["task_id"] == "b"
+    assert store.load("run")["leases"] == {
+        "b": {
+            "owner": "owner",
+            "lease_id": replacement["lease_id"],
+            "expires_at": replacement["expires_at"],
+            "generation": replacement["generation"],
+        }
+    }
+    assert expired["lease_id"] != replacement["lease_id"]
+    with pytest.raises(OwnershipConflict):
+        scheduler.claim("w", limit=1)
+
+
 def test_overlapping_paths_are_rejected(tmp_path: Path):
     plan = {"schema_version": "pd-fleet-plan:v2", "tasks": [
         {"id": "a", "allowed_paths": ["src"]},

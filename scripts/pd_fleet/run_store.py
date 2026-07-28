@@ -15,7 +15,7 @@ from __future__ import annotations
 from copy import deepcopy
 from contextlib import contextmanager
 from datetime import datetime, timezone, timedelta
-import errno, hashlib, json, math, os, re, secrets, stat, threading
+import errno, hashlib, inspect, json, math, os, re, secrets, stat, threading
 try:
     import fcntl
 except ImportError:  # pragma: no cover - exercised by portability tests
@@ -391,13 +391,15 @@ class FleetRunStore:
         state=self._mutate(run_id,owner,expected_generation,add); return {"run_id":run_id,"task_id":task_id,"lease_id":token,"generation":state["generation"],"expires_at":expiry}
 
     def claim_many(self, run_id, task_ids, owner, *, max_parallel, lease_seconds: float = 60,
-                   select: Callable[[Mapping[str, Any], list[str], int], list[str]] | None = None):
+                   select: Callable[..., list[str]] | None = None):
         """Atomically select and install bounded leases under the store lock.
 
         ``select`` runs while the filesystem lock is held, allowing the
         scheduler to perform path-overlap checks against the same snapshot
-        used for the capacity check.  It must return a deterministic subset
-        of the supplied IDs and never mutate the snapshot.
+        used for the capacity check.  A selector accepting the optional
+        ``now`` keyword receives the authoritative store time used for lease
+        activity and installation. It must return a deterministic subset of
+        the supplied IDs and never mutate the snapshot.
         """
         if type(max_parallel) is not int or max_parallel < 1:
             raise RunStoreError("max_parallel must be positive")
@@ -426,12 +428,31 @@ class FleetRunStore:
             if any(tid in terminal for tid in ids):
                 raise RunStoreError("cannot claim terminal task")
             now = _clock_value(self._clock)
-            active = {tid for tid, lease in state["leases"].items() if lease.get("expires_at", "") > now}
+            # Expired leases are reclaimed as part of the locked claim
+            # transaction. This keeps the selector's snapshot authoritative
+            # and prevents stale leases from surviving beside a replacement.
+            for tid, lease in list(state["leases"].items()):
+                if lease.get("expires_at", "") <= now:
+                    state["leases"].pop(tid, None)
+            active = set(state["leases"])
             capacity = max_parallel - len(active)
             if capacity <= 0:
                 raise RunStoreError("bounded capacity exceeded")
             available = [tid for tid in ids if tid not in active]
-            chosen = select(state, available, capacity) if select else available[:capacity]
+            if select:
+                # Keep the original three-argument selector contract while
+                # allowing lease-aware selectors to use the exact clock value
+                # that was evaluated under this lock.
+                try:
+                    parameters = inspect.signature(select).parameters.values()
+                    accepts_now = any(parameter.kind == inspect.Parameter.VAR_KEYWORD or
+                                      parameter.name == "now" for parameter in parameters)
+                except (TypeError, ValueError):
+                    accepts_now = False
+                chosen = (select(state, available, capacity, now=now)
+                          if accepts_now else select(state, available, capacity))
+            else:
+                chosen = available[:capacity]
             if not isinstance(chosen, list) or len(chosen) > capacity or any(tid not in available for tid in chosen) or len(set(chosen)) != len(chosen):
                 raise RunStoreError("invalid claim selection")
             if not chosen:

@@ -139,12 +139,13 @@ class LeaseScheduler:
             raise CapacityExceeded("bounded capacity exceeded")
         candidates = self.ready_ids()
 
-        def select(state: Mapping[str, Any], available: list[str], capacity: int) -> list[str]:
+        def select(state: Mapping[str, Any], available: list[str], capacity: int, *, now: str) -> list[str]:
             if requested > capacity:
                 raise CapacityExceeded("bounded capacity exceeded")
             tasks = self._task_map(state)
             ready = set(self._ready_ids_from_state(state))
-            occupied = [_paths(tasks[tid]) for tid in state.get("leases", {}) if tid in tasks]
+            occupied = [_paths(tasks[tid]) for tid, lease in state.get("leases", {}).items()
+                        if tid in tasks and lease.get("expires_at", "") > now]
             selected: list[str] = []
             for task_id in sorted(available):
                 if len(selected) >= requested:
