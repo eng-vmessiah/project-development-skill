@@ -1,6 +1,8 @@
 import json
 import sys
+from collections import UserDict
 from pathlib import Path
+from types import MappingProxyType
 
 import pytest
 
@@ -167,7 +169,7 @@ def test_policy_alias_conflict_cannot_be_bypassed_by_mapping_equality():
 
     requirements = {"review": {"reports": False}}
     hostile_gates = LyingMapping({"review": {"reports": True}})
-    with pytest.raises(GateError, match="conflitantes"):
+    with pytest.raises(GateError, match="gates deve ser objeto"):
         GatePolicy.from_dict({"requirements": requirements, "gates": hostile_gates})
 
 
@@ -176,11 +178,46 @@ def test_policy_fields_cannot_be_hidden_by_mapping_contains():
         def __contains__(self, key):
             return False
 
-    policy = GatePolicy.from_dict(LyingContains({"requirements": {"review": {"reports": False}}}))
-    assert policy.requirements["review"]["reports"] is False
+    with pytest.raises(GateError, match="policy deve ser objeto"):
+        GatePolicy.from_dict(LyingContains({"requirements": {"review": {"reports": False}}}))
 
 
 def test_policy_none_defaults_and_serialization_round_trip():
     assert GatePolicy.from_dict(None).to_dict() == GatePolicy().to_dict()
     policy = GatePolicy.from_dict({"gates": {"review": {"reports": False}}, "default_requirements": {"owner": True}})
     assert GatePolicy.from_json(policy.to_json()).to_dict() == policy.to_dict()
+
+
+@pytest.mark.parametrize("factory", [UserDict, MappingProxyType])
+def test_policy_rejects_non_plain_top_level_mappings(factory):
+    with pytest.raises(GateError, match="policy deve ser objeto"):
+        GatePolicy.from_dict(factory({"requirements": {}}))
+
+
+class _ItemsLiar(dict):
+    def items(self):  # pyright: ignore[reportIncompatibleMethodOverride]
+        return (("requirements", {}),)
+
+
+def test_policy_rejects_dict_subclass_before_items_can_hide_fields():
+    with pytest.raises(GateError, match="policy deve ser objeto"):
+        GatePolicy.from_dict(_ItemsLiar({"requirements": {}, "unexpected": True}))
+
+
+@pytest.mark.parametrize("field", ["requirements", "default_requirements"])
+def test_policy_rejects_non_plain_nested_mappings(field):
+    payload = {field: UserDict({})}
+    with pytest.raises(GateError, match=f"{field} deve ser objeto"):
+        GatePolicy.from_dict(payload)
+
+
+def test_policy_rejects_non_plain_requirement_mapping_when_constructed_directly():
+    with pytest.raises(GateError, match="requirements deve conter objetos"):
+        GatePolicy(requirements={"review": UserDict({"reports": False})})
+
+
+def test_policy_rejects_non_plain_policy_mappings_when_constructed_directly():
+    with pytest.raises(GateError, match="requirements deve ser objeto"):
+        GatePolicy(requirements=UserDict())
+    with pytest.raises(GateError, match="default_requirements deve ser objeto"):
+        GatePolicy(default_requirements=MappingProxyType({"owner": True}))

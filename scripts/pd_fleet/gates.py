@@ -162,6 +162,18 @@ def _frozen_policy(value: Any, path: str = "policy") -> Any:
     return value
 
 
+def _plain_policy_dict(value: Any, name: str) -> dict[Any, Any]:
+    """Require a JSON-decoded dictionary at a GatePolicy boundary.
+
+    ``Mapping`` is intentionally not sufficient here: user-defined mappings
+    (including dict subclasses) can override iteration, ``items()``, or
+    equality and therefore cannot be treated as trusted JSON data.
+    """
+    if type(value) is not dict:
+        raise GateError(f"{name} deve ser objeto")
+    return value
+
+
 def _open_blocker(item: Any) -> bool:
     if isinstance(item, Mapping):
         # Blocker metadata is an untrusted boundary: normalize only strings and
@@ -268,15 +280,14 @@ class GatePolicy:
     })
 
     def __post_init__(self) -> None:
-        if not isinstance(self.requirements, Mapping):
-            raise GateError("requirements deve ser objeto")
+        requirements = _plain_policy_dict(self.requirements, "requirements")
         normalized = {}
-        for kind, req in self.requirements.items():
+        for kind, req in requirements.items():
             if type(kind) is not str or not kind:
                 raise GateError("requirements contém chave JSON inválida")
             if kind not in {x.value for x in GateType}:
                 raise GateError("gate_type inválido")
-            if not isinstance(req, Mapping):
+            if type(req) is not dict:
                 raise GateError("requirements deve conter objetos")
             for key, item in req.items():
                 if type(key) is not str or not key:
@@ -286,9 +297,8 @@ class GatePolicy:
                 if type(item) is not bool:
                     raise GateError(f"{key} deve ser booleano")
             normalized[kind] = dict(req)
-        if not isinstance(self.default_requirements, Mapping):
-            raise GateError("default_requirements deve ser objeto")
-        for key, item in self.default_requirements.items():
+        defaults = _plain_policy_dict(self.default_requirements, "default_requirements")
+        for key, item in defaults.items():
             if type(key) is not str or not key:
                 raise GateError("default_requirements contém chave JSON inválida")
             if key not in _REQUIREMENT_KEYS:
@@ -296,7 +306,7 @@ class GatePolicy:
             if type(item) is not bool:
                 raise GateError(f"{key} deve ser booleano")
         object.__setattr__(self, "requirements", _frozen_policy(normalized, "requirements"))
-        object.__setattr__(self, "default_requirements", _frozen_policy(dict(self.default_requirements), "default_requirements"))
+        object.__setattr__(self, "default_requirements", _frozen_policy(dict(defaults), "default_requirements"))
 
     @classmethod
     def from_dict(cls, value: Any) -> "GatePolicy":
@@ -304,9 +314,7 @@ class GatePolicy:
             return cls()
         if isinstance(value, cls):
             return value
-        if not isinstance(value, Mapping):
-            raise GateError("policy deve ser objeto")
-        value = _safe(value, "policy")
+        value = _plain_policy_dict(value, "policy")
         if any(type(key) is not str for key in value):
             raise GateError("policy contém chave JSON inválida")
         unknown = set(value) - _POLICY_KEYS
@@ -314,13 +322,13 @@ class GatePolicy:
             raise GateError("policy contém campos desconhecidos")
         has_requirements = "requirements" in value
         has_gates = "gates" in value
-        requirements = _safe(value["requirements"], "requirements") if has_requirements else None
-        gates = _safe(value["gates"], "gates") if has_gates else None
+        requirements = _plain_policy_dict(value["requirements"], "requirements") if has_requirements else None
+        gates = _plain_policy_dict(value["gates"], "gates") if has_gates else None
         if has_requirements and has_gates and requirements != gates:
             raise GateError("requirements e gates conflitantes")
         req = cast(Mapping[str, Mapping[str, bool]], requirements if has_requirements else gates if has_gates else {})
-        defaults = (_safe(value["default_requirements"], "default_requirements")
-                    if "default_requirements" in value else cls().default_requirements)
+        defaults = (_plain_policy_dict(value["default_requirements"], "default_requirements")
+                    if "default_requirements" in value else dict(cls().default_requirements))
         return cls(req, defaults)
 
     def evaluate(self, result: GateResult | Mapping[str, Any]) -> GateStatus:
