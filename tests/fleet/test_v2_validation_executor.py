@@ -145,6 +145,36 @@ def test_absolute_executable_is_pinned_regular_and_non_symlink(tmp_path):
     assert result.status == "denied" and result.error_code == "executable_changed"
 
 
+def test_child_executable_replacement_is_reported_before_cwd_mutation(tmp_path):
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    executable = cwd / "validator"
+    executable.write_text("validator")
+    p = ValidationPolicy(allowlist=((str(executable),),), root=tmp_path, cwd=cwd,
+                         env={}, sandbox_capability=True)
+    executable.unlink()
+    executable.write_text("replacement")
+    result = ValidationExecutor(policy=p, sandbox_runner=lambda *a, **k: {"returncode": 0}).execute((str(executable),))
+    assert result.status == "denied" and result.error_code == "executable_changed"
+
+
+def test_cwd_directory_replacement_is_rejected_fail_closed(tmp_path):
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    executable = cwd / "validator"
+    executable.write_text("validator")
+    p = ValidationPolicy(allowlist=((str(executable),),), root=tmp_path, cwd=cwd,
+                         env={}, sandbox_capability=True)
+    executable.unlink()
+    retired = tmp_path / "retired-cwd"
+    cwd.rename(retired)
+    cwd.mkdir()
+    executable = cwd / "validator"
+    executable.write_text("validator")
+    result = ValidationExecutor(policy=p, sandbox_runner=lambda *a, **k: {"returncode": 0}).execute((str(executable),))
+    assert result.status == "denied" and result.error_code == "cwd_outside_root"
+
+
 def test_runner_contract_is_shell_false(tmp_path):
     seen = {}
     def runner(argv, **kwargs):

@@ -127,8 +127,11 @@ class ValidationPolicy:
     output_limits: tuple[int, int] = (65536, 65536)
     sandbox_capability: bool = False
     _executable_pins: tuple[tuple[str, int, int, int, int], ...] = field(default=(), init=False, repr=False, compare=False)
-    _root_pin: tuple[int, int, int, int] | None = field(default=None, init=False, repr=False, compare=False)
-    _cwd_pin: tuple[int, int, int, int] | None = field(default=None, init=False, repr=False, compare=False)
+    # Directory metadata such as size and mtime is mutable when children are
+    # created, removed, or replaced.  Pin only the directory object identity;
+    # executable pins below retain metadata so file replacement is detected.
+    _root_pin: tuple[int, int] | None = field(default=None, init=False, repr=False, compare=False)
+    _cwd_pin: tuple[int, int] | None = field(default=None, init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if type(self.timeout_seconds) not in (int, float) or isinstance(self.timeout_seconds, bool) \
@@ -167,8 +170,8 @@ class ValidationPolicy:
             cwd_stat = cwd_path.stat(follow_symlinks=False)
             if not fs_stat.S_ISDIR(root_stat.st_mode) or not fs_stat.S_ISDIR(cwd_stat.st_mode):
                 raise ValidationError("cwd_unavailable")
-            object.__setattr__(self, "_root_pin", (root_stat.st_dev, root_stat.st_ino, root_stat.st_size, root_stat.st_mtime_ns))
-            object.__setattr__(self, "_cwd_pin", (cwd_stat.st_dev, cwd_stat.st_ino, cwd_stat.st_size, cwd_stat.st_mtime_ns))
+            object.__setattr__(self, "_root_pin", (root_stat.st_dev, root_stat.st_ino))
+            object.__setattr__(self, "_cwd_pin", (cwd_stat.st_dev, cwd_stat.st_ino))
         normalized = []
         pins = []
         for item in self.allowlist:
@@ -234,8 +237,8 @@ class ValidationExecutor:
                 return ValidationResult(status="denied", argv=checked, error_code="cwd_outside_root")
             root_stat = root.stat(follow_symlinks=False)
             cwd_stat = cwd.stat(follow_symlinks=False)
-            root_pin = (root_stat.st_dev, root_stat.st_ino, root_stat.st_size, root_stat.st_mtime_ns)
-            cwd_pin = (cwd_stat.st_dev, cwd_stat.st_ino, cwd_stat.st_size, cwd_stat.st_mtime_ns)
+            root_pin = (root_stat.st_dev, root_stat.st_ino)
+            cwd_pin = (cwd_stat.st_dev, cwd_stat.st_ino)
             if (not fs_stat.S_ISDIR(root_stat.st_mode) or not fs_stat.S_ISDIR(cwd_stat.st_mode)
                     or root_pin != policy._root_pin or cwd_pin != policy._cwd_pin
                     or not _inside(cwd.resolve(strict=True), root.resolve(strict=True))):
