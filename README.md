@@ -106,9 +106,9 @@ must be safe path segments.
 
 ### Fleet V2: local-first and fail-closed
 
-Fleet V2 is currently **local/experimental on this feature branch**. It is not
-merged into `main`, is not an operational production release, has no provider
-or live-network readiness claim, and has no human G1–G6 approval recorded here.
+Fleet V2 is currently **merged as a local/experimental capability**. It is not
+an operational production release, has no provider or live-network readiness
+claim, and has no human G1–G6 approval recorded here.
 The safe default is local simulation with an explicit plan and output directory;
 no shell, network, external provider, credentials, or undeclared validation
 command is invoked. External execution is deferred and, if proposed later,
