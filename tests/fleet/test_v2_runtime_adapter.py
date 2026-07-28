@@ -225,3 +225,14 @@ def test_runtime_timeout_policy_and_reserved_argv_metadata() -> None:
                                       ("tool", "{timeout_seconds}"))
     with pytest.raises(RuntimeConfigurationError):
         reserved.build_argv(envelope)
+
+
+def test_dry_run_unknown_value_uses_fixed_marker_without_str():
+    from pd_fleet.runtime_adapter import TemplateRuntimeAdapter
+    class Hostile:
+        def __str__(self):
+            raise AssertionError("unknown runner value __str__ must not run")
+    envelope = _envelope()
+    adapter = TemplateRuntimeAdapter("hermes/openai-codex", envelope.provider_profile, ("tool",))
+    result = adapter.dry_run(envelope, bridge=lambda *_args, **_kwargs: Hostile())
+    assert result.output == "[UNSUPPORTED TYPE]"

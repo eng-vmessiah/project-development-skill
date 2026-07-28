@@ -19,6 +19,7 @@ import subprocess
 import time
 from types import MappingProxyType
 from typing import Any, Mapping, Protocol, Sequence
+from .safe_rendering import PROVIDER_ERROR, UNSUPPORTED_TYPE, safe_text
 import re
 
 from .provider import CommandMetadata, RuntimeProviderProfile, ReadinessStatus, assess_readiness
@@ -194,13 +195,13 @@ class LocalRuntimeReadinessProbe:
     def _parts(raw: Any) -> tuple[int | None, str, str, str]:
         if isinstance(raw, Mapping):
             status = raw.get("status", "")
-            status = status.value if isinstance(status, Enum) else str(status)
-            return raw.get("returncode"), str(raw.get("stdout", ""))[:_LOCAL_OUTPUT_LIMIT], str(raw.get("stderr", ""))[:_LOCAL_OUTPUT_LIMIT], status
-        return getattr(raw, "returncode", None), str(getattr(raw, "stdout", ""))[:_LOCAL_OUTPUT_LIMIT], str(getattr(raw, "stderr", ""))[:_LOCAL_OUTPUT_LIMIT], ""
+            status = status.value if isinstance(status, Enum) else (status if type(status) is str else PROVIDER_ERROR)
+            return raw.get("returncode"), safe_text(raw.get("stdout", ""), UNSUPPORTED_TYPE, limit=_LOCAL_OUTPUT_LIMIT), safe_text(raw.get("stderr", ""), UNSUPPORTED_TYPE, limit=_LOCAL_OUTPUT_LIMIT), status
+        return getattr(raw, "returncode", None), safe_text(getattr(raw, "stdout", ""), UNSUPPORTED_TYPE, limit=_LOCAL_OUTPUT_LIMIT), safe_text(getattr(raw, "stderr", ""), UNSUPPORTED_TYPE, limit=_LOCAL_OUTPUT_LIMIT), ""
 
     def probe(self, runtime_id: str) -> LocalReadinessResult:
         if runtime_id not in _LOCAL_COMMANDS:
-            return LocalReadinessResult(str(runtime_id), False, False, "unknown", "runtime_unknown")
+            return LocalReadinessResult(UNSUPPORTED_TYPE, False, False, "unknown", "runtime_unknown")
         if self._runner is None:
             return LocalReadinessResult(runtime_id, False, False, "denied", _DEFAULT_DENIED_REASON)
         executable = shutil.which(_LOCAL_EXECUTABLES[runtime_id])

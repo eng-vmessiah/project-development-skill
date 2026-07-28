@@ -15,6 +15,7 @@ from typing import Any, Mapping, Protocol, Sequence, runtime_checkable
 
 from .provider import CommandMetadata, RuntimeProviderProfile
 from .sandbox import SandboxCapability
+from .safe_rendering import RUNTIME_ERROR, UNSUPPORTED_TYPE, safe_text
 
 RUNTIME_ADAPTER_SCHEMA_VERSION = "pd-runtime-adapter:v1"
 ALLOWED_PATHS = frozenset({"workspace", "artifacts", "inputs", "outputs"})
@@ -352,23 +353,23 @@ class TemplateRuntimeAdapter:
                                timeout=timeout, output_limits=(65536, 65536))
         except Exception as exc:
             return RuntimeResult(RuntimeStatus.FAILED, RuntimeErrorCode.RUNNER_ERROR,
-                                 metadata={"exception": type(exc).__name__})
+                                 metadata={"exception": RUNTIME_ERROR})
         if isinstance(value, RuntimeResult):
             # Reconstruct even a typed result so this boundary owns redaction.
             return RuntimeResult(value.status, value.error_code, value.output, value.metadata)
         if not isinstance(value, Mapping):
             return RuntimeResult(RuntimeStatus.FAILED, RuntimeErrorCode.SANDBOX_FAILED,
-                                 output=_redact(str(value)))
+                                 output=_redact(safe_text(value, UNSUPPORTED_TYPE)))
         status = value.get("status")
-        output = str(value.get("stdout", ""))
-        stderr = str(value.get("stderr", ""))
+        output = safe_text(value.get("stdout", ""), UNSUPPORTED_TYPE)
+        stderr = safe_text(value.get("stderr", ""), UNSUPPORTED_TYPE)
         for secret in sorted((s for s in getattr(runner, "secrets", ()) if s), key=len, reverse=True):
             output = output.replace(secret, "[SECRET REDACTED]")
             stderr = stderr.replace(secret, "[SECRET REDACTED]")
         if status in ("passed", "ok"):
             metadata = value.get("metadata", {})
             if not isinstance(metadata, Mapping):
-                metadata = {"runner_metadata": str(metadata)}
+                metadata = {"runner_metadata": UNSUPPORTED_TYPE}
             metadata = dict(metadata)
             metadata["stderr"] = stderr
             return RuntimeResult(RuntimeStatus.OK, output=output, metadata=metadata)
@@ -378,7 +379,7 @@ class TemplateRuntimeAdapter:
         result_status, code = mapped.get(status, (RuntimeStatus.FAILED, RuntimeErrorCode.SANDBOX_FAILED))
         metadata = value.get("metadata", {})
         if not isinstance(metadata, Mapping):
-            metadata = {"runner_metadata": str(metadata)}
+            metadata = {"runner_metadata": UNSUPPORTED_TYPE}
         metadata = dict(metadata)
         metadata["stderr"] = stderr
         return RuntimeResult(result_status, code, output=output, metadata=metadata)
@@ -389,7 +390,7 @@ class TemplateRuntimeAdapter:
         if not callable(bridge):
             raise RuntimeRunnerRequiredError(RuntimeErrorCode.RUNNER_REQUIRED.value)
         value = bridge(self.build_argv(envelope), envelope=envelope)
-        return RuntimeResult(RuntimeStatus.OK, output=_redact(str(value)))
+        return RuntimeResult(RuntimeStatus.OK, output=_redact(safe_text(value, UNSUPPORTED_TYPE)))
 
 
 def _adapter(name: str, profile: RuntimeProviderProfile, template: tuple[str, ...]) -> TemplateRuntimeAdapter:

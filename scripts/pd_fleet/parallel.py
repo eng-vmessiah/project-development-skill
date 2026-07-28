@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from copy import deepcopy
 import time
 from typing import Any, Callable, Iterable, Mapping
+from .safe_rendering import PARALLEL_ERROR
 
 
 def _copy(value: Any) -> Any:
@@ -127,7 +128,7 @@ class BoundedParallelExecutor:
             try:
                 copied[task_id] = _copy(entries[task_id])
             except BaseException as exc:
-                results[task_id] = TaskResult(task_id, "failed", error=type(exc).__name__[:self.max_output])
+                results[task_id] = TaskResult(task_id, "failed", error=PARALLEL_ERROR)
 
         def result(task_id: str, status: str, value: Any = None,
                    error: str | None = None) -> TaskResult:
@@ -136,7 +137,7 @@ class BoundedParallelExecutor:
             try:
                 return TaskResult(task_id, status, value, error)
             except BaseException as exc:
-                return TaskResult(task_id, "failed", error=type(exc).__name__[:self.max_output])
+                return TaskResult(task_id, "failed", error=PARALLEL_ERROR)
 
         pending_ids = iter(task_id for task_id in ordered if task_id in copied)
         futures: dict[Future[Any], str] = {}
@@ -201,7 +202,7 @@ class BoundedParallelExecutor:
                         results[task_id] = result(task_id, "completed", value=future.result())
                     except BaseException as exc:
                         status = "timeout" if isinstance(exc, TimeoutError) else "failed"
-                        results[task_id] = result(task_id, status, error=type(exc).__name__)
+                        results[task_id] = result(task_id, status, error=PARALLEL_ERROR)
                     if not cancelled and (deadline is None or self.clock() < deadline):
                         submit_one()
         finally:

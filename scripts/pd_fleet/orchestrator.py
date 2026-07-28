@@ -30,6 +30,7 @@ except ImportError:  # pragma: no cover
     HumanVerificationGate = None
 from .models import FleetPlan, TaskSpec
 from .validation import ValidationReport, compute_ready_tasks, validate_plan
+from .safe_rendering import RUNTIME_ERROR, safe_text
 try:
     from .scheduler import LeaseScheduler
     from .parallel import BoundedParallelExecutor, TaskResult
@@ -117,7 +118,9 @@ def _sanitize_text(value: Any, default: str | None) -> str | None:
     if value is None:
         return default
     try:
-        text = value if type(value) is str else str(value)
+        text = value if type(value) is str else default
+        if text is None:
+            return default
     except Exception:
         return default
     text = _REPORT_URL_RE.sub("[redacted-url]", text)
@@ -669,7 +672,7 @@ class FleetOrchestrator:
         error = getattr(item, "error", item.get("error") if isinstance(item, Mapping) else None)
         if not isinstance(task_id, str):
             raise OrchestratorError("V2 executor returned invalid task id")
-        return task_id, str(status), value, error
+        return task_id, status if type(status) is str else RUNTIME_ERROR, value, error
 
     @staticmethod
     def _store_report_projection(parsed: Any, *, status: str | None = None) -> dict[str, Any]:
@@ -791,7 +794,7 @@ class FleetOrchestrator:
                                     pass
                             continue
                     except Exception as exc:
-                        status, error = "failed", type(exc).__name__
+                        status, error = "failed", RUNTIME_ERROR
                 if status != "completed":
                     cancelled = status in {"cancelled", "canceled"}
                     statuses[task_id] = "blocked" if cancelled else "failed"
@@ -803,7 +806,7 @@ class FleetOrchestrator:
                     policy = by_id[task_id].retry_policy
                     can_retry = (not cancelled and attempt < policy.max_attempts and
                                  (not policy.retryable_errors or
-                                  self._retry_error_matches(str(error or status), policy.retryable_errors)))
+                                  self._retry_error_matches(safe_text(error or status, RUNTIME_ERROR), policy.retryable_errors)))
                     if not can_retry:
                         terminal_status = "blocked" if cancelled else "failed"
                         terminal_report = (parsed_failure_report if terminal_status == "failed" and parsed_failure_report

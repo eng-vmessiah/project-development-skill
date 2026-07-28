@@ -12,6 +12,7 @@ from pd_fleet.dispatch import (  # noqa: E402
     SimulatedAdapter,
     UnknownAdapterError,
     DispatchError,
+    _jsonable,
 )
 
 
@@ -19,6 +20,16 @@ def task(**overrides):
     value = {"id": "T1", "role": "coder", "capabilities": ["python"], "objective": "do it"}
     value.update(overrides)
     return value
+
+
+def test_jsonable_unknown_object_uses_fixed_type_marker():
+    class Hostile:
+        def __repr__(self):
+            raise AssertionError("repr must not run")
+        def __str__(self):
+            raise AssertionError("str must not run")
+    rendered = _jsonable({"value": Hostile()})
+    assert rendered["value"]["__object_type__"] == "[UNSUPPORTED TYPE]"
 
 
 def test_selects_capability_then_role_then_simulated():

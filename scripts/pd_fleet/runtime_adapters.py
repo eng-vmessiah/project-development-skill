@@ -17,6 +17,7 @@ from .runtime_adapter import (
     RuntimeConfigurationError, RuntimeErrorCode, RuntimeResult, RuntimeStatus,
     RuntimeTaskEnvelope, TemplateRuntimeAdapter,
 )
+from .safe_rendering import PROVIDER_ERROR, UNSUPPORTED_TYPE, safe_text
 
 
 class RuntimeFactoryError(RuntimeConfigurationError):
@@ -76,7 +77,7 @@ def parse_runtime_output(value: Any, *, runner_status: str = "passed", stderr: s
             return RuntimeResult(RuntimeStatus.FAILED, RuntimeErrorCode.SANDBOX_FAILED)
         text = value.decode("utf-8", errors="replace")
     else:
-        text = value if isinstance(value, str) else ("" if value is None else str(value))
+        text = value if type(value) is str else ("" if value is None else UNSUPPORTED_TYPE)
         # Character-counting is deliberately conservative for Unicode: it is a
         # smaller cap than the byte cap and avoids an unbounded encoding copy.
         if len(text) > MAX_RUNTIME_OUTPUT_BYTES:
@@ -163,8 +164,8 @@ def parse_runtime_output(value: Any, *, runner_status: str = "passed", stderr: s
     elif allow_plain_text and text.strip():
         output, evidence = text, True
     safe_meta = dict(metadata) if isinstance(metadata, Mapping) else {}
-    safe_meta["stderr"] = stderr if isinstance(stderr, str) else str(stderr)
-    safe_status = runner_status.value if isinstance(runner_status, RuntimeStatus) else str(runner_status)
+    safe_meta["stderr"] = safe_text(stderr, UNSUPPORTED_TYPE)
+    safe_status = runner_status.value if isinstance(runner_status, RuntimeStatus) else (runner_status if type(runner_status) is str else PROVIDER_ERROR)
     mapping = {
         "denied": (RuntimeStatus.DENIED, RuntimeErrorCode.SANDBOX_DENIED),
         "timeout": (RuntimeStatus.TIMEOUT, RuntimeErrorCode.SANDBOX_TIMEOUT),
@@ -208,7 +209,8 @@ class NamedRuntimeAdapter:
     def execute(self, envelope: RuntimeTaskEnvelope, *, runner: Any = None) -> RuntimeResult:
         # Delegate sandbox checks and result mapping, then parse JSON payload.
         base = TemplateRuntimeAdapter(self.name, self.profile, self._template(envelope), self.command_metadata).execute(envelope, runner=runner)
-        return parse_runtime_output(base.output, runner_status=base.status.value, stderr=str(base.metadata.get("stderr", "")), metadata={"runtime": self.runtime}, allow_plain_text=self.runtime == "openai-codex" and runner is not None)
+        runner_status = base.status.value if isinstance(base.status, RuntimeStatus) else safe_text(base.status, PROVIDER_ERROR)
+        return parse_runtime_output(base.output, runner_status=runner_status, stderr=safe_text(base.metadata.get("stderr", ""), UNSUPPORTED_TYPE), metadata={"runtime": self.runtime}, allow_plain_text=self.runtime == "openai-codex" and runner is not None)
 
 
 HermesRuntimeAdapter = NamedRuntimeAdapter

@@ -91,7 +91,7 @@ def test_run_local_does_not_fabricate_acceptance_or_validation(tmp_path, capsys)
     assert "validation" not in report
     assert "decision" not in report
     assert report["evidence"]["task_id"] == "a"
-    assert report["reason"] == "RuntimeError"
+    assert report["reason"] == "[PARALLEL ERROR]"
 
 
 def test_run_local_resume_preserves_persisted_attempt(tmp_path, capsys):

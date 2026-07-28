@@ -15,6 +15,16 @@ sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 from pd_fleet.events import EventLog, FleetEvent, MAX_COLLECTION, MAX_LOG_BYTES, MAX_LOG_LINE_BYTES  # noqa: E402
 
 
+class HostileValue:
+    def __str__(self):
+        raise AssertionError("value __str__ must not run")
+
+
+def test_unsupported_payload_type_uses_fixed_marker():
+    with pytest.raises(ValueError, match=r"\[UNSUPPORTED TYPE\]"):
+        event(payload={"value": HostileValue()})
+
+
 def event(**overrides):
     values = dict(
         event_id="evt-1", run_id="run-1", task_id="task-1", kind="task.started",

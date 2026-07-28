@@ -14,6 +14,7 @@ import inspect
 from copy import deepcopy
 from types import MappingProxyType
 from typing import Any, Mapping, Protocol, runtime_checkable
+from .safe_rendering import UNSUPPORTED_TYPE, safe_text
 
 
 
@@ -101,9 +102,9 @@ class SimulatedAdapter:
         if context.get("report_v2") is True:
             result["report"] = {
                 "schema_version": "pd-fleet-report:v2", "task_id": task_id,
-                "attempt": attempt, "agent_id": str(_value(task, "owner", None) or _value(task, "role", "local")),
-                "role": str(_value(task, "role", "worker")), "capabilities": list(_value(task, "capabilities", []) or []),
-                "status": "completed", "outputs": {str((_value(task, "outputs", ["output"]) or ["output"])[0]): result["output"]}, "evidence": evidence,
+                "attempt": attempt, "agent_id": safe_text(_value(task, "owner", None) or _value(task, "role", "local"), UNSUPPORTED_TYPE),
+                "role": safe_text(_value(task, "role", "worker"), UNSUPPORTED_TYPE), "capabilities": list(_value(task, "capabilities", []) or []),
+                "status": "completed", "outputs": {safe_text((_value(task, "outputs", ["output"]) or ["output"])[0], UNSUPPORTED_TYPE): result["output"]}, "evidence": evidence,
                 "tests": [{"name": "local", "status": "passed"}], "validation": {"status": "passed", "fingerprint": digest},
                 "decision": {"decision": "accept"}, "started_at": "1970-01-01T00:00:00Z", "completed_at": "1970-01-01T00:00:00Z",
             }
@@ -163,11 +164,11 @@ def _jsonable(value: Any) -> Any:
 
 
 def _jsonable_inner(value: Any, seen: set[int]) -> Any:
-    if value is None or isinstance(value, (str, int, float, bool)):
+    if value is None or type(value) in (str, int, float, bool):
         return value
     marker = id(value)
     if marker in seen:
-        return {"__cycle__": _type_name(value)}
+        return {"__cycle__": UNSUPPORTED_TYPE}
     seen.add(marker)
     try:
         if isinstance(value, Mapping):
@@ -175,7 +176,7 @@ def _jsonable_inner(value: Any, seen: set[int]) -> Any:
                 pairs = [(_jsonable_inner(k, seen), _jsonable_inner(v, seen))
                          for k, v in value.items()]
                 pairs.sort(key=lambda p: _canonical(p[0]))
-                return {str(k): v for k, v in pairs}
+                return {k if type(k) is str else UNSUPPORTED_TYPE: v for k, v in pairs}
             except DispatchError:
                 raise
             except Exception:
@@ -198,22 +199,17 @@ def _jsonable_inner(value: Any, seen: set[int]) -> Any:
             public_attrs = {}
             try:
                 for key, child in attrs.items():
-                    label = str(key)
+                    label = key if type(key) is str else UNSUPPORTED_TYPE
                     if label.startswith("_"):
                         continue
                     public_attrs[label] = _jsonable_inner(child, seen)
             except Exception:
                 raise DispatchError("atributos de entrada inacessíveis") from None
-            return {"__object_type__": _type_name(value), "attributes": public_attrs}
+            return {"__object_type__": UNSUPPORTED_TYPE, "attributes": public_attrs}
         # Do not use repr: the default repr contains a process-dependent address.
-        return {"__object_type__": _type_name(value)}
+        return {"__object_type__": UNSUPPORTED_TYPE}
     finally:
         seen.discard(marker)
-
-
-def _type_name(value: Any) -> str:
-    typ = type(value)
-    return f"{typ.__module__}.{typ.__qualname__}"
 
 
 def _canonical(value: Any) -> str:
@@ -284,7 +280,7 @@ def _contains_denied(value: Any, path: str = "input", _seen: set[int] | None = N
             iterator = iter(items)
             for key, child in iterator:
                 try:
-                    label = str(key)
+                    label = key if type(key) is str else UNSUPPORTED_TYPE
                 except Exception:
                     raise AdapterDeniedError("dispatch recusado: chave de entrada inválida") from None
                 if _denied_key(label):
@@ -342,7 +338,7 @@ def _contains_denied(value: Any, path: str = "input", _seen: set[int] | None = N
             try:
                 for key, child in attrs.items():
                     try:
-                        label = str(key)
+                        label = key if type(key) is str else UNSUPPORTED_TYPE
                     except Exception:
                         raise AdapterDeniedError("dispatch recusado: chave de entrada inválida") from None
                     # Inspect private names, but never access private values.

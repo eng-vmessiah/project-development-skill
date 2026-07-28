@@ -14,6 +14,7 @@ from pathlib import Path
 import re
 from types import MappingProxyType
 from typing import Any, Iterator
+from .safe_rendering import UNSUPPORTED_TYPE
 
 SCHEMA_VERSION = 1
 MAX_STRING = 256
@@ -125,7 +126,7 @@ def _freeze(value: Any, depth: int = 0, *, key: str = "payload") -> Any:
         return MappingProxyType(result)
     if isinstance(value, (list, tuple)):
         return tuple(_freeze(item, depth + 1) for item in _bounded_sequence(value))
-    raise EventError(f"tipo não JSON-safe no payload: {type(value).__name__}")
+    raise EventError(f"tipo não JSON-safe no payload: {UNSUPPORTED_TYPE}")
 
 
 def _bounded_items(value: Mapping[Any, Any]) -> list[tuple[Any, Any]]:
@@ -183,7 +184,7 @@ def _open_append_nofollow(path: Path) -> Any:
 
 def _thaw(value: Any) -> Any:
     if isinstance(value, Mapping):
-        return {str(key): _thaw(item) for key, item in value.items()}
+        return {key if type(key) is str else UNSUPPORTED_TYPE: _thaw(item) for key, item in value.items()}
     if isinstance(value, tuple):
         return [_thaw(item) for item in value]
     return value

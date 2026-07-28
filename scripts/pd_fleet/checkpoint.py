@@ -396,7 +396,7 @@ class CheckpointV2Store:
     @staticmethod
     def _redact(value: Any) -> Any:
         if isinstance(value, Mapping):
-            return {str(k): ("[REDACTED]" if re.search(r"(?i)(token|secret|password|credential|api[_ -]?key|authorization|private[_ -]?key)", str(k)) else CheckpointV2Store._redact(v)) for k, v in value.items()}
+            return {(k if type(k) is str else "[UNSUPPORTED TYPE]"): ("[REDACTED]" if type(k) is str and re.search(r"(?i)(token|secret|password|credential|api[_ -]?key|authorization|private[_ -]?key)", k) else CheckpointV2Store._redact(v)) for k, v in value.items()}
         if isinstance(value, list): return [CheckpointV2Store._redact(v) for v in value]
         if isinstance(value, str):
             value = re.sub(r"(?i)(?:https?|ftp|wss?)://[^\s\"'<>]+", "[URL REDACTED]", value)

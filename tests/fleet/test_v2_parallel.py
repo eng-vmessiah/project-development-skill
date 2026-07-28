@@ -9,6 +9,21 @@ sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 from pd_fleet.parallel import BoundedParallelExecutor
 
 
+def test_hostile_exception_class_metadata_is_not_serialized():
+    class HostileMeta(type):
+        def __getattribute__(cls, name):
+            if name == "__qualname__":
+                raise AssertionError("exception type metadata must not run")
+            return super().__getattribute__(name)
+    Hostile = HostileMeta("Hostile", (Exception,), {})
+
+    def run(_task):
+        raise Hostile()
+
+    result = BoundedParallelExecutor().run(["a"], run)[0]
+    assert result.error == "[PARALLEL ERROR]"
+
+
 def test_barrier_proves_real_overlap_and_workers_are_bounded():
     entered = 0
     peak = 0
@@ -43,7 +58,7 @@ def test_exception_becomes_result_and_callback_isolation():
 
     results = BoundedParallelExecutor(max_workers=2).run(["bad", "ok"], run, callback=callback)
     assert results[0].status == "failed"
-    assert results[0].error == "ValueError"
+    assert results[0].error == "[PARALLEL ERROR]"
     assert results[1].value == "OK"
     assert callbacks == ["bad", "ok"]
 
@@ -135,7 +150,7 @@ def test_worker_and_callback_baseexceptions_are_bounded_and_isolated():
     executor = BoundedParallelExecutor()
     results = executor.run(["a"], run, callback=callback)
     assert results[0].status == "failed"
-    assert results[0].error == "KeyboardInterrupt"
+    assert results[0].error == "[PARALLEL ERROR]"
     assert seen == ["failed"]
     executor.close()
 
