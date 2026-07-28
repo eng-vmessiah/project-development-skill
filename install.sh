@@ -23,6 +23,7 @@ HERMES_DIR="$HERMES_ROOT/skills/software-development"
 OPENCODE_DIR="$OPENCODE_ROOT/skills"
 CLAUDE_DIR="$CLAUDE_ROOT/commands"
 MANIFEST_NAME=".pd-installer-manifest"
+CLI_MANIFEST_NAME=".pd-cli-installer-manifest"
 
 # The associative array is intentionally populated only after destination
 # discovery, so collision checking never creates a platform directory.
@@ -136,17 +137,96 @@ run_for_each_skill() {
     done < <(find "$SKILLS_DIR" -type f -name SKILL.md -print0)
 }
 
+cli_manifest_owns() {
+    local manifest="$1" relative="$2" kind entry
+    [[ -f "$manifest" ]] || return 1
+    while IFS=$'\t' read -r kind entry; do
+        [[ "$kind" == file && "$entry" == "$relative" ]] && return 0
+    done < "$manifest"
+    return 1
+}
+
+validate_cli_manifest() {
+    local cli_dir="$1" manifest
+    manifest="$cli_dir/$CLI_MANIFEST_NAME"
+    local kind relative path
+    [[ -f "$manifest" ]] || return 0
+    while IFS=$'\t' read -r kind relative; do
+        [[ -n "$relative" ]] || continue
+        [[ "$kind" == file ]] || {
+            printf 'ERROR: invalid CLI installer manifest kind: %q\n' "$kind" >&2
+            return 1
+        }
+        case "$relative" in
+            /*|../*|*/../*|.|..)
+                printf 'ERROR: invalid CLI installer manifest entry: %q\n' "$relative" >&2
+                return 1
+                ;;
+        esac
+        path="$cli_dir/$relative"
+        [[ -f "$path" || (! -e "$path" && ! -L "$path") ]] || {
+            printf 'ERROR: CLI manifest expects a regular file but found: %s\n' "$path" >&2
+            return 1
+        }
+    done < "$manifest"
+}
+
+remove_cli_owned_entries() {
+    local cli_dir="$1" manifest
+    manifest="$cli_dir/$CLI_MANIFEST_NAME"
+    local kind relative
+    [[ -f "$manifest" ]] || return 0
+    validate_cli_manifest "$cli_dir"
+    while IFS=$'\t' read -r kind relative; do
+        [[ -n "$relative" ]] || continue
+        rm -f -- "$cli_dir/$relative"
+    done < "$manifest"
+    rm -f -- "$manifest"
+}
+
+preflight_hermes_cli() {
+    local cli_dir="$HERMES_ROOT/bin" manifest
+    manifest="$cli_dir/$CLI_MANIFEST_NAME"
+    local package_file package_name path
+    validate_cli_manifest "$cli_dir"
+    for path in pd pd.py; do
+        if [[ -e "$cli_dir/$path" || -L "$cli_dir/$path" ]] && ! cli_manifest_owns "$manifest" "$path"; then
+            printf 'ERROR: refusing to overwrite non-owned Hermes CLI path: %s\n' "$cli_dir/$path" >&2
+            return 1
+        fi
+    done
+    if [[ -e "$cli_dir/pd_fleet" || -L "$cli_dir/pd_fleet" ]] &&
+        { [[ ! -d "$cli_dir/pd_fleet" ]] || [[ ! -f "$manifest" ]]; }; then
+        printf 'ERROR: refusing to overwrite non-owned Hermes CLI path: %s\n' "$cli_dir/pd_fleet" >&2
+        return 1
+    fi
+    while IFS= read -r -d '' package_file; do
+        package_name="$(basename "$package_file")"
+        path="$cli_dir/pd_fleet/$package_name"
+        if [[ -e "$path" || -L "$path" ]] && ! cli_manifest_owns "$manifest" "pd_fleet/$package_name"; then
+            printf 'ERROR: refusing to overwrite non-owned Hermes CLI path: %s\n' "$path" >&2
+            return 1
+        fi
+    done < <(find "$REPO_DIR/scripts/pd_fleet" -maxdepth 1 -type f -name '*.py' -print0)
+}
+
 install_hermes_cli() {
-    local cli_dir="$HERMES_ROOT/bin"
+    local cli_dir="$HERMES_ROOT/bin" package_file package_name
+    remove_cli_owned_entries "$cli_dir"
     mkdir -p "$cli_dir"
+    : > "$cli_dir/$CLI_MANIFEST_NAME.tmp"
     cp "$REPO_DIR/scripts/pd" "$cli_dir/pd"
+    printf 'file\tpd\n' >> "$cli_dir/$CLI_MANIFEST_NAME.tmp"
     cp "$REPO_DIR/scripts/pd.py" "$cli_dir/pd.py"
-    rm -rf "$cli_dir/pd_fleet"
+    printf 'file\tpd.py\n' >> "$cli_dir/$CLI_MANIFEST_NAME.tmp"
     mkdir -p "$cli_dir/pd_fleet"
     while IFS= read -r -d '' package_file; do
-        cp "$package_file" "$cli_dir/pd_fleet/$(basename "$package_file")"
+        package_name="$(basename "$package_file")"
+        cp "$package_file" "$cli_dir/pd_fleet/$package_name"
+        printf 'file\tpd_fleet/%s\n' "$package_name" >> "$cli_dir/$CLI_MANIFEST_NAME.tmp"
     done < <(find "$REPO_DIR/scripts/pd_fleet" -maxdepth 1 -type f -name '*.py' -print0)
     chmod +x "$cli_dir/pd"
+    mv -f -- "$cli_dir/$CLI_MANIFEST_NAME.tmp" "$cli_dir/$CLI_MANIFEST_NAME"
 }
 
 install_target() {
@@ -167,6 +247,7 @@ preflight_flat_names
 target_count=0
 if [[ -d "$HERMES_ROOT" ]]; then
     target_count=$((target_count + 1))
+    preflight_hermes_cli
     install_target "Hermes Agent" "$HERMES_DIR" install_hermes
     install_hermes_cli
     echo "   ✅ CLI installed at $HERMES_ROOT/bin/{pd,pd.py,pd_fleet/}"
