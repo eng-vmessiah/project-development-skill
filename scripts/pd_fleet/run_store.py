@@ -444,13 +444,26 @@ class FleetRunStore:
                 # allowing lease-aware selectors to use the exact clock value
                 # that was evaluated under this lock.
                 try:
-                    parameters = inspect.signature(select).parameters.values()
-                    accepts_now = any(parameter.kind == inspect.Parameter.VAR_KEYWORD or
-                                      parameter.name == "now" for parameter in parameters)
+                    parameters = tuple(inspect.signature(select).parameters.values())
                 except (TypeError, ValueError):
-                    accepts_now = False
-                chosen = (select(state, available, capacity, now=now)
-                          if accepts_now else select(state, available, capacity))
+                    parameters = ()
+                now_parameter = next(
+                    (parameter for parameter in parameters if parameter.name == "now"),
+                    None,
+                )
+                accepts_kwargs = any(
+                    parameter.kind == inspect.Parameter.VAR_KEYWORD
+                    for parameter in parameters
+                )
+                if now_parameter is not None and now_parameter.kind == inspect.Parameter.POSITIONAL_ONLY:
+                    # A positional-only ``now`` cannot be supplied as a
+                    # keyword, despite being discoverable by name.
+                    chosen = select(state, available, capacity, now)
+                elif now_parameter is not None or accepts_kwargs:
+                    chosen = select(state, available, capacity, now=now)
+                else:
+                    # Preserve the original three-argument selector contract.
+                    chosen = select(state, available, capacity)
             else:
                 chosen = available[:capacity]
             if not isinstance(chosen, list) or len(chosen) > capacity or any(tid not in available for tid in chosen) or len(set(chosen)) != len(chosen):

@@ -88,8 +88,12 @@ class LeaseScheduler:
         return result
 
     @classmethod
-    def _ready_ids_from_state(cls, state: Mapping[str, Any]) -> list[str]:
-        """Compute ready IDs from one state snapshot without mutating it."""
+    def _ready_ids_from_state(cls, state: Mapping[str, Any], *, now: str | None = None) -> list[str]:
+        """Compute ready IDs from one state snapshot without mutating it.
+
+        When ``now`` is supplied, expired leases are not readiness barriers.
+        Omitting it preserves the static snapshot behavior for existing callers.
+        """
         tasks = cls._task_map(state)
         task_state = state.get("tasks", {})
         reports = state.get("reports", {})
@@ -102,7 +106,13 @@ class LeaseScheduler:
             task = tasks[task_id]
             value = task_state.get(task_id, {})
             status = value.get("status", task.get("status", "pending")) if isinstance(value, Mapping) else task.get("status", "pending")
-            if status in {"completed", "failed", "blocked", "orphaned"} or task_id in state.get("leases", {}):
+            lease = state.get("leases", {}).get(task_id)
+            # A caller that has an authoritative clock can distinguish an
+            # active lease from a stale one without mutating this snapshot.
+            # Keep the no-clock behavior for static callers: any persisted
+            # lease remains a barrier when its age cannot be established.
+            active = lease is not None and (now is None or lease.get("expires_at", "") > now)
+            if status in {"completed", "failed", "blocked", "orphaned"} or active:
                 continue
             deps = task.get("depends_on", task.get("dependencies", ()))
             if all(dep in completed for dep in deps):
@@ -111,7 +121,8 @@ class LeaseScheduler:
 
     def ready_ids(self) -> list[str]:
         """Return ready IDs in canonical lexical order without mutating state."""
-        return self._ready_ids_from_state(self._snapshot())
+        now = self.clock() if self.clock else None
+        return self._ready_ids_from_state(self._snapshot(), now=now)
 
     # Explicit aliases make the read-only selection API convenient to adapters.
     select_ready = ready_ids
@@ -143,7 +154,9 @@ class LeaseScheduler:
             if requested > capacity:
                 raise CapacityExceeded("bounded capacity exceeded")
             tasks = self._task_map(state)
-            ready = set(self._ready_ids_from_state(state))
+            # ``now`` is sampled by claim_many while holding the store lock;
+            # use that same authoritative instant for the re-check.
+            ready = set(self._ready_ids_from_state(state, now=now))
             occupied = [_paths(tasks[tid]) for tid, lease in state.get("leases", {}).items()
                         if tid in tasks and lease.get("expires_at", "") > now]
             selected: list[str] = []

@@ -80,6 +80,34 @@ def test_claim_many_refuses_task_committed_terminal_under_store_lock(tmp_path: P
     assert store.load("run") == before
 
 
+@pytest.mark.parametrize("selector_kind", ["positional", "keyword", "legacy"])
+def test_claim_many_selector_supports_now_signatures(tmp_path: Path, selector_kind: str):
+    store = FleetRunStore(tmp_path)
+    store.create("run", PLAN, "owner")
+    seen = []
+
+    if selector_kind == "positional":
+        def select(state, available, capacity, now, /):
+            seen.append(now)
+            return available[:capacity]
+    elif selector_kind == "keyword":
+        def select(state, available, capacity, *, now):
+            seen.append(now)
+            return available[:capacity]
+    else:
+        def select(state, available, capacity):
+            return available[:capacity]
+
+    claimed = store.claim_many(
+        "run", ["a"], "owner", max_parallel=1, select=select,
+    )
+
+    assert [token["task_id"] for token in claimed] == ["a"]
+    if selector_kind != "legacy":
+        assert len(seen) == 1
+        assert seen[0] < claimed[0]["expires_at"]
+
+
 def test_unrelated_event_does_not_fence_surviving_lease(tmp_path: Path):
     plan = {"schema_version": "pd-fleet-plan:v2", "tasks": [{"id": "a"}, {"id": "b"}]}
     store = FleetRunStore(tmp_path)

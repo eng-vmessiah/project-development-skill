@@ -124,9 +124,9 @@ def test_expired_lease_path_is_reusable_but_live_lease_still_blocks(tmp_path: Pa
     now[0] = "2026-01-01T00:00:02Z"
     replacement = scheduler.claim("w", limit=1, lease_seconds=10)[0]
 
-    assert replacement["task_id"] == "b"
+    assert replacement["task_id"] == "a"
     assert store.load("run")["leases"] == {
-        "b": {
+        "a": {
             "owner": "owner",
             "lease_id": replacement["lease_id"],
             "expires_at": replacement["expires_at"],
@@ -136,6 +136,33 @@ def test_expired_lease_path_is_reusable_but_live_lease_still_blocks(tmp_path: Pa
     assert expired["lease_id"] != replacement["lease_id"]
     with pytest.raises(OwnershipConflict):
         scheduler.claim("w", limit=1)
+
+
+def test_expired_sole_task_is_reclaimed_and_stale_lease_removed(tmp_path: Path):
+    now = ["2026-01-01T00:00:00Z"]
+    clock = lambda: now[0]
+    store = FleetRunStore(tmp_path, clock=clock)
+    store.create(
+        "run",
+        {"schema_version": "pd-fleet-plan:v2", "tasks": [{"id": "only"}]},
+        "owner",
+    )
+    scheduler = LeaseScheduler(store, "run", "owner", clock=clock)
+
+    first = scheduler.claim("worker", lease_seconds=1)[0]
+    now[0] = "2026-01-01T00:00:02Z"
+    second = scheduler.claim("worker", lease_seconds=10)[0]
+
+    assert second["task_id"] == "only"
+    assert second["lease_id"] != first["lease_id"]
+    assert store.load("run")["leases"] == {
+        "only": {
+            "owner": "owner",
+            "lease_id": second["lease_id"],
+            "expires_at": second["expires_at"],
+            "generation": second["generation"],
+        }
+    }
 
 
 def test_overlapping_paths_are_rejected(tmp_path: Path):
