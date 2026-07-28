@@ -241,13 +241,14 @@ class LocalSandboxRunner:
         """Opaque, runner-bound proof required by production adapters."""
         return self._capability
 
-    def _validate_run(self, argv: Sequence[str], cwd: str | os.PathLike[str]) -> tuple[tuple[str, ...], Path]:
+    def _validate_run(self, argv: Sequence[str], cwd: str | os.PathLike[str]) -> tuple[tuple[str, ...], Path, int]:
         if isinstance(argv, (str, bytes)) or not isinstance(argv, Sequence):
             raise SandboxConfigurationError("argv_invalid")
         checked = tuple(argv)
         if checked not in self._allowlist:
             raise SandboxConfigurationError("argv_not_allowlisted")
         path = Path(checked[0])
+        cwd_fd: int | None = None
         try:
             root_st = _pin(self._tool_root)
             cwd_path = Path(cwd)
@@ -258,20 +259,45 @@ class LocalSandboxRunner:
             cwd_resolved = cwd_path.resolve(strict=True)
             if root_st != self._root_pin or not _inside(cwd_resolved, self._tool_root):
                 raise SandboxConfigurationError("cwd_outside_root")
+            # Pin the directory before returning from validation. Passing the
+            # pathname to Popen would reopen it after these checks and leave a
+            # stat/validation-to-chdir TOCTOU window.
+            cwd_fd = os.open(
+                cwd_path,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            )
+            cwd_st = os.fstat(cwd_fd)
+            if not stat.S_ISDIR(cwd_st.st_mode):
+                raise SandboxConfigurationError("cwd_changed")
+            try:
+                resolved_st = cwd_resolved.stat()
+                fd_resolved = Path(f"/proc/self/fd/{cwd_fd}").resolve(strict=True)
+            except (OSError, RuntimeError) as exc:
+                raise SandboxConfigurationError("cwd_changed") from exc
+            if (cwd_st.st_dev, cwd_st.st_ino) != (resolved_st.st_dev, resolved_st.st_ino):
+                raise SandboxConfigurationError("cwd_changed")
+            if not _inside(fd_resolved, self._tool_root):
+                raise SandboxConfigurationError("cwd_changed")
             if path.is_symlink() or not path.is_file() or _pin(path) != self._pins[str(path)]:
                 raise SandboxConfigurationError("executable_changed")
         except SandboxConfigurationError:
+            if cwd_fd is not None:
+                os.close(cwd_fd)
             raise
         except (OSError, RuntimeError, KeyError) as exc:
+            if cwd_fd is not None:
+                os.close(cwd_fd)
             raise SandboxConfigurationError("path_unavailable") from exc
-        return checked, cwd_resolved
+        assert cwd_fd is not None
+        return checked, cwd_resolved, cwd_fd
 
     def run(self, argv: Sequence[str], *, cwd: str | os.PathLike[str],
             env: Mapping[str, str] | None = None, timeout: float = 10.0,
             output_limits: tuple[int, int] = (65536, 65536), shell: bool = False) -> dict[str, Any]:
         """Return a stable mapping compatible with ``ValidationExecutor``."""
+        cwd_fd: int | None = None
         try:
-            checked, cwd_resolved = self._validate_run(argv, cwd)
+            checked, cwd_resolved, cwd_fd = self._validate_run(argv, cwd)
             if shell is not False:
                 raise SandboxConfigurationError("shell_forbidden")
             if (type(timeout) not in (int, float) or isinstance(timeout, bool)
@@ -285,6 +311,8 @@ class LocalSandboxRunner:
                 raise SandboxConfigurationError("environment_mismatch")
             child_env = dict(self._env)
         except SandboxConfigurationError as exc:
+            if cwd_fd is not None:
+                os.close(cwd_fd)
             return {"status": "denied", "returncode": -1, "stdout": "", "stderr": "", "error": exc.code}
 
         proc: subprocess.Popen[bytes] | None = None
@@ -299,9 +327,9 @@ class LocalSandboxRunner:
             executable_fd = os.open(executable, os.O_RDONLY | os.O_CLOEXEC)
             if _pin(executable) != self._pins[str(executable)]:
                 raise SandboxConfigurationError("executable_changed")
-            proc = subprocess.Popen(checked, cwd=str(cwd_resolved), env=child_env, shell=False,
+            proc = subprocess.Popen(checked, cwd=f"/proc/self/fd/{cwd_fd}", env=child_env, shell=False,
                                     executable=f"/proc/self/fd/{executable_fd}",
-                                    pass_fds=(executable_fd,),
+                                    pass_fds=(executable_fd, cwd_fd),
                                     stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                     start_new_session=True, close_fds=True)
             assert proc.stdout is not None and proc.stderr is not None
@@ -372,5 +400,10 @@ class LocalSandboxRunner:
             if executable_fd is not None:
                 try:
                     os.close(executable_fd)
+                except OSError:
+                    pass
+            if cwd_fd is not None:
+                try:
+                    os.close(cwd_fd)
                 except OSError:
                     pass

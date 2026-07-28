@@ -9,9 +9,11 @@ import time
 import pytest
 
 try:
+    import scripts.pd_fleet.sandbox as sandbox_module
     from scripts.pd_fleet.sandbox import LocalSandboxRunner, SandboxCapability, SandboxConfigurationError
 except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).parents[2]))
+    import scripts.pd_fleet.sandbox as sandbox_module  # noqa: E402
     from scripts.pd_fleet.sandbox import LocalSandboxRunner, SandboxCapability, SandboxConfigurationError  # noqa: E402
 
 
@@ -100,6 +102,36 @@ def test_root_and_cwd_containment(tmp_path: Path):
     result = runner.run((str(tool),), cwd=outside)
     assert result["status"] == "denied"
     assert result["error"] == "cwd_outside_root"
+
+
+def test_cwd_descriptor_is_pinned_across_replacement_before_popen(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    (cwd / "marker").write_text("pinned")
+    replacement = tmp_path / "replacement"
+    replacement.mkdir()
+    (replacement / "marker").write_text("replacement")
+    tool = _tool(tmp_path, "tool", "print(open('marker').read())")
+    argv = (str(tool),)
+    runner = LocalSandboxRunner(tmp_path, allowlist=(argv,), env={})
+    real_popen = sandbox_module.subprocess.Popen
+    observed: dict[str, object] = {}
+
+    def replacing_popen(*args, **kwargs):
+        observed.update(kwargs)
+        cwd.rename(tmp_path / "old-cwd")
+        replacement.rename(cwd)
+        return real_popen(*args, **kwargs)
+
+    monkeypatch.setattr(sandbox_module.subprocess, "Popen", replacing_popen)
+    result = runner.run(argv, cwd=cwd)
+
+    assert result["status"] == "passed"
+    assert result["stdout"] == "pinned\n"
+    assert str(observed["cwd"]).startswith("/proc/self/fd/")
+    pass_fds = observed["pass_fds"]
+    assert isinstance(pass_fds, tuple)
+    assert int(str(observed["cwd"]).rsplit("/", 1)[1]) in pass_fds
 
 
 def test_relative_cwd_is_rejected(tmp_path: Path):
