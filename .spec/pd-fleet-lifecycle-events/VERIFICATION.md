@@ -1,6 +1,6 @@
 # Verification — E1
 
-**Status:** CLOSED through E7; E8 unblocked.
+**Status:** CLOSED through E8; E9 unblocked.
 
 ## Verified
 
@@ -11,13 +11,14 @@
 - E5 CLI diagnostics: `6 focused`, `837 full`; JSON/text, parser/completions, missing-log and no-feature behavior verified.
 - E6/E6R RunStore/EventLog reconciliation: `13 focused`, `850 full`; matching/missing/divergent/corrupt/empty-source cases verified.
 - E7A Supervisor reconciliation facade: `6 focused`, `856 full`; exact delegation, exception/source invariance and no dispatch/STATE writes verified.
+- E8/E8R CLI reconciliation: `11 focused`, `867 full`; JSON/text, source-presence semantics, symlink/race/no-write hardening and completions verified.
 - Compileall and diff check passed after each gate.
-- Fresh-eyes reviews closed E1 through E7.
+- Fresh-eyes reviews closed E1 through E8.
 - Diagnostics, facade, CLI and reconciliation are bounded, immutable/read-only, deterministic and do not mutate event logs, lifecycle, checkpoints, STATE or create a second persistence authority.
 
 ## Next
 
-E8 is the next contract gate: expose reconciliation through a dedicated read-only CLI command. No new persistence authority, broker, provider or live execution is implied.
+E9 is the next contract gate: decide whether to integrate reconciliation into a broader readiness/read-only report, or stop this wave and return to V2 orchestration gaps. No new persistence authority, broker, provider or live execution is implied.
 
 ## Deferred
 

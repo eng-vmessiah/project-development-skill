@@ -67,3 +67,11 @@
 - **Implementation:** add `FleetSupervisor.reconcile_events(store, event_log, run_id, limit=...)` as a thin read-only facade over `reconcile_run_events`.
 - **Acceptance:** exact report equivalence; no mutation/dispatch/STATE/filesystem writes; existing source instances only; invalid/missing/corrupt inputs fail closed; no raw payload/owner export; bounded immutable deterministic result.
 - **Status:** implemented + independently verified (`6 focused`, `856 full`, final review CLOSED / E8 unblocked).
+
+## E8 — CLI read-only reconciliation
+
+- **Files:** `scripts/pd.py`, shell completion blocks, `tests/fleet/test_cli_reconciliation.py`.
+- **Depends:** E7A closed.
+- **Implementation:** add `fleet-supervisor-reconcile --store --events --run-id --owner-epoch --limit [--json]`; construct existing source handles, invoke `FleetSupervisor.reconcile_events`, emit stable bounded text or sorted JSON.
+- **Acceptance:** no feature discovery/PDState; missing source distinction preserved; no mkdir/write/provider/network/process; source bytes/mtime unchanged; old commands/completions compatible; invalid path/id/epoch/limit fail closed; no raw payload/owner export.
+- **Status:** implemented + independently verified (`11 focused`, `867 full`, final review CLOSED / E9 unblocked; fish runtime parser unavailable because `fish` is not installed).

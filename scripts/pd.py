@@ -33,6 +33,7 @@ from pd_fleet.run_store import FleetRunStore, RunStoreError
 from pd_fleet.handoff import HandoffStore
 from pd_fleet.events import EventError, EventLog, MAX_QUERY
 from pd_fleet.supervisor import FleetSupervisor
+from pd_fleet.run_event_reconciliation import reconcile_missing_store
 
 try:
     import yaml
@@ -530,7 +531,7 @@ _pd() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    commands="init status fleet-status fleet-ready fleet-supervisor-status fleet-supervisor-events fleet-handoff-preview validate checkpoint verify advance complete-task config list delete history report diff completion"
+    commands="init status fleet-status fleet-ready fleet-supervisor-status fleet-supervisor-events fleet-supervisor-reconcile fleet-handoff-preview validate checkpoint verify advance complete-task config list delete history report diff completion"
 
     # Global flags
     if [[ "$cur" == -* ]]; then
@@ -559,6 +560,9 @@ _pd() {
         fleet-supervisor-events)
             COMPREPLY=( $(compgen -W "--store --run-id --owner-epoch --limit --json" -- "$cur") )
             ;;
+        fleet-supervisor-reconcile)
+            COMPREPLY=( $(compgen -W "--store --events --run-id --owner-epoch --limit --json" -- "$cur") )
+            ;;
         delete)
             COMPREPLY=( $(compgen -W "--archive --force" -- "$cur") )
             ;;
@@ -585,6 +589,7 @@ _pd() {
         'fleet-ready:Show ready fleet tasks'
         'fleet-supervisor-status:Show read-only fleet supervisor status'
         'fleet-supervisor-events:Diagnose fleet supervisor events (read-only)'
+        'fleet-supervisor-reconcile:Reconcile a fleet run snapshot and event log (read-only)'
         'fleet-handoff-preview:Preview a persisted handoff (read-only)'
         'validate:Validate progress'
         'checkpoint:Create checkpoint'
@@ -633,6 +638,15 @@ _pd() {
                         '--limit[Maximum events to inspect]:' \
                         '--json[Output as JSON]'
                     ;;
+                fleet-supervisor-reconcile)
+                    _arguments \
+                        '--store[Run store root]:directory:' \
+                        '--events[Event log root]:directory:' \
+                        '--run-id[Mission run identifier]:' \
+                        '--owner-epoch[Expected owner epoch]:' \
+                        '--limit[Maximum events to inspect]:' \
+                        '--json[Output as JSON]'
+                    ;;
                 list|status|fleet-status|fleet-ready|fleet-supervisor-status|fleet-handoff-preview|verify|advance|config|history|report|diff)
                     _arguments \
                         '--feature[Target feature]:feature:' \
@@ -660,6 +674,7 @@ complete -c pd -n '__fish_use_subcommand' -a 'fleet-status' -d 'Show fleet statu
 complete -c pd -n '__fish_use_subcommand' -a 'fleet-ready' -d 'Show ready fleet tasks'
 complete -c pd -n '__fish_use_subcommand' -a 'fleet-supervisor-status' -d 'Show read-only fleet supervisor status'
 complete -c pd -n '__fish_use_subcommand' -a 'fleet-supervisor-events' -d 'Diagnose fleet supervisor events (read-only)'
+complete -c pd -n '__fish_use_subcommand' -a 'fleet-supervisor-reconcile' -d 'Reconcile a fleet run snapshot and event log (read-only)'
 complete -c pd -n '__fish_use_subcommand' -a 'fleet-handoff-preview' -d 'Preview a persisted handoff (read-only)'
 complete -c pd -n '__fish_use_subcommand' -a 'validate' -d 'Validate progress'
 complete -c pd -n '__fish_use_subcommand' -a 'checkpoint' -d 'Create checkpoint'
@@ -690,6 +705,11 @@ complete -c pd -n '__fish_seen_subcommand_from fleet-supervisor-events' -l store
 complete -c pd -n '__fish_seen_subcommand_from fleet-supervisor-events' -l run-id -d 'Mission run identifier'
 complete -c pd -n '__fish_seen_subcommand_from fleet-supervisor-events' -l owner-epoch -d 'Expected owner epoch'
 complete -c pd -n '__fish_seen_subcommand_from fleet-supervisor-events' -l limit -d 'Maximum events to inspect'
+complete -c pd -n '__fish_seen_subcommand_from fleet-supervisor-reconcile' -l store -d 'Run store root'
+complete -c pd -n '__fish_seen_subcommand_from fleet-supervisor-reconcile' -l events -d 'Event log root'
+complete -c pd -n '__fish_seen_subcommand_from fleet-supervisor-reconcile' -l run-id -d 'Mission run identifier'
+complete -c pd -n '__fish_seen_subcommand_from fleet-supervisor-reconcile' -l owner-epoch -d 'Expected owner epoch'
+complete -c pd -n '__fish_seen_subcommand_from fleet-supervisor-reconcile' -l limit -d 'Maximum events to inspect'
 complete -c pd -n '__fish_seen_subcommand_from completion' -a 'bash zsh fish'
 """
 
@@ -785,6 +805,19 @@ class PD:
                                    help="Expected owner epoch")
         events_parser.add_argument("--limit", dest="limit", type=int, default=MAX_QUERY,
                                    help="Maximum number of events to inspect")
+
+        reconcile_parser = subparsers.add_parser("fleet-supervisor-reconcile", parents=[global_parent],
+                                                  help="Reconcile a fleet run snapshot and event log (read-only)")
+        reconcile_parser.add_argument("--store", dest="store_root", default=".pd-fleet-store",
+                                      help="Run store root")
+        reconcile_parser.add_argument("--events", dest="events_root", default=".pd-fleet-events",
+                                      help="Event log root")
+        reconcile_parser.add_argument("--run-id", dest="run_id", required=True,
+                                      help="Mission run identifier")
+        reconcile_parser.add_argument("--owner-epoch", dest="owner_epoch", type=int, default=None,
+                                      help="Expected owner epoch")
+        reconcile_parser.add_argument("--limit", dest="limit", type=int, default=MAX_QUERY,
+                                      help="Maximum number of events to inspect")
 
         # fleet execution (local simulated/default-deny dispatcher)
         run_parser = subparsers.add_parser("fleet-run", parents=[global_parent], help="Run a FleetPlan locally")
@@ -903,6 +936,30 @@ class PD:
                     self._print_event_diagnostics(report)
                 return
 
+            if parsed.command == "fleet-supervisor-reconcile":
+                store_root = Path(parsed.store_root).expanduser()
+                events_root = Path(parsed.events_root).expanduser()
+                self._preflight_readonly_root(store_root, "store")
+                self._preflight_readonly_root(events_root, "events")
+                event_log = EventLog(events_root, parsed.run_id, owner_epoch=parsed.owner_epoch)
+                if not self._path_exists_without_following(store_root):
+                    report = reconcile_missing_store(
+                        event_log, run_id=parsed.run_id, limit=parsed.limit
+                    )
+                else:
+                    store = FleetRunStore(store_root)
+                    try:
+                        report = FleetSupervisor().reconcile_events(
+                            store, event_log, run_id=parsed.run_id, limit=parsed.limit
+                        )
+                    finally:
+                        store.close()
+                if as_json:
+                    print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2, sort_keys=True))
+                else:
+                    self._print_event_reconciliation(report)
+                return
+
             # Everything else requires a feature
             feature_dir = self._find_feature_dir(parsed.feature)
             if not feature_dir:
@@ -980,6 +1037,47 @@ class PD:
             f"{task}={report.task_states[task]}" for task in sorted(report.task_states)
         ) if report.task_states else "none"))
         print("Reasons: " + (", ".join(report.reasons) if report.reasons else "none"))
+
+    @staticmethod
+    def _print_event_reconciliation(report: Any) -> None:
+        """Print a bounded, deterministic human-readable reconciliation report."""
+        print("Fleet supervisor reconciliation")
+        print(f"Status: {report.status}")
+        print(f"Run: {report.run_id}")
+        print(f"Snapshot status: {report.snapshot_status if report.snapshot_status is not None else 'none'}")
+        print(f"Generation: {report.snapshot_generation if report.snapshot_generation is not None else 'none'}")
+        print(f"Store sequence: {report.store_event_sequence if report.store_event_sequence is not None else 'none'}")
+        print(f"Log count: {report.event_log_count}")
+        print(f"Last sequence: {report.event_log_last_sequence if report.event_log_last_sequence is not None else 'none'}")
+        print("Reasons: " + (", ".join(report.reasons) if report.reasons else "none"))
+
+    @staticmethod
+    def _path_exists_without_following(path: Path) -> bool:
+        """Return existence using lstat; never resolve or follow a symlink."""
+        try:
+            path.lstat()
+        except FileNotFoundError:
+            return False
+        return True
+
+    @staticmethod
+    def _preflight_readonly_root(path: Path, label: str) -> None:
+        """Validate every existing path component before any source reader."""
+        # absolute() anchors the path without dereferencing symlinks.
+        absolute = path.absolute()
+        current = Path(absolute.anchor)
+        for component in absolute.parts[1:]:
+            current /= component
+            try:
+                metadata = current.lstat()
+            except FileNotFoundError:
+                break
+            except OSError as exc:
+                raise EventError(f"não foi possível verificar a raiz {label}") from exc
+            if stat.S_ISLNK(metadata.st_mode):
+                raise EventError(f"raiz {label} não pode conter symlink")
+            if current == absolute and not stat.S_ISDIR(metadata.st_mode):
+                raise EventError(f"raiz {label} não é um diretório")
 
     # ── feature discovery ────────────────────────────────────────────────
 

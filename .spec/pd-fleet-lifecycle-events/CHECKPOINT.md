@@ -1,6 +1,6 @@
 # Checkpoint — E1
 
-**Status:** E1/E1R/E2/E3/E4/E5/E6/E7 closed; E8 unblocked.
+**Status:** E1/E1R/E2/E3/E4/E5/E6/E7/E8 closed; E9 unblocked.
 
 ## Decision
 
@@ -12,7 +12,7 @@ Local, append-only, replayable, redacted, bounded and ownership-aware. No provid
 
 ## Next
 
-E8 — expose reconciliation as a separate read-only CLI view only after the facade gate.
+E9 — next gate: decide whether to integrate reconciliation into a broader readiness/read-only report, or stop this wave and return to V2 orchestration gaps.
 
 ## Evidence
 
@@ -23,4 +23,5 @@ E8 — expose reconciliation as a separate read-only CLI view only after the fac
 - E5: CLI JSON/text/completions; `6 focused`, `837 full`, compileall/diff check pass, final fresh-eyes CLOSED. fish runtime parsing not available because fish is not installed.
 - E6/E6R: RunStore/EventLog reconciliation; `13 focused`, `850 full`, compileall/diff check pass, final fresh-eyes CLOSED.
 - E7A: Supervisor reconciliation facade; `6 focused`, `856 full`, compileall/diff check pass, final fresh-eyes CLOSED.
-- Adversarial coverage includes strict IDs/statuses, hostile mappings/len/getattr/bool/deepcopy, deterministic timestamps, summary-only checkpoint payloads, sequence anomalies, empty-source classification, read-only facade/CLI/reconciliation invariance, stable JSON and no forbidden integration.
+- E8/E8R: CLI reconciliation with strict read-only/symlink/race hardening; `11 focused`, `867 full`, compileall/diff check pass, final fresh-eyes CLOSED. fish runtime parsing not available because fish is not installed.
+- Adversarial coverage includes strict IDs/statuses, hostile mappings/len/getattr/bool/deepcopy, deterministic timestamps, summary-only checkpoint payloads, sequence anomalies, empty-source classification, read-only facade/CLI/reconciliation invariance, stable JSON, symlink/race protection and no forbidden integration.

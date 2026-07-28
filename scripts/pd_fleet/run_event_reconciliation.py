@@ -192,4 +192,38 @@ def reconcile_run_events(
     )
 
 
-__all__ = ["RunEventReconciliationReport", "reconcile_run_events"]
+def reconcile_missing_store(
+    event_log: EventLog,
+    *,
+    run_id: str,
+    limit: int = MAX_QUERY,
+) -> RunEventReconciliationReport:
+    """Reconcile an event log without manufacturing a FleetRunStore."""
+    if not isinstance(event_log, EventLog):
+        raise TypeError("event_log deve ser EventLog")
+    if type(run_id) is not str or not _ID.fullmatch(run_id):
+        raise ValueError("run_id inválido")
+    if isinstance(limit, bool) or type(limit) is not int or not 1 <= limit <= MAX_QUERY:
+        raise ValueError("limit fora dos limites")
+
+    events = event_log.replay(limit=limit)
+    log_exists = _event_log_file_exists(event_log)
+    identity_mismatch = event_log.run_id != run_id or any(event.run_id != run_id for event in events)
+    if not log_exists and not identity_mismatch:
+        return RunEventReconciliationReport("unknown", run_id, None, None, None, 0, None, ())
+
+    reasons: list[str] = ["missing_store_snapshot"]
+    if identity_mismatch:
+        _add(reasons, "run_id_mismatch")
+    if event_log.owner_epoch is not None and any(
+        event.owner_epoch != event_log.owner_epoch for event in events
+    ):
+        _add(reasons, "owner_context_mismatch")
+    return RunEventReconciliationReport(
+        "degraded", run_id, None, None, None, len(events),
+        events[-1].sequence if events else 0,
+        tuple(reason for reason in _REASONS if reason in reasons),
+    )
+
+
+__all__ = ["RunEventReconciliationReport", "reconcile_missing_store", "reconcile_run_events"]
