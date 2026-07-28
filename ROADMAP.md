@@ -2,233 +2,100 @@
 
 This document outlines the development roadmap for Project Development Skills.
 
-## Current State: v1.2.0
+## Current state (feature branch)
 
-**Released:** 2026-06-14
-
-The project includes the original skill ecosystem plus the v1.2.0 foundation work, including `codebase-design` and `resolving-merge-conflicts`.
+The tree currently contains 27 skills, a multi-platform installer, the `pd` CLI,
+and local/experimental Fleet V2 capabilities. No new published version is
+claimed by this document; release metadata remains a separate decision.
 
 | Category | Skills | Status |
-|----------|--------|--------|
-| Core Pipeline | `pd` (master orchestrator) | ✅ Stable |
-| Code Quality | `clean-code`, `ddd-development`, `design-patterns` | ✅ Stable |
-| Authentication | `auth-patterns` | ✅ Stable |
-| Testing | `test-driven-development`, `ai-regression-testing` | ✅ Stable |
-| AI Integration | `ai-optimization`, `ai-regression-testing` | ✅ Stable |
-| Debugging | `systematic-debugging` | ✅ Stable |
-| Writing | `humanizer`, `writing-clearly-and-concisely`, `writing-plans` | ✅ Stable |
-| Architecture | `service-composition` | ✅ Stable |
-| Workflow | `plan`, `spike`, `subagent-driven-development`, `requesting-code-review` | ✅ Stable |
+|---|---|---|
+| Core | `pd` | Implemented |
+| Engineering | `engineering/codebase-design`, `engineering/resolving-merge-conflicts` | Implemented |
+| Code quality and architecture | `clean-code`, `ddd-development`, `design-patterns`, `service-composition` | Implemented |
+| Security and data | `auth-patterns`, `security-checklist`, `database-patterns` | Implemented |
+| AI and testing | `ai-optimization`, `ai-regression-testing`, `test-driven-development` | Implemented |
+| Workflow | `plan`, `spike`, `writing-plans`, `requesting-code-review`, `subagent-driven-development`, `systematic-debugging` | Implemented |
+| Writing | `humanizer`, `writing-clearly-and-concisely` | Implemented |
+| Product and delivery | `api-design`, `documentation-patterns`, `deployment-patterns`, `monitoring-observability`, `performance-patterns`, `recipes` | Implemented |
 
-**Infrastructure:**
-- Multi-platform installer (Hermes Agent, OpenCode, Claude Code)
-- CLI tool (`scripts/pd`) with commands: `init`, `status`, `validate`, `checkpoint`
-- Templates: `TASK.md`, `CHECKPOINT.md`, `STATUS.md`
-- Test suite with pytest
-- CI/CD pipeline with GitHub Actions
+**Implemented infrastructure:**
+- Installer for Hermes Agent, OpenCode, and Claude Code with existing-root detection,
+  owned manifests, nested-skill copying, stale-owned-file cleanup, and Claude
+  flat-name collision handling.
+- CLI commands for initialization, status, validation, checkpoint/state mutation,
+  verification, task completion, history/reporting, and diff; fleet inspection
+  commands are read-only by design.
+- Templates, recursive skill validation, documentation path checking, and tests.
 
----
+## Phase 1: Foundation — completed
 
-## Phase 1: Foundation (Current) ✅
+- [x] Master `pd` skill with the eight-phase pipeline
+- [x] 27 skills, including nested engineering skills
+- [x] Multi-platform installer and CLI runtime packaging
+- [x] CLI state creation and mutation commands
+- [x] Templates and repository test suite
+- [x] Documentation and REST API example
 
-**Goal:** Ship a solid, usable skill ecosystem with the core pipeline working end-to-end.
+### Still open in the foundation
 
-### Completed
-- [x] Master `pd` skill with 8-phase pipeline
-- [x] 17 skills covering code quality, patterns, testing, AI, writing, and workflow
-- [x] Multi-platform installer supporting Hermes, OpenCode, and Claude Code
-- [x] CLI tool (`scripts/pd`) with basic commands
-- [x] Templates for tasks, checkpoints, and status
-- [x] Test suite with pytest
-- [x] CI/CD pipeline with GitHub Actions
-- [x] Documentation: README, CONTRIBUTING, CHANGELOG, PHILOSOPHY
-- [x] Example: REST API with FastAPI
-- [x] Code review skill for pre-commit verification
+- [ ] Comprehensive example coverage (web app, CLI tool)
+- [ ] CI artifact collection for test results
+- [ ] More cross-skill recommendations and composition guidance
 
-### In Progress
-- [ ] Comprehensive example coverage (web-app, cli-tool)
-- [ ] CI/CD artifact collection for test results
-- [ ] Skill validation script
+## Phase 2: Expansion — deferred
 
----
+Specialized skills already present in the tree are not future work. Remaining
+roadmap work includes cross-skill recommendations, custom template support,
+CLI performance benchmarks, plugin hooks, and additional examples. Potential
+future domains include monitoring improvements, deployment recipes, and other
+community-requested skills; no release versions are assigned here.
 
-## Phase 2: Expansion (Next)
+## Phase 3: Ecosystem — future
 
-**Goal:** Add specialized skills for common development domains.
+- IDE integrations (VS Code, JetBrains, Vim/Neovim)
+- Community skill registry and contribution workflow
+- Versioned skill dependencies and runtime interaction validation
+- Project-management integrations and skill recommendation features
 
-### New Skills
+## Fleet orchestration — local V2 now, live work deferred
 
-| Skill | Description | Priority |
-|-------|-------------|----------|
-| **api-design** | REST/GraphQL API design patterns, versioning, documentation | High |
-| **database-patterns** | Schema design, migrations, indexing, query optimization | High |
-| **security-checklist** | OWASP Top 10, dependency scanning, secrets management | High |
-| **monitoring-observability** | Logging, metrics, tracing, alerting setup | Medium |
-| **recipes** | Common solutions for recurring problems (beyond GoF patterns) | Medium |
-| **performance-patterns** | Profiling, caching, lazy loading, connection pooling | Medium |
-| **documentation-patterns** | API docs, README structure, architecture decision records | Medium |
-| **deployment-patterns** | CI/CD strategies, blue-green, canary, feature flags | Medium |
+Fleet V2 is **PARTIAL/OPEN**, local/experimental, and default-deny. The local
+simulated runner, contracts, checkpoints, gates, inspection commands, and offline
+documentation checker are implemented capabilities. They do not constitute a
+provider adapter, live-network execution, production readiness, or human G1–G6
+approval. See [`docs/PD-FLEET-V2-VERIFICATION.md`](docs/PD-FLEET-V2-VERIFICATION.md)
+for current verification and provenance pointers.
 
-### Enhancements
-- [ ] Cross-skill recommendations (e.g., `pd` suggests `api-design` for REST work)
-- [ ] Skill composition guides (which skills work together for common projects)
-- [ ] Performance benchmarks for the CLI tool
-- [ ] Plugin hooks for custom skill extensions
+Genuinely deferred Fleet/live work:
 
-### Milestones
-- **v1.1.0** — `api-design` + `database-patterns` + enhanced examples
-- **v1.2.0** — `security-checklist` + `monitoring-observability`
-- **v1.3.0** — `recipes` + `performance-patterns` + `documentation-patterns`
-- **v1.4.0** — `deployment-patterns` + skill composition guides
+- [ ] Provider-agnostic live dispatcher and runtime adapters
+- [ ] External execution with explicit allowlists, sandbox, timeout, redaction,
+      credentials policy, and release approval
+- [ ] Demonstrated safe parallel execution and ownership/conflict isolation
+- [ ] Operational G1–G6 evidence and human approval
+- [ ] Prompt refinement, production observability, and operational rollback
 
----
+## Known limitations
 
-## Phase 3: Ecosystem (Future)
+1. Fleet V2 is local simulation only; provider/live/production claims are out of scope.
+2. Fleet scheduling, leases, parallelism, ownership, and resume contracts require
+   further end-to-end evidence before live use.
+3. CLI state mutation exists, but custom template fields and incremental resume
+   semantics remain limited.
+4. Skills do not automatically generate cross-references in their output.
+5. Some skills are large and could benefit from further modularization.
+6. Examples remain limited in domain diversity.
 
-**Goal:** Build an extensible platform for community contributions and IDE integration.
+## How to contribute
 
-### IDE Extensions
-- **VS Code extension** — Inline skill suggestions based on file context
-- **JetBrains plugin** — Integration with IntelliJ-based IDEs
-- **Vim/Neovim** — LSP-style integration for terminal users
+See [`docs/CREATING-SKILLS.md`](docs/CREATING-SKILLS.md), add tests for executable
+components, update the changelog, and run the repository checks before submitting.
 
-### Plugin System
-- Custom skill authoring framework
-- Skill registry (discover and share community skills)
-- Versioned skill dependencies
-- Runtime validation of skill interactions
+## Versioning strategy
 
-### Community
-- Contribution rewards for high-quality skills
-- Skill review process (curated registry)
-- Example bounties for underrepresented domains (mobile, embedded, game dev)
-- Integration with popular project templates (Vite, Next.js, FastAPI, etc.)
+The project follows [Semantic Versioning](https://semver.org/). A release is not
+implied by this roadmap: update `CHANGELOG.md`, choose a version, tag it, and run
+the release workflow only as part of an explicit release decision.
 
-### Advanced Features
-- AI-powered skill recommendation based on project analysis
-- Automated `.spec/` generation from natural language descriptions
-- Cross-project learning (patterns that worked on similar codebases)
-- Integration with project management tools (Linear, Jira, GitHub Projects)
-
----
-
-## Phase 4: Fleet Orchestration Proposal (Next Major Direction)
-
-**Goal:** Evolve PD from a phase-oriented pipeline into a supervised protocol for planning and executing a fleet of subagents.
-
-The design and first-case execution prompt are documented in:
-
-- `docs/PD-AS-IS-TO-BE.md`
-- `docs/PD-FLEET-ORCHESTRATION-PLAN.md`
-- `docs/PD-FIRST-CASE-PROMPT.md`
-
-### Milestones
-
-- [ ] Model waves, tasks, dependencies, ownership, and agent contracts
-- [ ] Validate the task DAG and safe parallelism rules
-- [ ] Add fleet status, eligible-task inspection, and checkpoint/resume
-- [ ] Add provider-agnostic dispatcher/adapters
-- [ ] Make review, grill, smoke, and evidence explicit gates
-- [ ] Add prompt refinement before planning and after grill
-- [ ] Ship the PD self-evolution as the first executable example
-
----
-
-## Known Issues and Limitations
-
-### Fleet V2 status (PARTIAL/OPEN)
-
-The local-first fleet proposal remains **PARTIAL/OPEN** pending complete evidence
-and human G6 approval. Safe simulation, contracts, checkpoints, and documentation
-must not be described as provider, parallelism, or release PASS. Migration is
-additive beside V1; rollback stops dispatch, invalidates leases, and restores the
-last valid V2 snapshot without modifying V1 state.
-
-### Current
-1. **CLI tool is read-only** — `pd` CLI can validate and show status, but cannot yet create/modify `.spec/` files programmatically
-2. **No automatic cross-references** — Skills don't automatically link to related skills in output
-3. **Template rigidity** — Templates are fixed; no custom field support yet
-4. **No incremental updates** — Running `pd` replays the full pipeline; no resume from last checkpoint
-5. **Skill size** — Some skills exceed 15k tokens; could benefit from modularity
-6. **Limited examples** — Only one comprehensive example (REST API); needs more diversity
-
-### Planned Fixes
-- CLI v2 with file creation commands (v1.1.0)
-- Custom template support (v1.2.0)
-- Checkpoint resume functionality (v1.2.0)
-- Skill splitting for large files (v1.3.0)
-- IDE integration for live suggestions (Phase 3)
-
----
-
-## How to Contribute
-
-### Adding a New Skill
-1. Read `docs/CREATING-SKILLS.md` for authoring guidelines
-2. Follow the skill template structure (see existing skills)
-3. Include: Overview, When to Use, Quick Reference, Core Patterns, Anti-Patterns, Common Mistakes, Decision Trees
-4. Write tests if the skill includes executable components
-5. Add examples showing the skill in action
-6. Submit PR with `skill:` prefix in title
-
-### Improving Existing Skills
-1. Check open issues for `skill:` labels
-2. Follow the same structure and tone
-3. Keep additions focused — one concern per skill file
-4. Update the CHANGELOG
-
-### Adding Examples
-1. Create directory: `examples/<example-name>/`
-2. Include `.spec/` directory with realistic SPEC.md, PLAN.md, STATE.md
-3. Show the PD pipeline phases in action
-4. README.md with walkthrough and skills used
-
-### Code Contributions
-- Bug fixes welcome anytime
-- New features should be discussed in issues first
-- All changes require tests where applicable
-- CI must pass before merge
-
----
-
-## Versioning Strategy
-
-This project follows [Semantic Versioning](https://semver.org/):
-
-```
-MAJOR.MINOR.PATCH
-```
-
-| Change Type | Version Bump | Example |
-|-------------|-------------|---------|
-| New skills, breaking skill changes | MINOR | 1.0.0 → 1.1.0 |
-| Bug fixes, docs, examples | PATCH | 1.0.0 → 1.0.1 |
-| Breaking CLI changes, plugin system | MAJOR | 1.x → 2.0.0 |
-
-### Release Process
-1. Update CHANGELOG.md with changes
-2. Create git tag: `git tag v1.X.Y`
-3. GitHub Actions runs tests on tag
-4. Release notes auto-generated from CHANGELOG
-
-### Supported Platforms
-- **Hermes Agent** — Primary platform, full support
-- **OpenCode** — Full support, tested in CI
-- **Claude Code** — Community maintained, best-effort support
-
----
-
-## Timeline
-
-```
-2026-Q2: v1.0.0 (released) — 17 skills + CLI
-2026-Q3: v1.1.0 — api-design, database-patterns, enhanced examples
-2026-Q3: v1.2.0 — security, monitoring, custom templates
-2026-Q4: v1.3.0 — recipes, performance, documentation patterns
-2026-Q4: v1.4.0 — deployment patterns, skill composition
-2027-Q1: v2.0.0 — Plugin system, IDE extensions, community registry
-```
-
----
-
-*This roadmap is a living document. Priorities may shift based on community feedback and contributions.*
+*This roadmap is a living document. Priorities may shift based on community feedback.*

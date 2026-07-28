@@ -5,65 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Installer coverage for existing platform roots, owned manifests, nested skills,
+  stale-owned-file cleanup, and the packaged Hermes `pd` CLI runtime.
+- CLI workflows for feature initialization and project-state mutation alongside
+  validation, status, checkpoint, verification, task completion, history,
+  reporting, and diff inspection.
+- Recursive skill validation and the offline Fleet V2 documentation path checker.
+- Current Fleet V2 verification/provenance index and reconciled skill documentation.
+
+### Changed
+- Documentation now inventories the 27 skills, including nested engineering
+  categories, and documents the repository's actual GitHub URL.
+- Lint and documentation checks are described as local/offline verification; no
+  provider, live-network, or production-readiness claim is made.
+
+### Fleet V2: local/experimental
+- Local simulated plan validation, deterministic dispatch/output, contracts,
+  gates, checkpoints, inspection, and default-deny boundaries are documented as
+  current capabilities.
+- Known limitations remain: no delivered provider/live execution, no production
+  approval, no human G1–G6 approval, and incomplete evidence for parallelism,
+  ownership, leases, resume, and operational rollback.
+
+### Planned
+- Additional examples, cross-skill recommendations, skill modularization, and
+  genuinely deferred provider/live Fleet work.
+
 ## [1.0.0] - 2026-06-14
 
 ### Added
-
-#### Core Skills
-- **pd** — Master orchestrator for full development pipeline
-- **clean-code** — Writing maintainable, readable code
-- **ddd-development** — Domain-Driven Design patterns
-
-#### Pattern Skills
-- **design-patterns** — GoF 23 patterns with decision trees
-- **auth-patterns** — JWT, OAuth 2.0, RBAC, sessions, API keys
-- **service-composition** — Worker-Function-Trigger patterns
-
-#### Quality Skills
-- **test-driven-development** — TDD workflow and patterns
-- **requesting-code-review** — Pre-commit verification
-- **systematic-debugging** — Root cause analysis
-
-#### AI Skills
-- **ai-optimization** — Prompt/code optimization with reflection
-- **ai-regression-testing** — Testing patterns for AI code
-
-#### Writing Skills
-- **humanizer** — Remove AI slop from text
-- **writing-clearly-and-concisely** — Clear, forceful prose
-- **writing-plans** — Implementation planning
-
-#### Utility Skills
-- **plan** — Plan mode
-- **spike** — Throwaway experiments
-- **subagent-driven-development** — Parallel execution via subagents
-
-#### Infrastructure
-- Multi-platform installer (Hermes, OpenCode, Claude Code)
-- Templates (TASK.md, CHECKPOINT.md, STATUS.md)
-- README with skill overview and usage
-- CONTRIBUTING.md with contribution guidelines
-- LICENSE (MIT)
-
-### Inspired By
-- Clean Code — Robert C. Martin
-- Domain-Driven Design — Eric Evans, Vaughn Vernon
-- Design Patterns (GoF) — Gamma, Helm, Johnson, Vlissides
-- GEPA — Reflective optimization patterns
-- iii — Service composition primitives
-
-## [Unreleased]
-
-### Planned
-- Additional examples and use cases
-- CI/CD validation workflows
-- Skill size optimization
-- More cross-references between skills
+- Initial release with the original 17-skill ecosystem, multi-platform installer,
+  templates, README, contribution guide, and MIT license.
+- Core, pattern, quality, AI, writing, and utility skills as recorded at release.
 
 ---
 
 ## Version History
 
 | Version | Date | Changes |
-|---------|------|---------|
+|---|---|---|
 | 1.0.0 | 2026-06-14 | Initial release with 17 skills |

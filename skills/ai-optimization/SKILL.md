@@ -487,4 +487,4 @@ The following skills were consolidated into ai-optimization as reference documen
 
 - **[code-quality](references/code-quality.md)** — Three pillars: Clean Code principles, GoF Design Patterns (creational/structural/behavioral), Domain-Driven Design (bounded contexts, aggregates, repositories)
 - **[karpathy-guidelines](references/karpathy-guidelines.md)** — 4 behavioral guidelines for LLM coding: Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution
-- **[systematic-debugging](references/systematic-debugging.md)** — 4-phase root cause debugging: Iron Law (NO FIXES WITHOUT ROOT CAUSE), investigation → reproduction → hypothesis → verification
+- **[systematic-debugging](../systematic-debugging/SKILL.md)** — 4-phase root cause debugging: Iron Law (NO FIXES WITHOUT ROOT CAUSE), investigation → reproduction → hypothesis → verification

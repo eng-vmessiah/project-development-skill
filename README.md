@@ -4,36 +4,33 @@ A comprehensive skill ecosystem for AI-assisted software development. Works with
 
 ## What's Included
 
-| Skill | Description | Size |
-|-------|-------------|------|
-| **pd** | Master orchestrator — full development pipeline | 34k |
-| **clean-code** | Writing maintainable, readable code | 16k |
-| **ddd-development** | Domain-Driven Design patterns | 15k |
-| **design-patterns** | GoF 23 patterns + decision trees | 19k |
-| **auth-patterns** | JWT, OAuth, RBAC, sessions | 11k |
-| **ai-optimization** | Prompt/code optimization with reflection | 13k |
-| **ai-regression-testing** | Testing patterns for AI code | 4k |
-| **service-composition** | Worker-Function-Trigger patterns | 18k |
-| **test-driven-development** | TDD workflow and patterns | 10k |
-| **requesting-code-review** | Pre-commit verification | 8k |
-| **systematic-debugging** | Root cause analysis | 10k |
-| **humanizer** | Remove AI slop from text | 1k |
-| **writing-clearly-and-concisely** | Clear, forceful prose | 3k |
-| **writing-plans** | Implementation planning | 7k |
-| **plan** | Plan mode | 9k |
-| **spike** | Throwaway experiments | 9k |
-| **subagent-driven-development** | Parallel execution via subagents | 12k |
+The repository currently contains **27 skills** (`SKILL.md` files), including the nested `engineering/` category:
+
+| Skill | Category | Included skills |
+|---|---|---|
+| `pd` | Core | master orchestrator |
+| `engineering/*` | Engineering | `codebase-design`, `resolving-merge-conflicts` |
+| code quality | Code quality and architecture | `clean-code`, `ddd-development`, `design-patterns`, `service-composition` |
+| security | Security and data | `auth-patterns`, `security-checklist`, `database-patterns` |
+| AI/testing | AI and testing | `ai-optimization`, `ai-regression-testing`, `test-driven-development` |
+| workflow | Workflow | `plan`, `spike`, `writing-plans`, `requesting-code-review`, `subagent-driven-development`, `systematic-debugging` |
+| writing | Writing | `humanizer`, `writing-clearly-and-concisely` |
+| delivery | Product and delivery | `api-design`, `documentation-patterns`, `deployment-patterns`, `monitoring-observability`, `performance-patterns`, `recipes` |
 
 ## Quick Install
 
 ```bash
-git clone https://github.com/your-username/project-development-skill.git
+git clone https://github.com/eng-vmessiah/project-development-skill.git
 cd project-development-skill
 chmod +x install.sh
 ./install.sh
 ```
 
-The installer auto-detects which platforms you have installed.
+The installer installs only into platform roots that already exist: Hermes at
+`~/.hermes`, OpenCode at `~/.config/opencode`, and Claude Code at `~/.claude`.
+It exits `2` if no supported root exists. A Hermes root also receives the `pd`
+CLI runtime in `~/.hermes/bin/`; upgrades remove only paths recorded in the
+installer manifest, not unrelated files. See [`docs/INSTALLER.md`](docs/INSTALLER.md).
 
 ## Manual Installation
 
@@ -58,42 +55,19 @@ skill_view(name='pd')
 /pd
 ```
 
+The `scripts/pd` CLI is not read-only: `pd init <feature>` creates a feature
+`.spec/` scaffold, and commands such as `checkpoint`, `advance`,
+`complete-task`, and `verify` update project state. Fleet inspection commands
+(`fleet-status`, `fleet-ready`, and `v2 read/status`) are read-only; the local
+Fleet V2 runner is explicitly opt-in and simulated/default-deny.
+
 ## The PD Pipeline
 
 ```
-Phase 0: Setup (worktree)
-    ↓
-Phase 1: Brainstorming
-    ↓
-Phase 2: Planning (.spec/)
-    ↓
-Phase 3: Structure (.templates/)
-    ↓
-Phase 4: Coding (wave-based)
-    ↓
-Phase 5: Testing (TDD + bug-driven)
-    ↓
-Phase 6: Validation (evidence-based)
-    ↓
-Phase 7: Merge & Deploy
-```
-
-## Skill Ecosystem
-
-```
-                         pd (master)
-                        ↙ ↘ ↘ ↘ ↘ ↘
-           clean-code ←→ ddd-development ←→ design-patterns
-                ↕              ↕                    ↕
-  test-driven-development ←→ requesting-code-review
-                ↕
-        systematic-debugging
-                
-  humanizer ←→ writing-clearly-and-concisely
-  
-  ai-optimization ←→ ai-regression-testing
-  
-  auth-patterns ←→ service-composition
+Phase 0: Setup (worktree) → Phase 1: Brainstorming → Phase 2: Planning (.spec/)
+→ Phase 3: Structure (.templates/) → Phase 4: Coding (wave-based)
+→ Phase 5: Testing (TDD + bug-driven) → Phase 6: Validation (evidence-based)
+→ Phase 7: Merge & Deploy
 ```
 
 ## Philosophy
@@ -105,48 +79,42 @@ Phase 7: Merge & Deploy
 
 ## Templates
 
-The `pd` skill includes templates for:
-- `TASK.md` — Task definition
-- `CHECKPOINT.md` — Progress checkpoint
-- `STATUS.md` — Project status
-
-These are installed to:
-- Hermes: `~/.hermes/skills/software-development/pd/templates/`
-- OpenCode: `~/.config/opencode/skills/pd/templates/`
+The `pd` skill includes templates for `TASK.md`, `CHECKPOINT.md`, and `STATUS.md`.
+These are installed to Hermes `~/.hermes/skills/software-development/pd/templates/`
+and OpenCode `~/.config/opencode/skills/pd/templates/`.
 
 ## Fleet Orchestration Evolution
 
-The next PD evolution is specified in:
+The design and migration material is documented in:
 
-- [`docs/PD-AS-IS-TO-BE.md`](docs/PD-AS-IS-TO-BE.md) — current state, target state, gaps, and migration strategy
-- [`docs/PD-FLEET-ORCHESTRATION-PLAN.md`](docs/PD-FLEET-ORCHESTRATION-PLAN.md) — waves, agent roles, contracts, gates, and implementation order
-- [`docs/PD-FIRST-CASE-PROMPT.md`](docs/PD-FIRST-CASE-PROMPT.md) — execution prompt for implementing the first case
+- [`docs/PD-AS-IS-TO-BE.md`](docs/PD-AS-IS-TO-BE.md)
+- [`docs/PD-FLEET-ORCHESTRATION-PLAN.md`](docs/PD-FLEET-ORCHESTRATION-PLAN.md)
+- [`docs/PD-FIRST-CASE-PROMPT.md`](docs/PD-FIRST-CASE-PROMPT.md)
 
-This proposal evolves PD from a phase-oriented development guide into a protocol for supervised subagent fleets while preserving the simple single-agent flow.
-
-The offline fleet example (`examples/pd-fleet/run_local.py`) performs a validated G1
-preflight before creating output files. Gate references are deterministic identities
-(`evidence:<task-id>` and `report:<task-id>`) resolved against validated records;
-unresolved references fail closed. Output paths are resolved and contained beneath
-`--output`, existing symlink roots are rejected, and task IDs must match
-`[A-Za-z0-9_-]+` as one safe path segment.
+The offline fleet example (`examples/pd-fleet/run_local.py`) validates a local
+plan before creating output files. Gate references are deterministic identities
+resolved against validated records; unresolved references fail closed. Output
+paths are contained beneath `--output`, symlink roots are rejected, and task IDs
+must be safe path segments.
 
 ### Fleet V2: local-first and fail-closed
 
-Fleet V2 is currently **local/experimental on the feature branch**; it is not
-merged into `main`, not an operational production release, and has no human
-G1–G6 approval recorded in this workspace. The safe default is local simulation
-with an explicit plan and output directory; no shell,
-network, external provider, credentials, or undeclared validation command is invoked.
-External execution requires exact argv allowlist, containment/sandbox, timeout,
-redacted bounded output, and a separate explicit release decision. Migration
-preserves V1 state and uses a separate V2 namespace/output; rollback stops dispatch, invalidates leases, and restores the last valid snapshot without rewriting V1. Threats
-include malicious paths, symlink/traversal, stale leases, concurrent ownership,
-secret-bearing output, and provider escape; containment, CAS, redaction, atomic
-checkpoints, and default-deny are the controls. The implemented offline checker
+Fleet V2 is currently **local/experimental on this feature branch**. It is not
+merged into `main`, is not an operational production release, has no provider
+or live-network readiness claim, and has no human G1–G6 approval recorded here.
+The safe default is local simulation with an explicit plan and output directory;
+no shell, network, external provider, credentials, or undeclared validation
+command is invoked. External execution is deferred and, if proposed later,
+requires exact argv allowlisting, containment/sandbox, timeout, redacted bounded
+output, and a separate explicit release decision.
+
+Migration preserves V1 state and uses a separate V2 namespace/output; rollback
+stops dispatch, invalidates leases, and restores the last valid snapshot without
+rewriting V1. The implemented offline checker
 `scripts/pd_fleet/v2_doc_paths.py` validates V2 path/link declarations and fails
-closed on root/document symlinks; a valid checker result does not authorize external
-provider dispatch or a production release.
+closed on root/document symlinks. A valid checker result does not authorize
+provider dispatch or production release. See the [current verification and
+provenance index](docs/PD-FLEET-V2-VERIFICATION.md).
 
 ## License
 
@@ -154,10 +122,5 @@ MIT
 
 ## Credits
 
-Inspired by:
-- **Clean Code** — Robert C. Martin
-- **Domain-Driven Design** — Eric Evans, Vaughn Vernon
-- **Design Patterns (GoF)** — Gamma, Helm, Johnson, Vlissides
-- **GEPA** — Reflective optimization patterns
-- **iii** — Service composition primitives
-- **Verification patterns** — Evidence-based validation
+Inspired by Clean Code, Domain-Driven Design, Design Patterns (GoF), GEPA,
+iii service composition primitives, and evidence-based validation patterns.
