@@ -153,3 +153,12 @@ Artefato: `artifacts/v2/GRILL-001-findings.json`. A classificação formal é **
 - Artefato: `artifacts/v2/GRILL-001-H05-resolution.json`.
 - Review independente: PASS; 32 focados e 956 totais.
 - H06 permanece aberto para binding de `scope/run`; o relatório histórico GRILL-001 continua BLOCKED.
+
+## GRILL-H06 — resolução local
+
+- Status: **RESOLVED_LOCALLY** no commit `d3b2c78faa2385151ee67ef736a26071f56423d3`.
+- `HumanVerificationGate` agora exige binding ao `run_id` atual e ao escopo canônico do plano (`schema_version`, `plan_hash`, tasks e waves). Comparação é estrutural e ordena elementos de forma determinística.
+- Call sites reais (`ready_tasks`, `_ready_ids` e wave stall) usam o contexto corrente; gates automáticos permanecem inalterados.
+- Artefato: `artifacts/v2/GRILL-001-H06-resolution.json`.
+- Review independente: PASS; 22 focados e 959 totais.
+- Identidade continua sendo metadata auditável, não autenticação criptográfica.

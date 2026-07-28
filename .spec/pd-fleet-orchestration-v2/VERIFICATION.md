@@ -136,3 +136,11 @@ Próxima fatia recomendada: corrigir os seis HIGH com testes red-first e revisã
 - Review independente: PASS; full rerun: 956 passed.
 - Artefato: `artifacts/v2/GRILL-001-H05-resolution.json`.
 - **Status global:** permanece **BLOCKED_NOT_READY**; HIGH-06 continua aberto.
+
+## Atualização GRILL-H06 — 2026-07-28
+
+- HIGH-06 resolvido localmente no commit `d3b2c78faa2385151ee67ef736a26071f56423d3`.
+- Wrong-run, wrong-scope, missing-context, aliases, extra keys e type pollution falham fechado.
+- Review independente: PASS; full independente: 959 passed. Uma execução parent teve falha intermitente fora do escopo no validation executor; rerun isolado passou.
+- Artefato: `artifacts/v2/GRILL-001-H06-resolution.json`.
+- **Status global:** HIGH-01…HIGH-06 resolvidos localmente, mas GRILL-001/G1–G6 continuam **BLOCKED_NOT_READY** até decisão humana formal.

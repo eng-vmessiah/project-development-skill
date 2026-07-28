@@ -1,0 +1,16 @@
+{
+  "change": "HumanVerificationGate authorization is bound to the current run_id and canonical plan scope. Scope requires exact schema_version/plan_hash/tasks/waves, normalizes task/wave ordering structurally, and rejects missing/malformed/extra data. All orchestrator gate call sites use current binding; automatic gates remain unchanged.",
+  "commit": "d3b2c78faa2385151ee67ef736a26071f56423d3",
+  "evidence": [
+    "RED: valid human gate was accepted without current context and cross-run/cross-scope cases were not bound",
+    "focused H06 suite: 36 passed",
+    "independent review: 22 focused and 959 full passed",
+    "wrong run/scope/missing context/aliases/extra keys/type pollution fail closed",
+    "automatic smoke_test/evidence preserved",
+    "git diff --check: clean"
+  ],
+  "finding_id": "GRILL-H06",
+  "residual": "Binding is contextual only; identity is audit metadata, not cryptographic authentication. Historical GRILL-001 remains BLOCKED pending formal G1-G6 decision.",
+  "schema_version": "pd-fleet-grill-001-resolution:v1",
+  "status": "RESOLVED_LOCALLY"
+}
