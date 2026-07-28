@@ -173,6 +173,17 @@ def test_policy_alias_conflict_cannot_be_bypassed_by_mapping_equality():
         GatePolicy.from_dict({"requirements": requirements, "gates": hostile_gates})
 
 
+def test_policy_alias_conflict_cannot_be_bypassed_by_nested_mapping_equality():
+    class HostileEq(dict):
+        def __eq__(self, other):
+            raise RuntimeError("nested equality must not execute")
+
+    requirements = {"review": HostileEq({"reports": False})}
+    gates = {"review": {"reports": True}}
+    with pytest.raises(GateError, match="não é um objeto JSON plain"):
+        GatePolicy.from_dict({"requirements": requirements, "gates": gates})
+
+
 def test_policy_fields_cannot_be_hidden_by_mapping_contains():
     class LyingContains(dict):
         def __contains__(self, key):

@@ -174,6 +174,46 @@ def _plain_policy_dict(value: Any, name: str) -> dict[Any, Any]:
     return value
 
 
+def _plain_json(value: Any, path: str = "value", seen: set[int] | None = None) -> Any:
+    """Return a recursively validated copy containing only plain JSON values.
+
+    This is deliberately stricter than ``Mapping``-based copying. Equality of
+    an untrusted dict subclass can execute arbitrary code, including when it is
+    nested inside an otherwise plain dictionary, so all mappings must be
+    rejected before any comparison and all accepted dictionaries must be newly
+    built exact ``dict`` instances.
+    """
+    if value is None or type(value) in (str, bool, int):
+        return value
+    if type(value) is float:
+        if value != value or value in (float("inf"), float("-inf")):
+            raise GateError(f"{path} contém número não finito")
+        return value
+
+    if seen is None:
+        seen = set()
+    marker = id(value)
+    if marker in seen:
+        raise GateError(f"{path} contém estrutura cíclica")
+    seen.add(marker)
+    try:
+        if type(value) is dict:
+            result = {}
+            for key, item in value.items():
+                if type(key) is not str or not key:
+                    raise GateError(f"{path} contém chave JSON inválida")
+                result[key] = _plain_json(item, f"{path}.{key}", seen)
+            return result
+        if type(value) in (list, tuple):
+            return [_plain_json(item, f"{path}[{index}]", seen)
+                    for index, item in enumerate(value)]
+        if isinstance(value, Mapping):
+            raise GateError(f"{path} não é um objeto JSON plain")
+        raise GateError(f"{path} não é JSON-safe")
+    finally:
+        seen.discard(marker)
+
+
 def _open_blocker(item: Any) -> bool:
     if isinstance(item, Mapping):
         # Blocker metadata is an untrusted boundary: normalize only strings and
@@ -322,12 +362,15 @@ class GatePolicy:
             raise GateError("policy contém campos desconhecidos")
         has_requirements = "requirements" in value
         has_gates = "gates" in value
-        requirements = _plain_policy_dict(value["requirements"], "requirements") if has_requirements else None
-        gates = _plain_policy_dict(value["gates"], "gates") if has_gates else None
+        requirements = (_plain_json(_plain_policy_dict(value["requirements"], "requirements"), "requirements")
+                        if has_requirements else None)
+        gates = (_plain_json(_plain_policy_dict(value["gates"], "gates"), "gates")
+                 if has_gates else None)
         if has_requirements and has_gates and requirements != gates:
             raise GateError("requirements e gates conflitantes")
         req = cast(Mapping[str, Mapping[str, bool]], requirements if has_requirements else gates if has_gates else {})
-        defaults = (_plain_policy_dict(value["default_requirements"], "default_requirements")
+        defaults = (_plain_json(_plain_policy_dict(value["default_requirements"], "default_requirements"),
+                                "default_requirements")
                     if "default_requirements" in value else dict(cls().default_requirements))
         return cls(req, defaults)
 
