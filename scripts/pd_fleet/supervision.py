@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import math
 from typing import Any, Mapping
 
-from .handoff import HandoffReason, _freeze, _ref, _sanitize_text, _thaw, _unsafe_identifier
+from .handoff import HandoffReason, _ref, _sanitize_text, _unsafe_identifier
 
 
 class SupervisionError(ValueError):

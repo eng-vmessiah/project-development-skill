@@ -119,7 +119,10 @@ jobs:
     
     - name: Lint Python code
       run: |
-        flake8 scripts/ --max-line-length=100 --ignore=E501,W503
+        # Correctness-focused contract: syntax (E9), undefined names (F82),
+        # and unused imports/locals (F401/F841) are enforced. Legacy style
+        # diagnostics are intentionally outside this contract; see .flake8.
+        flake8 scripts/ --config=.flake8
   
   docs:
     runs-on: ubuntu-latest

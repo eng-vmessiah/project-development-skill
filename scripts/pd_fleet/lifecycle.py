@@ -213,9 +213,11 @@ class GatePolicy:
         required = []
         for gate in gates:
             if isinstance(gate, Mapping):
-                gate_id, status = gate.get("id", gate.get("gate_id")), gate.get("status", "pending")
+                gate_id = gate.get("id", gate.get("gate_id"))
+                gate.get("status", "pending")  # Preserve validation-side access.
             else:
-                gate_id, status = getattr(gate, "id", None), getattr(gate, "status", "pending")
+                gate_id = getattr(gate, "id", None)
+                getattr(gate, "status", "pending")  # Preserve validation-side access.
             if gate_id:
                 required.append(str(gate_id))
         return cls(tuple(required))

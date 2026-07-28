@@ -127,7 +127,7 @@ class BoundedParallelExecutor:
         for task_id in ordered:
             try:
                 copied[task_id] = _copy(entries[task_id])
-            except BaseException as exc:
+            except BaseException:
                 results[task_id] = TaskResult(task_id, "failed", error=PARALLEL_ERROR)
 
         def result(task_id: str, status: str, value: Any = None,
@@ -136,7 +136,7 @@ class BoundedParallelExecutor:
                 error = error[: self.max_output]
             try:
                 return TaskResult(task_id, status, value, error)
-            except BaseException as exc:
+            except BaseException:
                 return TaskResult(task_id, "failed", error=PARALLEL_ERROR)
 
         pending_ids = iter(task_id for task_id in ordered if task_id in copied)

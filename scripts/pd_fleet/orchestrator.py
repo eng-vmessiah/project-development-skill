@@ -795,7 +795,7 @@ class FleetOrchestrator:
                                 except Exception:
                                     pass
                             continue
-                    except Exception as exc:
+                    except Exception:
                         status, error = "failed", RUNTIME_ERROR
                 if status != "completed":
                     cancelled = status in {"cancelled", "canceled"}
@@ -1095,7 +1095,7 @@ class FleetOrchestrator:
         """Match error classes/tokens exactly, never arbitrary substrings."""
         normalized = re.sub(r"[^a-z0-9]+", " ", error.lower()).strip()
         words = set(normalized.split())
-        classes = set(re.findall(r"\b[a-z_][a-z0-9_]*(?:error|exception|timeout)\b", normalized))
+
         for token in tokens:
             candidate = re.sub(r"[^a-z0-9]+", " ", str(token).lower()).strip()
             if not candidate:

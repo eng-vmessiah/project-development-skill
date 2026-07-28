@@ -359,7 +359,7 @@ class TemplateRuntimeAdapter:
         try:
             value = runner.run(argv, cwd=cwd, env=getattr(runner, "env", {}),
                                timeout=timeout, output_limits=(65536, 65536))
-        except Exception as exc:
+        except Exception:
             return RuntimeResult(RuntimeStatus.FAILED, RuntimeErrorCode.RUNNER_ERROR,
                                  metadata={"exception": RUNTIME_ERROR})
         if isinstance(value, RuntimeResult):

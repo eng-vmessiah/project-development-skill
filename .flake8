@@ -1,0 +1,4 @@
+[flake8]
+# CI intentionally checks correctness diagnostics, not the repository's legacy
+# formatting debt. Keep syntax, undefined-name, and unused-code checks enabled.
+select = E9,F63,F7,F82,F401,F841

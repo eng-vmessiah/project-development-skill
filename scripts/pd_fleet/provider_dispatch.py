@@ -14,7 +14,7 @@ from typing import Any, Iterable, Mapping, cast
 
 from .provider import RuntimeProviderProfile
 from .provider_routing import (
-    AuditReason, ProviderAuditEvent, ProviderRoutePolicy, ProviderRouteResult,
+    ProviderAuditEvent, ProviderRoutePolicy, ProviderRouteResult,
     RouteStatus, profile_id, route_provider,
 )
 from .runtime_adapter import (
@@ -217,7 +217,7 @@ class ProviderDispatchBoundary:
                                        request.nested_agents, request.metadata)
         try:
             runtime = adapter.execute(envelope, runner=runner)
-        except Exception as exc:
+        except Exception:
             runtime = RuntimeResult(RuntimeStatus.FAILED, RuntimeErrorCode.RUNNER_ERROR,
                                     metadata={"exception": "[PROVIDER ERROR]"})
         if not isinstance(runtime, RuntimeResult):

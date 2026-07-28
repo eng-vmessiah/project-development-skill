@@ -159,7 +159,7 @@ class FleetRunStore:
         if not isinstance(plan, Mapping): raise RunStoreError("plan must be an object")
         canonical = canonicalize(plan); now = _clock_value(self._clock)
         with self._guard():
-            d = self._ensure_dir(rid)
+            self._ensure_dir(rid)
             # Never overwrite forensic evidence, including malformed or
             # checksum-invalid candidates.  Repair is deliberately not part
             # of this API.

@@ -468,7 +468,7 @@ class Dispatcher:
                 result = self.adapters[adapter_name].dispatch(deepcopy(task), deepcopy(context))
                 if not isinstance(result, DispatchResult):
                     raise TypeError("invalid adapter result")
-            except Exception as exc:
+            except Exception:
                 # Exception text is intentionally omitted: it can contain secrets.
                 result = DispatchResult(task_id, adapter_name, "failed", attempt,
                                         None, {"fingerprint": fingerprint},
