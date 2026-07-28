@@ -1,0 +1,17 @@
+{
+  "change": "LeaseScheduler recomputes dependency readiness from the exact locked snapshot during claim selection and validates every task dependency container/element before status filtering; stale/newly-ready races and malformed terminal plans fail closed without lease mutation.",
+  "commit": "719dac51156fea0f4462103afc08e7ccd18dd66a",
+  "evidence": [
+    "RED: stale dependency candidate was incorrectly leaseable",
+    "H04 GREEN: focused scheduler/run-store/orchestrator/concurrency passed",
+    "H04R RED: non-hashable dependency caused uncontrolled TypeError",
+    "H04R2 GREEN: malformed dependency matrix and terminal-status matrix fail closed",
+    "parent focused slice: 37 passed",
+    "independent review: 126 focused; full rerun 952 passed",
+    "git diff --check: clean"
+  ],
+  "finding_id": "GRILL-H04",
+  "residual": "The historical GRILL-001 report remains BLOCKED; HIGH-05 and HIGH-06 remain open.",
+  "schema_version": "pd-fleet-grill-001-resolution:v1",
+  "status": "RESOLVED_LOCALLY"
+}

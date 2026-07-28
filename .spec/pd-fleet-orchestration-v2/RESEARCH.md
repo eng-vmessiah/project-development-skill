@@ -136,3 +136,12 @@ Artefato: `artifacts/v2/GRILL-001-findings.json`. A classificação formal é **
 - Artefato: `artifacts/v2/GRILL-001-H03-resolution.json`.
 - Review independente: PASS; 62 focados e 942 totais.
 - O relatório histórico GRILL-001 permanece BLOCKED pelos HIGH restantes.
+
+## GRILL-H04 — resolução local
+
+- Status: **RESOLVED_LOCALLY** no commit `719dac51156fea0f4462103afc08e7ccd18dd66a`.
+- `LeaseScheduler` recalcula a dependency barrier no snapshot locked de `claim_many`; stale candidates não são leaseados e candidates newly-ready podem ser selecionados.
+- Toda a plan é validada antes de readiness/status filtering; containers/elements malformed falham com `SchedulerError` sem mutation, inclusive em tarefas terminais.
+- Artefato: `artifacts/v2/GRILL-001-H04-resolution.json`.
+- Review independente: PASS; 126 focados. Full rerun parent: 952 passed.
+- O relatório histórico GRILL-001 permanece BLOCKED pelos HIGH restantes.

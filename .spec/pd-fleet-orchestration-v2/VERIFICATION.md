@@ -120,3 +120,11 @@ Próxima fatia recomendada: corrigir os seis HIGH com testes red-first e revisã
 - Review independente: PASS; 62 focados, 942 totais.
 - Artefato: `artifacts/v2/GRILL-001-H03-resolution.json`.
 - **Status global:** permanece **BLOCKED_NOT_READY**; HIGH-04…HIGH-06 continuam abertos.
+
+## Atualização GRILL-H04 — 2026-07-28
+
+- HIGH-04 resolvido localmente no commit `719dac51156fea0f4462103afc08e7ccd18dd66a`.
+- H04R/H04R2 fecharam TypeError não controlado e bypass em tarefas terminais malformed.
+- Review independente: PASS; full rerun: 952 passed.
+- Artefato: `artifacts/v2/GRILL-001-H04-resolution.json`.
+- **Status global:** permanece **BLOCKED_NOT_READY**; HIGH-05 e HIGH-06 continuam abertos.
