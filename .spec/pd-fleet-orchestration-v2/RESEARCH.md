@@ -174,3 +174,12 @@ Artefato: `artifacts/v2/GRILL-001-findings.json`. A classificação formal é **
 - `artifacts/v2/G1-fresh-verification.json` é histórico e stale (`commit 3036786`, contagens antigas); não é usado como evidência corrente.
 - Artefato corrente: `artifacts/v2/GRILL-001-rerun-current.json`.
 - **Decisão:** **NOT_READY_PARTIAL**. Não há aprovação humana G1/G6, autorização de merge/provider/release ou PASS global.
+
+## GRILL-M01 — resolução local
+
+- Status: **RESOLVED_LOCALLY** no commit `3dd1e03`.
+- Hardening percorreu observability, runtime, provider, dispatch, parallel, events, orchestrator, lifecycle, gates, models, checkpoint e validation.
+- Nenhum `repr`/`str`/metadata de tipo controlado pelo atacante escapa; markers fixos, control escaping, bounds e BadMap fail-closed estão ativos.
+- Evidência: revisão M01 **227 passed**; full **990 passed**; fleet independente **941 passed**.
+- Artefato: `artifacts/v2/GRILL-001-M01-resolution.json`.
+- M02–M06 e L01–L02 continuam abertos.

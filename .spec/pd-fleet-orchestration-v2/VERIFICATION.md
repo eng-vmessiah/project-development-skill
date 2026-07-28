@@ -153,3 +153,10 @@ Próxima fatia recomendada: corrigir os seis HIGH com testes red-first e revisã
 - Artefato corrente: `artifacts/v2/GRILL-001-rerun-current.json`.
 - O artefato G1 anterior é histórico/stale e não representa este commit.
 - **Decisão formal:** **NOT_READY_PARTIAL**; G1/G6 continuam sem decisão humana `APPROVED`.
+
+## Atualização M01 — 2026-07-28
+
+- M01 resolvido localmente no commit `3dd1e03`; review independente PASS.
+- O pacote corrente foi atualizado para commit `3dd1e03`, full `990 passed`, M01 focused `227 passed`.
+- Artefato: `artifacts/v2/GRILL-001-M01-resolution.json`.
+- Residuais: M02–M06/L01–L02 permanecem OPEN; decisão global continua `NOT_READY_PARTIAL`.

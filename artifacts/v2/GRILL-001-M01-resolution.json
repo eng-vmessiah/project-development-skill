@@ -1,0 +1,15 @@
+{
+  "change": "Whole-fleet observability/error/report/dispatch/runtime/provider boundaries no longer invoke attacker-controlled repr/str/type metadata; fixed markers, bounded control escaping, safe diagnostic rendering, and hostile Mapping fail-closed behavior are enforced.",
+  "commit": "3dd1e03",
+  "evidence": [
+    "focused M01 review: 227 passed",
+    "full suite: 990 passed",
+    "independent full fleet: 941 passed",
+    "hostile repr/str/metaclass/exception/BadMap/control probes passed",
+    "git diff --check: clean"
+  ],
+  "finding_id": "GRILL-M01",
+  "residual": "M02-M06 and L01-L02 remain open; no human G1/G6 approval or release authorization.",
+  "schema_version": "pd-fleet-grill-001-resolution:v1",
+  "status": "RESOLVED_LOCALLY"
+}
