@@ -7,6 +7,7 @@ from typing import Any, Iterable, Mapping
 from .event_diagnostics import EventDiagnosticsReport, diagnose_event_log
 from .events import EventLog, MAX_QUERY
 from .handoff import HandoffArtifact, _freeze, _thaw, create_handoff
+from .readiness import ReadinessView, compose_readiness
 from .run_event_reconciliation import RunEventReconciliationReport, reconcile_run_events
 from .run_store import FleetRunStore
 from .supervision import HealthSnapshot, InterventionProposal, SupervisorDiagnosis, _bounded_id, reconcile_snapshot
@@ -96,6 +97,20 @@ class FleetSupervisor:
     ) -> RunEventReconciliationReport:
         """Return the bounded run snapshot/event-log reconciliation report."""
         return reconcile_run_events(store, event_log, run_id=run_id, limit=limit)
+
+    def readiness_view(
+        self,
+        *,
+        supervisor_report: SupervisorReport | None = None,
+        event_report: EventDiagnosticsReport | None = None,
+        reconciliation_report: RunEventReconciliationReport | None = None,
+    ) -> ReadinessView:
+        """Return the pure readiness projection of existing reports."""
+        return compose_readiness(
+            supervisor_report=supervisor_report,
+            event_report=event_report,
+            reconciliation_report=reconciliation_report,
+        )
 
     def preview_handoff(
         self,

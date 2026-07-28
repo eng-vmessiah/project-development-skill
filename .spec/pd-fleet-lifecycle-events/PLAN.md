@@ -83,3 +83,11 @@
 - **Implementation:** compose already-calculated `SupervisorReport`, `EventDiagnosticsReport` and `RunEventReconciliationReport` into frozen `ReadinessView`; no filesystem/provider/state reads inside the compositor.
 - **Acceptance:** deterministic precedence (`blocked`/failed diagnosis > degraded source > unknown > ready); bounded fixed reason codes only; no proposals/payloads/owners/raw details; missing components are explicit; input reports remain immutable; detached JSON-safe output; no dispatch/provider/network/process.
 - **Status:** implemented + independently verified (`35 focused`, `902 full`, final review CLOSED / E10 unblocked).
+
+## E10 — Supervisor readiness facade
+
+- **Files:** `scripts/pd_fleet/supervisor.py`, `tests/fleet/test_supervisor_readiness.py`.
+- **Depends:** E9/E9R closed.
+- **Implementation:** add `FleetSupervisor.readiness_view(...)` as a thin pure delegation to `compose_readiness`.
+- **Acceptance:** exact report equivalence; no dispatch/state/filesystem writes; no provider/network/process; invalid report types fail closed; no payload/owner/proposal leakage.
+- **Status:** implemented + independently verified (`10 focused`, `912 full`, final review CLOSED / E11 unblocked).
