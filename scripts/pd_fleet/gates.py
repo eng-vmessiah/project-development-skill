@@ -461,11 +461,13 @@ class HumanVerificationGate:
         if isinstance(self.scope, str):
             frozen_scope = _text(self.scope, "scope")
         else:
-            frozen_scope = _frozen_policy(self.scope, "scope")
+            frozen_scope = _frozen_policy(_plain_json(self.scope, "scope"), "scope")
         if not isinstance(frozen_scope, (str, MappingProxyType)) and not isinstance(frozen_scope, tuple):
             raise GateError("scope deve ser string ou objeto JSON")
         object.__setattr__(self, "scope", frozen_scope)
-        object.__setattr__(self, "blockers", _frozen_policy(_items(self.blockers, "blockers"), "blockers"))
+        object.__setattr__(self, "blockers", _frozen_policy(
+            _plain_json(_items(self.blockers, "blockers"), "blockers"), "blockers"
+        ))
 
     @property
     def run_id(self) -> str:
@@ -481,7 +483,9 @@ class HumanVerificationGate:
         if blockers is None:
             current_blockers = self.blockers
         else:
-            current_blockers = _frozen_policy(_items(blockers, "blockers"), "blockers")
+            current_blockers = _frozen_policy(
+                _plain_json(_items(blockers, "blockers"), "blockers"), "blockers"
+            )
         if any(_open_blocker(item) for item in current_blockers):
             return GateStatus.BLOCKED
         if self.decision is not HumanDecision.APPROVED:
@@ -518,7 +522,7 @@ class HumanVerificationGate:
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any], *, reject_unknown: bool = True) -> "HumanVerificationGate":
-        if not isinstance(value, Mapping):
+        if type(value) is not dict:
             raise GateError("human gate deve ser objeto")
         allowed = {"owner", "identity", "decision", "scope", "run", "run_id",
                    "evidence_digest", "artifact_digest", "created_at", "updated_at",
@@ -526,6 +530,9 @@ class HumanVerificationGate:
         unknown = set(value) - allowed
         if reject_unknown and unknown:
             raise GateError("human gate contém campos desconhecidos")
+        if "run" in value and "run_id" in value:
+            if type(value["run"]) is not str or type(value["run_id"]) is not str:
+                raise GateError("run e run_id devem ser strings")
         if "run" in value and "run_id" in value and value["run"] != value["run_id"]:
             raise GateError("run e run_id conflitantes")
         run = value.get("run") if "run" in value else value.get("run_id")

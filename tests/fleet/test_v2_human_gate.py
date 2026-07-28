@@ -107,6 +107,37 @@ def test_from_dict_rejects_unknown_and_conflicting_alias_fields():
         HumanVerificationGate.from_dict({**payload, "run_id": "different"})
 
 
+def test_from_dict_rejects_hostile_mapping_at_the_boundary():
+    class Hostile(dict):
+        def __iter__(self):
+            raise RuntimeError("hostile iteration")
+
+    with pytest.raises(GateError):
+        HumanVerificationGate.from_dict(Hostile(approved().to_dict()))
+
+
+def test_from_dict_rejects_hostile_nested_scope_mapping():
+    class Hostile(dict):
+        def items(self):
+            raise RuntimeError("hostile items")
+
+    payload = approved().to_dict()
+    payload["scope"] = Hostile({"plan_hash": "safe"})
+    with pytest.raises(GateError):
+        HumanVerificationGate.from_dict(payload)
+
+
+def test_from_dict_rejects_hostile_nested_blocker_mapping():
+    class Hostile(dict):
+        def items(self):
+            raise RuntimeError("hostile items")
+
+    payload = approved().to_dict()
+    payload["blockers"] = [Hostile({"severity": "low", "status": "resolved"})]
+    with pytest.raises(GateError):
+        HumanVerificationGate.from_dict(payload)
+
+
 def test_human_gate_injected_clock_is_used_once_only_when_now_is_omitted():
     calls = []
 
