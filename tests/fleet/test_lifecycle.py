@@ -20,6 +20,17 @@ def running(max_attempts=2):
     return task
 
 
+class _HostileRepr:
+    def __repr__(self):
+        raise AssertionError("repr must not be called")
+
+
+def test_invalid_state_does_not_render_untrusted_value():
+    with pytest.raises(Exception, match="estado inválido") as exc:
+        TaskLifecycle("T1", state=_HostileRepr())
+    assert "repr must not be called" not in str(exc.value)
+
+
 def test_all_happy_path_transitions():
     task = TaskLifecycle("T1")
     assert task.state is LifecycleState.PENDING

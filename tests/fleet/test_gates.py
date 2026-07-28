@@ -15,6 +15,17 @@ def complete(kind="review", **overrides):
     return GateResult(**data)
 
 
+class _HostileRepr:
+    def __repr__(self):
+        raise AssertionError("repr must not be called")
+
+
+def test_invalid_status_does_not_render_untrusted_value():
+    with pytest.raises(GateError, match="status inválido") as exc:
+        GateResult("G1", "review", status=_HostileRepr())
+    assert "repr must not be called" not in str(exc.value)
+
+
 @pytest.mark.parametrize("kind", ["review", "grill", "smoke_test", "evidence"])
 def test_gate_types_and_default_policy(kind):
     result = complete(kind)

@@ -129,5 +129,13 @@ def test_unsupported_type_marker_never_reads_hostile_type_name():
 
     sink = AuditSink()
     sink.record("diagnostic", fields={"value": Hostile()})
-
     assert sink.export()["events"][0]["fields"]["value"] == "[UNSUPPORTED TYPE]"
+
+
+def test_control_characters_are_escaped_at_observability_boundary():
+    sink = AuditSink()
+    event = sink.record("controls", fields={"value": "ok\x00\x01\x1f\x7f\n\t"})
+    value = event.fields["value"]
+    assert value == "ok\\x00\\x01\\x1f\\x7f\n\t"
+    assert all(ord(char) >= 32 or char in "\n\t" for char in value)
+    assert "\\x00" in sink.export_json()

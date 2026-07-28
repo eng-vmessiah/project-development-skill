@@ -7,6 +7,7 @@ import re
 from threading import RLock
 from types import MappingProxyType
 from typing import Any
+from .safe_rendering import safe_text
 
 class ObservabilityError(ValueError):
     """Invalid or unsafe observability input."""
@@ -21,7 +22,7 @@ def _redact_text(value: str, limit: int) -> str:
     value = _URL.sub("[URL REDACTED]", value)
     value = _PATH.sub("[PATH REDACTED]", value)
     value = _SECRET.sub("[SECRET REDACTED]", value)
-    return _SECRET_VALUE.sub("[SECRET REDACTED]", value)[:limit]
+    return safe_text(_SECRET_VALUE.sub("[SECRET REDACTED]", value), "[UNSUPPORTED TYPE]", limit=limit)
 
 def _immutable(value: Any, *, depth: int = 0, max_depth: int = 8,
                max_fields: int = 32, max_string_length: int = 1024) -> Any:

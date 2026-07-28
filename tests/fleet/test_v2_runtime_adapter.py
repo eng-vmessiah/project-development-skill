@@ -236,3 +236,11 @@ def test_dry_run_unknown_value_uses_fixed_marker_without_str():
     adapter = TemplateRuntimeAdapter("hermes/openai-codex", envelope.provider_profile, ("tool",))
     result = adapter.dry_run(envelope, bridge=lambda *_args, **_kwargs: Hostile())
     assert result.output == "[UNSUPPORTED TYPE]"
+
+
+def test_runtime_result_escapes_control_characters_before_callers_can_inspect_it() -> None:
+    result = RuntimeResult(RuntimeStatus.OK, output="ok\x00\x01\x1f\x7f\n\t",
+                           metadata={"details": "meta\x00\x02\x7f"})
+    assert result.output == "ok\\x00\\x01\\x1f\\x7f\n\t"
+    assert result.metadata["details"] == "meta\\x00\\x02\\x7f"
+    assert "\x00" not in result.output and "\x7f" not in result.output

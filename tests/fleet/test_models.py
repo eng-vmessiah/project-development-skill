@@ -17,6 +17,17 @@ from pd_fleet.models import (  # noqa: E402
 MIN_TASK = {"id": "T-1", "wave": 1, "role": "coder", "objective": "build it"}
 
 
+class _HostileRepr:
+    def __repr__(self):
+        raise AssertionError("repr must not be called")
+
+
+def test_invalid_schema_version_does_not_render_untrusted_value():
+    with pytest.raises(FleetPlanError, match="schema_version não suportada") as exc:
+        FleetPlan.from_dict({"schema_version": _HostileRepr()})
+    assert "repr must not be called" not in str(exc.value)
+
+
 def test_defaults_and_contract_fields_are_normalized():
     task = TaskSpec.from_dict({**MIN_TASK, "retry_policy": {"max_attempts": 2}, "outputs": ["artifact"]})
     assert task.status == "pending"

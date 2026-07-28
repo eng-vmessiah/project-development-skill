@@ -117,7 +117,7 @@ def _redact(value: Any, *, key: str = "") -> Any:
     if isinstance(value, (list, tuple)):
         return [_redact(v) for v in value]
     if isinstance(value, str):
-        return _PATH.sub("[PATH REDACTED]", _SECRET_VALUE.sub("[SECRET REDACTED]", value))
+        return safe_text(_PATH.sub("[PATH REDACTED]", _SECRET_VALUE.sub("[SECRET REDACTED]", value)), RUNTIME_ERROR)
     return value
 
 

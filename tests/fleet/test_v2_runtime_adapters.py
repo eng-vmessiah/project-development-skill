@@ -149,3 +149,9 @@ def test_result_parser_rejects_oversized_jsonl_combined_result() -> None:
     result = parse_runtime_output(payload)
     assert result.status.value == "failed"
     assert result.error_code == "sandbox_failed"
+
+
+def test_result_parser_escapes_control_characters_in_output_and_stderr() -> None:
+    result = parse_runtime_output('{"output":"ok\\u0000\\u0001\\u007f"}', stderr="err\x00\x01\x7f")
+    assert result.output == "ok\\x00\\x01\\x7f"
+    assert result.metadata["stderr"] == "err\\x00\\x01\\x7f"

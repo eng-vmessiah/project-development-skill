@@ -301,7 +301,7 @@ class FleetPlan:
             raise FleetPlanError("fleet plan deve ser um objeto")
         schema_version = value.get("schema_version", SCHEMA_VERSION)
         if not isinstance(schema_version, str) or schema_version != SCHEMA_VERSION:
-            raise FleetPlanError(f"schema_version não suportada: {schema_version!r}")
+            raise FleetPlanError("schema_version não suportada")
         plan = cls(schema_version,
                    [AgentSpec.from_dict(x) for x in _list(value.get("agents"), "agents")],
                    [WaveSpec.from_dict(x) for x in _list(value.get("waves"), "waves")],

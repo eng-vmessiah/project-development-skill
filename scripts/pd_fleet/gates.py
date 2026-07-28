@@ -111,10 +111,12 @@ def _text(value: Any, name: str, required: bool = True) -> str | None:
 
 
 def _status(value: Any) -> GateStatus:
+    if not isinstance(value, GateStatus) and type(value) is not str:
+        raise GateError("status inválido")
     try:
         return value if isinstance(value, GateStatus) else GateStatus(value)
     except (ValueError, TypeError) as exc:
-        raise GateError(f"status inválido: {value!r}") from exc
+        raise GateError("status inválido") from exc
 
 
 def _items(value: Any, name: str) -> list[Any]:
@@ -192,7 +194,7 @@ class GateResult:
         self.gate_id = cast(str, _text(self.gate_id, "gate_id"))
         self.gate_type = cast(str, _text(self.gate_type, "gate_type"))
         if self.gate_type not in {x.value for x in GateType}:
-            raise GateError(f"gate_type inválido: {self.gate_type!r}")
+            raise GateError("gate_type inválido")
         current = _status(self.status)
         self.status = cast(GateStatus, current)
         self.owner = _text(self.owner, "owner", required=False)
@@ -270,7 +272,7 @@ class GatePolicy:
             if type(kind) is not str or not kind:
                 raise GateError("requirements contém chave JSON inválida")
             if kind not in {x.value for x in GateType}:
-                raise GateError(f"gate_type inválido: {kind!r}")
+                raise GateError("gate_type inválido")
             if not isinstance(req, Mapping):
                 raise GateError("requirements deve conter objetos")
             safe_req = _safe(req, f"requirements.{kind}")
@@ -433,7 +435,7 @@ class HumanVerificationGate:
                    "freshness_window", "blockers"}
         unknown = set(value) - allowed
         if reject_unknown and unknown:
-            raise GateError(f"human gate contém campos desconhecidos: {sorted(unknown)!r}")
+            raise GateError("human gate contém campos desconhecidos")
         if "run" in value and "run_id" in value and value["run"] != value["run_id"]:
             raise GateError("run e run_id conflitantes")
         run = value.get("run") if "run" in value else value.get("run_id")

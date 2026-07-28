@@ -50,10 +50,12 @@ VALID_TRANSITIONS: dict[LifecycleState, frozenset[LifecycleState]] = {
 
 
 def _state(value: LifecycleState | str) -> LifecycleState:
+    if not isinstance(value, LifecycleState) and type(value) is not str:
+        raise LifecycleError("estado inválido")
     try:
         return value if isinstance(value, LifecycleState) else LifecycleState(value)
-    except ValueError as exc:
-        raise LifecycleError(f"estado inválido: {value!r}") from exc
+    except (TypeError, ValueError) as exc:
+        raise LifecycleError("estado inválido") from exc
 
 
 def _has(value: Any) -> bool:
