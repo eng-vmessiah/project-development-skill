@@ -537,7 +537,7 @@ class FleetOrchestrator:
         by_id = {t.id: t for t in self.plan.tasks}
         completed = {i for i, l in self.lifecycles.items() if l.state in {LifecycleState.COMPLETED, LifecycleState.SKIPPED}}
         skipped = {i for i, l in self.lifecycles.items() if l.state == LifecycleState.SKIPPED}
-        passed = {i for i, g in self.gates.items() if self._gate_passed(g)}
+        passed = {i for i, g in self.gates.items() if self._current_gate_passed(g)}
         return tuple(i for i in compute_ready_tasks(self.plan, completed=completed, skipped=skipped, gates_passed=passed)
                       if self._inputs_available(by_id[i]) and not self._blocked_condition(by_id[i])
                       and self._agent_compatible(by_id[i]))
@@ -894,13 +894,39 @@ class FleetOrchestrator:
                 self.reports.append(_sanitize_payload(report))
 
     @staticmethod
-    def _gate_passed(gate: Any) -> bool:
+    def _canonical_gate_scope(value: Any) -> dict[str, Any] | None:
+        """Normalize the JSON scope without comparing serialized representations."""
+        if not isinstance(value, Mapping):
+            return None
+        if set(value) != {"schema_version", "plan_hash", "tasks", "waves"}:
+            return None
+        schema_version = value.get("schema_version")
+        plan_hash = value.get("plan_hash")
+        tasks = value.get("tasks")
+        waves = value.get("waves")
+        if (type(schema_version) is not str or type(plan_hash) is not str or
+                not isinstance(tasks, (list, tuple)) or not isinstance(waves, (list, tuple))):
+            return None
+        if any(type(item) is not str for item in tasks) or any(type(item) is not str for item in waves):
+            return None
+        return {"schema_version": schema_version, "plan_hash": plan_hash,
+                "tasks": sorted(tasks), "waves": sorted(set(waves))}
+
+    @staticmethod
+    def _gate_passed(gate: Any, *, expected_run: str | None = None,
+                     expected_scope: Mapping[str, Any] | None = None) -> bool:
         if gate is None:
             return False
-        # Governance gates require an explicit human verification record.  A
-        # structurally complete automatic GateResult must never substitute for
-        # that approval.
+        # Governance gates require an explicit human verification record and a
+        # binding to the current run and complete plan scope. This is context
+        # binding only; identity remains audit metadata, not authentication.
         if HumanVerificationGate is not None and isinstance(gate, HumanVerificationGate):
+            actual_scope = FleetOrchestrator._canonical_gate_scope(gate.scope)
+            current_scope = FleetOrchestrator._canonical_gate_scope(expected_scope)
+            if (type(expected_run) is not str or not expected_run.strip() or
+                    expected_scope is None or current_scope is None or gate.run != expected_run or
+                    actual_scope != current_scope):
+                return False
             try:
                 return bool(gate.allows())
             except Exception:
@@ -910,6 +936,13 @@ class FleetOrchestrator:
                           "artifact_digest", "freshness_window"}
             has_run = "run" in gate or "run_id" in gate
             if human_keys.issubset(gate) and has_run:
+                actual_scope = FleetOrchestrator._canonical_gate_scope(gate.get("scope"))
+                current_scope = FleetOrchestrator._canonical_gate_scope(expected_scope)
+                if (type(expected_run) is not str or not expected_run.strip() or
+                        expected_scope is None or current_scope is None or
+                        gate.get("run", gate.get("run_id")) != expected_run or
+                        actual_scope != current_scope):
+                    return False
                 try:
                     return bool(HumanVerificationGate.from_dict(gate).allows()) if HumanVerificationGate is not None else False
                 except Exception:
@@ -918,8 +951,7 @@ class FleetOrchestrator:
             if str(gate_type) in {"review", "grill"}:
                 return False
         # Automatic contract GateResult (or its mapping form) remains policy
-        # evaluated; status alone must never grant access.  Governance result
-        # objects are denied before reaching the generic policy path.
+        # evaluated; status alone must never grant access.
         if GateResult is not None and isinstance(gate, GateResult) and gate.gate_type in {"review", "grill"}:
             return False
         if GateResult is not None and (isinstance(gate, GateResult) or
@@ -928,9 +960,20 @@ class FleetOrchestrator:
                 return bool(FleetOrchestrator._policy.allows(gate))
             except Exception:
                 return False
-        # GateSpec/status-only records are declarations, not authorization.
-        # Only a complete GateResult (or its mapping representation) can pass.
         return False
+
+    def plan_hash(self) -> str:
+        """Return the canonical digest used to bind human gate scope."""
+        return self._plan_digest(self)
+
+    def _gate_scope(self) -> dict[str, Any]:
+        return {"schema_version": "pd-fleet-gate-scope:v1", "plan_hash": self.plan_hash(),
+                "tasks": sorted(task.id for task in self.plan.tasks),
+                "waves": sorted({str(task.wave) for task in self.plan.tasks})}
+
+    def _current_gate_passed(self, gate: Any) -> bool:
+        return self._gate_passed(gate, expected_run=self.run_id,
+                                 expected_scope=self._gate_scope())
 
     _policy = ContractGatePolicy() if ContractGatePolicy else LifecycleGatePolicy()
 
@@ -960,7 +1003,7 @@ class FleetOrchestrator:
         return tuple(i for i in compute_ready_tasks(self.plan,
             completed={i for i,l in self.lifecycles.items() if l.state in {LifecycleState.COMPLETED, LifecycleState.SKIPPED}},
             skipped={i for i,l in self.lifecycles.items() if l.state == LifecycleState.SKIPPED},
-            gates_passed={i for i,g in self.gates.items() if self._gate_passed(g)})
+            gates_passed={i for i,g in self.gates.items() if self._current_gate_passed(g)})
             if self.lifecycles[i].state in {LifecycleState.PENDING, LifecycleState.READY}
             and i not in self._dry_run_seen
             and self._agent_compatible(by_id[i]))
@@ -1214,7 +1257,7 @@ class FleetOrchestrator:
             life = self.lifecycles[task_id]
             if life.state in {LifecycleState.PENDING, LifecycleState.READY}:
                 required = [g for w in self.plan.waves if self._wave_key(str(w.id)) == self._wave_key(wave) for g in w.gates]
-                missing = [g for g in required if not self._gate_passed(self.gates.get(g))]
+                missing = [g for g in required if not self._current_gate_passed(self.gates.get(g))]
                 if missing:
                     life.block("gate: " + ", ".join(sorted(missing))); self._notify(life); self._checkpoint()
 

@@ -27,6 +27,15 @@ def _human_payload() -> dict:
     }
 
 
+_EXPECTED_RUN = "run-123"
+_EXPECTED_SCOPE = {
+    "schema_version": "pd-fleet-gate-scope:v1",
+    "plan_hash": _DIGEST,
+    "tasks": ["task-a", "task-b"],
+    "waves": ["wave-1", "wave-2"],
+}
+
+
 def _passed_result(gate_type: str) -> GateResult:
     return GateResult(
         gate_id=f"gate-{gate_type}",
@@ -46,15 +55,37 @@ def test_structural_passed_governance_results_are_denied():
 
 
 def test_valid_human_verification_gate_is_accepted():
-    gate = HumanVerificationGate.from_dict(_human_payload())
-    assert FleetOrchestrator._gate_passed(gate)
-    assert FleetOrchestrator._gate_passed(_human_payload())
+    payload = _human_payload()
+    payload["scope"] = {**_EXPECTED_SCOPE, "tasks": ["task-b", "task-a"], "waves": ["wave-2", "wave-1"]}
+    gate = HumanVerificationGate.from_dict(payload)
+    assert FleetOrchestrator._gate_passed(gate, expected_run=_EXPECTED_RUN, expected_scope=_EXPECTED_SCOPE)
+    assert FleetOrchestrator._gate_passed(payload, expected_run=_EXPECTED_RUN, expected_scope=_EXPECTED_SCOPE)
 
 
 def test_malformed_human_mapping_is_denied():
     payload = _human_payload()
     del payload["evidence_digest"]
+    assert not FleetOrchestrator._gate_passed(payload, expected_run=_EXPECTED_RUN, expected_scope=_EXPECTED_SCOPE)
+
+
+def test_human_gate_wrong_run_is_denied():
+    payload = _human_payload()
+    payload["scope"] = _EXPECTED_SCOPE
+    assert not FleetOrchestrator._gate_passed(payload, expected_run="run-other", expected_scope=_EXPECTED_SCOPE)
+
+
+def test_human_gate_wrong_scope_is_denied():
+    payload = _human_payload()
+    payload["scope"] = {**_EXPECTED_SCOPE, "plan_hash": "b" * 64}
+    assert not FleetOrchestrator._gate_passed(payload, expected_run=_EXPECTED_RUN, expected_scope=_EXPECTED_SCOPE)
+
+
+def test_human_gate_without_current_context_is_denied():
+    payload = _human_payload()
+    payload["scope"] = _EXPECTED_SCOPE
     assert not FleetOrchestrator._gate_passed(payload)
+    assert not FleetOrchestrator._gate_passed(payload, expected_run=None, expected_scope=_EXPECTED_SCOPE)
+    assert not FleetOrchestrator._gate_passed(payload, expected_run=_EXPECTED_RUN, expected_scope=None)
 
 
 def test_automatic_gate_results_remain_policy_evaluated():

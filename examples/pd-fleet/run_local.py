@@ -150,12 +150,17 @@ def run(plan_path: Path, output_dir: Path) -> int:
     preflight_evidence = {_identity("evidence", "preflight"): preflight_ev}
     preflight_reports = {_identity("report", "preflight"): preflight_report}
     now = datetime.now(timezone.utc)
+    orchestrator = FleetOrchestrator(plan, dispatcher=Dispatcher(), gates={}, run_id="local-run")
     g1 = HumanVerificationGate(
         owner="local-simulated", identity="local-human@example.test", decision="APPROVED",
-        scope="local-preflight", run="local-run", evidence_digest="a" * 64,
+        scope={"schema_version": "pd-fleet-gate-scope:v1", "plan_hash": orchestrator.plan_hash(),
+               "tasks": sorted(task.id for task in plan.tasks),
+               "waves": sorted({str(task.wave) for task in plan.tasks})},
+        run=orchestrator.run_id, evidence_digest="a" * 64,
         artifact_digest="b" * 64, created_at=now, updated_at=now,
         freshness_window=timedelta(hours=1),
     )
+    orchestrator.gates = {"G1": g1}
     output_dir.mkdir(parents=True, exist_ok=True)
     # Every file below output_dir is created by this example; input is read-only.
     results_dir = _output_path(output_dir, "results")
@@ -163,7 +168,6 @@ def run(plan_path: Path, output_dir: Path) -> int:
 
     contracts = [_contract(plan, task) for task in sorted(plan.tasks, key=lambda t: t.id)]
     _json_write(_output_path(output_dir, "contracts.json"), [c.to_dict() for c in contracts])
-    orchestrator = FleetOrchestrator(plan, dispatcher=Dispatcher(), gates={"G1": g1})
     execution = orchestrator.run()
 
     evidence: list[EvidenceRecord] = []
