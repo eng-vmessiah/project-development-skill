@@ -69,3 +69,49 @@ def test_invalid_ids_and_external_sinks_are_not_supported():
         sink.record("x", run_id="../secret", task_id="t")
     with pytest.raises(ObservabilityError):
         sink.record("x", run_id="r", task_id="t", correlation_id="")
+
+
+class _HostileObject:
+    renders = 0
+
+    def __repr__(self):
+        type(self).renders += 1
+        raise AssertionError("repr must not be called")
+
+    def __str__(self):
+        type(self).renders += 1
+        raise AssertionError("str must not be called")
+
+
+def test_unknown_objects_are_marked_without_rendering_them():
+    _HostileObject.renders = 0
+    sink = AuditSink()
+
+    sink.record("diagnostic", fields={"value": _HostileObject()})
+
+    assert sink.export()["events"][0]["fields"]["value"] == "[UNSUPPORTED TYPE: _HostileObject]"
+    assert _HostileObject.renders == 0
+
+
+def test_mapping_keys_are_validated_before_sorting_without_stringifying_them():
+    _HostileObject.renders = 0
+    sink = AuditSink()
+
+    with pytest.raises(ObservabilityError, match="field keys must be non-empty strings"):
+        sink.record("diagnostic", fields={_HostileObject(): "value", "valid": "ok"})
+
+    assert _HostileObject.renders == 0
+
+
+def test_sets_are_deterministic_without_repr_or_string_conversion():
+    _HostileObject.renders = 0
+    first = AuditSink()
+    second = AuditSink()
+    values = {"z", _HostileObject(), 3}
+
+    first.record("diagnostic", fields={"values": values})
+    second.record("diagnostic", fields={"values": set(values)})
+
+    assert first.export_json() == second.export_json()
+    assert "[UNSUPPORTED TYPE: _HostileObject]" in first.export_json()
+    assert _HostileObject.renders == 0

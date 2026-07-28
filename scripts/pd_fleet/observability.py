@@ -32,17 +32,21 @@ def _immutable(value: Any, *, depth: int = 0, max_depth: int = 8,
         return value
     if type(value) is str: return _redact_text(value, max_string_length)
     if isinstance(value, Mapping):
+        keys = list(value)
+        if any(type(key) is not str or not key for key in keys):
+            raise ObservabilityError("field keys must be non-empty strings")
         result = {}
-        for key in sorted(value, key=lambda item: str(item))[:max_fields]:
-            if type(key) is not str or not key: raise ObservabilityError("field keys must be non-empty strings")
+        for key in sorted(keys)[:max_fields]:
             normalized = re.sub(r"[^a-z0-9]", "", key.lower())
             result[key] = "[SECRET REDACTED]" if any(word in normalized for word in ("credential", "secret", "token", "password", "apikey", "accesskey", "accesstoken", "privatekey", "authorization")) else _immutable(value[key], depth=depth + 1, max_depth=max_depth, max_fields=max_fields, max_string_length=max_string_length)
         return MappingProxyType(result)
     if isinstance(value, (list, tuple)):
         return tuple(_immutable(item, depth=depth + 1, max_depth=max_depth, max_fields=max_fields, max_string_length=max_string_length) for item in value[:max_fields])
     if isinstance(value, (set, frozenset)):
-        return tuple(_immutable(item, depth=depth + 1, max_depth=max_depth, max_fields=max_fields, max_string_length=max_string_length) for item in sorted(value, key=repr)[:max_fields])
-    return _redact_text(repr(value), max_string_length)
+        normalized = [_immutable(item, depth=depth + 1, max_depth=max_depth, max_fields=max_fields, max_string_length=max_string_length) for item in value]
+        normalized.sort(key=lambda item: json.dumps(_plain(item), ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False))
+        return tuple(normalized[:max_fields])
+    return f"[UNSUPPORTED TYPE: {type(value).__name__}]"
 
 def _plain(value: Any) -> Any:
     if isinstance(value, Mapping): return {key: _plain(item) for key, item in value.items()}

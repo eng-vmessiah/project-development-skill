@@ -12,7 +12,7 @@ from pd_fleet.contracts import AgentReportV2
 from pd_fleet.checkpoint import Checkpoint
 from pd_fleet.models import TaskSpec
 from pd_fleet.orchestrator import FleetOrchestrator
-from pd_fleet.orchestrator_provider import ProviderDispatchAdapter
+from pd_fleet.orchestrator_provider import ProviderDispatchAdapter, _safe_text
 from pd_fleet.provider import CommandMetadata, RuntimePolicy, RuntimeProviderProfile
 from pd_fleet.provider_dispatch import DispatchStatus, ProviderDispatchBoundary
 from pd_fleet.provider_routing import ProviderRoutePolicy
@@ -64,6 +64,37 @@ def test_provider_dispatch_adapter_returns_validated_report_and_safe_request():
     assert report.outputs["runtime_output"] == "done [SECRET REDACTED]"
     assert dict(report.evidence)["status"] == "ok"
     assert dict(runtime.envelope.metadata) == {"lease_attempt": 3, "role": "builder", "wave": "2"}
+
+
+def test_provider_output_and_error_are_marked_without_rendering_unknown_objects():
+    class Hostile:
+        renders = 0
+
+        def __repr__(self):
+            type(self).renders += 1
+            raise AssertionError("repr must not be called")
+
+        def __str__(self):
+            type(self).renders += 1
+            raise AssertionError("str must not be called")
+
+    assert _safe_text(Hostile()) == "[UNSUPPORTED TYPE: Hostile]"
+    assert Hostile.renders == 0
+
+    profile = _profile()
+    output_result = RuntimeResult(RuntimeStatus.OK, output="placeholder")
+    object.__setattr__(output_result, "output", Hostile())
+    runtime = _Adapter(profile, output_result)
+    boundary = ProviderDispatchBoundary(catalog=(profile,), adapters={"fake/runtime": runtime},
+                                        runners={"fake/runtime": object()})
+    adapter = ProviderDispatchAdapter(boundary, ProviderRoutePolicy(
+        preferred_ids=("fake/runtime",), required_capabilities=("read",)), "run", "worker")
+    lease = {"task_id": "task", "attempt": 1, "lease_id": "lease-1", "owner": "worker",
+             "generation": 0, "expires_at": "2999-01-01T00:00:00Z"}
+    report = adapter.run(_task(), lease)
+    assert report.outputs["runtime_output"] == "[UNSUPPORTED TYPE: Hostile]"
+    assert _safe_text(Hostile()) == "[UNSUPPORTED TYPE: Hostile]"
+    assert Hostile.renders == 0
 
 
 def test_provider_failure_is_terminal_failure_without_boundary_fallback():
