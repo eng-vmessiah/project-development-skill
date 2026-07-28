@@ -104,3 +104,11 @@ Próxima fatia recomendada: corrigir os seis HIGH com testes red-first e revisã
 - Review independente: PASS; 94 testes focados.
 - Artefato: `artifacts/v2/GRILL-001-H01-resolution.json`.
 - **Status global:** permanece **BLOCKED_NOT_READY**; HIGH-02…HIGH-06 continuam abertos.
+
+## Atualização GRILL-H02 — 2026-07-28
+
+- HIGH-02 resolvido localmente no commit `b2fb44ae2c4a4a0a1522544c15f675df89d26293`.
+- Testes RED reproduziram bypasses `private-key`/`Bearer` assignment; H02R fechou esses casos e preservou lookalikes inertes.
+- Review independente: PASS; 121 focados, 939 totais.
+- Artefato: `artifacts/v2/GRILL-001-H02-resolution.json`.
+- **Status global:** permanece **BLOCKED_NOT_READY**; HIGH-03…HIGH-06 continuam abertos.

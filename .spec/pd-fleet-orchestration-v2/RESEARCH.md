@@ -118,3 +118,12 @@ Artefato: `artifacts/v2/GRILL-001-findings.json`. A classificação formal é **
 - Artefato: `artifacts/v2/GRILL-001-H01-resolution.json`.
 - Review independente: PASS; 94 testes focados.
 - O relatório histórico GRILL-001 permanece BLOCKED pelos outros cinco HIGH.
+
+## GRILL-H02 — resolução local
+
+- Status: **RESOLVED_LOCALLY** no commit `b2fb44ae2c4a4a0a1522544c15f675df89d26293`.
+- Provider metadata agora rejeita assignments explícitos de credencial e formas `Bearer` antes de redaction/immutable storage, inclusive em nested/list values.
+- Lookalikes inertes continuam aceitos; redaction de chave/path/URL foi preservada.
+- Artefato: `artifacts/v2/GRILL-001-H02-resolution.json`.
+- Review independente: PASS; 121 testes focados e 939 totais.
+- O relatório histórico GRILL-001 permanece BLOCKED pelos HIGH restantes.

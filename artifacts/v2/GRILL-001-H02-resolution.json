@@ -1,0 +1,16 @@
+{
+  "change": "Provider metadata now rejects explicit credential assignments and Bearer forms in arbitrary string values before redaction/immutable storage, including nested/list values.",
+  "commit": "b2fb44ae2c4a4a0a1522544c15f675df89d26293",
+  "evidence": [
+    "RED bypass tests: 5 failures before H02R",
+    "provider boundary GREEN: 40 passed after H02R",
+    "parent focused matrix: 62 passed",
+    "independent adversarial review: 121 focused and 939 full passed",
+    "case/Unicode whitespace/separator/quoted/multiline/nested bypass matrix passed",
+    "git diff --check: clean"
+  ],
+  "finding_id": "GRILL-H02",
+  "residual": "The historical GRILL-001 report remains BLOCKED; HIGH-03 through HIGH-06 remain open.",
+  "schema_version": "pd-fleet-grill-001-resolution:v1",
+  "status": "RESOLVED_LOCALLY"
+}
