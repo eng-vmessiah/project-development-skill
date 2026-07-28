@@ -1,8 +1,15 @@
 # Cross-boundary TDD reference
 
+This is an **optional, implementation-specific example** for projects that have
+TypeScript/LLM telemetry or similar cross-boundary infrastructure. It is not a
+required PD contract and does not replace the canonical `.spec/<feature>/`
+control plane. If a project has native planning files, they may mirror or
+reference the PD state, but `.spec/<feature>/` remains the source of truth for
+PD-managed work.
+
 For long-running backend resilience work:
 
-1. Keep the repository-native plan/checkpoints as the state spine when the project already has one.
+1. Keep repository-native plans/checkpoints synchronized as complementary project records; keep `.spec/<feature>/` as the PD state spine.
 2. For every boundary, write a focused RED test that inspects the actual outbound request or persisted record, not only a regression suite.
 3. Apply shared context helpers (`requestId`, `traceId`, `attempt`) at the boundary while preserving auth and payload contracts.
 4. For durable telemetry, test in layers: safe event builder → idempotent persistence → migration schema → call-site integration → full suite.
