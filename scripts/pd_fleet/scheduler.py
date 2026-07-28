@@ -73,18 +73,21 @@ class LeaseScheduler:
                 result[task["id"]] = task
         return result
 
-    def ready_ids(self) -> list[str]:
-        """Return ready IDs in canonical lexical order without mutating state."""
-        state = self._snapshot()
-        tasks = self._task_map(state)
-        completed = {tid for tid, value in state.get("tasks", {}).items()
+    @classmethod
+    def _ready_ids_from_state(cls, state: Mapping[str, Any]) -> list[str]:
+        """Compute ready IDs from one state snapshot without mutating it."""
+        tasks = cls._task_map(state)
+        task_state = state.get("tasks", {})
+        reports = state.get("reports", {})
+        completed = {tid for tid, value in task_state.items()
                      if isinstance(value, Mapping) and value.get("status") == "completed"}
-        completed.update(tid for tid, value in state.get("reports", {}).items()
+        completed.update(tid for tid, value in reports.items()
                         if isinstance(value, Mapping) and value.get("status") == "completed")
         result = []
         for task_id in sorted(tasks):
             task = tasks[task_id]
-            status = state.get("tasks", {}).get(task_id, {}).get("status", task.get("status", "pending"))
+            value = task_state.get(task_id, {})
+            status = value.get("status", task.get("status", "pending")) if isinstance(value, Mapping) else task.get("status", "pending")
             if status in {"completed", "failed", "blocked", "orphaned"} or task_id in state.get("leases", {}):
                 continue
             deps = task.get("depends_on", task.get("dependencies", ()))
@@ -93,6 +96,10 @@ class LeaseScheduler:
             if all(dep in completed for dep in deps):
                 result.append(task_id)
         return result
+
+    def ready_ids(self) -> list[str]:
+        """Return ready IDs in canonical lexical order without mutating state."""
+        return self._ready_ids_from_state(self._snapshot())
 
     # Explicit aliases make the read-only selection API convenient to adapters.
     select_ready = ready_ids
@@ -124,11 +131,14 @@ class LeaseScheduler:
             if requested > capacity:
                 raise CapacityExceeded("bounded capacity exceeded")
             tasks = self._task_map(state)
+            ready = set(self._ready_ids_from_state(state))
             occupied = [_paths(tasks[tid]) for tid in state.get("leases", {}) if tid in tasks]
             selected: list[str] = []
-            for task_id in available:
+            for task_id in sorted(available):
                 if len(selected) >= requested:
                     break
+                if task_id not in ready:
+                    continue
                 paths = _paths(tasks[task_id])
                 if any(_overlap(paths, other) for other in occupied) or any(_overlap(paths, _paths(tasks[tid])) for tid in selected):
                     raise OwnershipConflict("task paths overlap")

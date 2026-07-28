@@ -24,6 +24,34 @@ def test_ready_ids_are_sorted_and_dependencies_are_barriers(tmp_path: Path):
     assert scheduler.ready_ids() == ["b", "child"]
 
 
+def test_claim_rechecks_dependency_barrier_when_ready_ids_is_stale(tmp_path: Path, monkeypatch):
+    store = FleetRunStore(tmp_path)
+    store.create("run", PLAN, "owner")
+    scheduler = LeaseScheduler(store, "run", "owner", max_parallel=1)
+    monkeypatch.setattr(scheduler, "ready_ids", lambda: ["child"])
+
+    assert scheduler.claim("worker", limit=1) == []
+    assert store.load("run")["leases"] == {}
+
+
+def test_claim_can_select_dependency_ready_in_locked_snapshot(tmp_path: Path, monkeypatch):
+    store = FleetRunStore(tmp_path)
+    store.create("run", PLAN, "owner")
+    scheduler = LeaseScheduler(store, "run", "owner", max_parallel=1)
+    monkeypatch.setattr(scheduler, "ready_ids", lambda: ["child"])
+
+    original_claim_many = store.claim_many
+
+    def complete_dependency_then_claim(*args, **kwargs):
+        store._mutate("run", "owner", None, lambda state: state["tasks"].update({"a": {"status": "completed"}}))
+        return original_claim_many(*args, **kwargs)
+
+    monkeypatch.setattr(store, "claim_many", complete_dependency_then_claim)
+    claimed = scheduler.claim("worker", limit=1)
+
+    assert [token["task_id"] for token in claimed] == ["child"]
+
+
 def test_claims_are_bounded_and_release_allows_reuse(tmp_path: Path):
     store = FleetRunStore(tmp_path)
     store.create("run", PLAN, "owner")
