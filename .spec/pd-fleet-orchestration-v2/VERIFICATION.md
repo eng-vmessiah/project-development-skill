@@ -86,3 +86,12 @@ Rollback seguro: desabilitar a entrada/feature V2, preservar snapshots, eventos 
 - SHA-256 bruto atual do artefato: `04ae0076e543bdb9c80926c6aae2883b6b6b15b8d20e56ec1af13ef0554e6430`.
 
 **Classificação:** evidência local fresca, **NOT READY / PARTIAL**. Esta coleta não fecha GRILL-001, G2–G5 ou G6 e não constitui aprovação humana/release PASS.
+
+## GRILL-001 — 2026-07-28 — BLOCKED
+
+- Review independente: **6 HIGH, 6 MEDIUM, 2 LOW**.
+- Artefato: `artifacts/v2/GRILL-001-findings.json`.
+- Findings HIGH reproduzidos ou confirmados por inspeção: PATH-controlled readiness execution, human-gate scope/run bypass, provider free-form secret leakage, missing use fence, dependency readiness TOCTOU e GateResult substituindo HumanVerificationGate.
+- **Decisão:** GRILL-001 não passa. O status permanece **NOT READY / PARTIAL**; não existe aprovação humana G6.
+
+Próxima fatia recomendada: corrigir os seis HIGH com testes red-first e revisão independente antes de reabrir qualquer gate formal.

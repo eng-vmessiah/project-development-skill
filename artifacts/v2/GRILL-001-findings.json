@@ -1,0 +1,152 @@
+{
+  "counts": {
+    "HIGH": 6,
+    "LOW": 2,
+    "MEDIUM": 6
+  },
+  "decision": "BLOCKED_NOT_READY",
+  "evidence": [
+    "401 V2 tests passed",
+    "921 full tests passed",
+    "84 focused security tests passed in reviewer run",
+    "42 focused persistence/concurrency tests passed in reviewer run",
+    "190 focused contract/gate tests passed in reviewer run",
+    "PATH-controlled execution probe reproduced",
+    "HumanVerificationGate scope/run bypass probe reproduced",
+    "provider free-form secret leakage pattern reproduced"
+  ],
+  "findings": [
+    {
+      "area": "security",
+      "evidence": "Independent probe placed a temporary executable first in PATH and observed a marker file created by its execution.",
+      "id": "GRILL-H01",
+      "location": "scripts/pd_fleet/provider_readiness.py:75-93,197-207",
+      "recommendation": "Require an injected runner-issued capability and immutable allowlisted executable metadata; remove ambient PATH/default subprocess execution.",
+      "severity": "HIGH",
+      "title": "Local readiness probe executes PATH-controlled binaries without sandbox capability"
+    },
+    {
+      "area": "security",
+      "evidence": "Provider metadata under an innocuous key preserved a credential-assignment pattern in its string value.",
+      "id": "GRILL-H02",
+      "location": "scripts/pd_fleet/provider.py:129-139, provider metadata projection",
+      "recommendation": "Reject or redact credential assignments in arbitrary string values, not only sensitive keys.",
+      "severity": "HIGH",
+      "title": "Provider metadata redaction misses free-form secret assignments"
+    },
+    {
+      "area": "persistence",
+      "evidence": "V2 path obtains lease and runs adapter without FleetRunStore.use before side effects; final commit fencing is too late.",
+      "id": "GRILL-H03",
+      "location": "scripts/pd_fleet/orchestrator.py:596-644",
+      "recommendation": "Call use with immutable lease token immediately before provider/adapter execution and fail closed on stale lease.",
+      "severity": "HIGH",
+      "title": "Orchestrator does not fence lease immediately before adapter execution"
+    },
+    {
+      "area": "concurrency",
+      "evidence": "Dependency can change after ready_ids and before claim_many; claim_many does not revalidate dependency completion under the same lock.",
+      "id": "GRILL-H04",
+      "location": "scripts/pd_fleet/orchestrator.py:697-704; scheduler.py:121-141",
+      "recommendation": "Move dependency barrier evaluation into the locked claim selection.",
+      "severity": "HIGH",
+      "title": "Dependency readiness has a ready_ids to claim_many TOCTOU race"
+    },
+    {
+      "area": "authorization",
+      "evidence": "A passed GateResult with owner/decision/evidence/reports is accepted without human gate, scope, run, digest or freshness.",
+      "id": "GRILL-H05",
+      "location": "scripts/pd_fleet/orchestrator.py:531-541,881-896; gates.py:299-323",
+      "recommendation": "Require HumanVerificationGate for human-required gates and evaluate current run/scope/digests/freshness.",
+      "severity": "HIGH",
+      "title": "Ordinary GateResult can bypass HumanVerificationGate"
+    },
+    {
+      "area": "authorization",
+      "evidence": "Independent probe: gate recorded for one run/scope returns allows without expected scope/run inputs; evaluate has no such parameters.",
+      "id": "GRILL-H06",
+      "location": "scripts/pd_fleet/gates.py:342-345,387-409",
+      "recommendation": "Require expected current run and canonical scope in evaluate/allows and fail closed on mismatch.",
+      "severity": "HIGH",
+      "title": "HumanVerificationGate stored scope and run are not checked against operation"
+    },
+    {
+      "area": "security",
+      "evidence": "Unsupported objects invoke attacker-controlled repr during persistence/projection.",
+      "id": "GRILL-M01",
+      "location": "scripts/pd_fleet/observability.py:26-45",
+      "recommendation": "Reject unsupported objects; accept only exact JSON-safe types.",
+      "severity": "MEDIUM",
+      "title": "Observability serializes arbitrary objects through repr"
+    },
+    {
+      "area": "sandbox",
+      "evidence": "cwd can be replaced between resolve/validation and Popen; executable pinning exists but cwd pinning does not.",
+      "id": "GRILL-M02",
+      "location": "scripts/pd_fleet/sandbox.py:244-267,302-306",
+      "recommendation": "Pin/recheck cwd identity immediately before execution or require a real platform sandbox for hostile actors.",
+      "severity": "MEDIUM",
+      "title": "Sandbox cwd is path-validated but not descriptor-pinned"
+    },
+    {
+      "area": "persistence",
+      "evidence": "Expired leases can block overlapping path reuse even though claim_many treats them as available.",
+      "id": "GRILL-M03",
+      "location": "scripts/pd_fleet/scheduler.py:127-134",
+      "recommendation": "Filter occupancy by active expiry under the same clock/lock or move path selection into store claim.",
+      "severity": "MEDIUM",
+      "title": "Expired leases remain in scheduler path occupancy"
+    },
+    {
+      "area": "persistence",
+      "evidence": "claim computes expiry before _mutate lock; claim_many computes time under lock, creating inconsistent lease duration/fencing.",
+      "id": "GRILL-M04",
+      "location": "scripts/pd_fleet/run_store.py:382-391",
+      "recommendation": "Compute now/expiry inside the locked mutation callback.",
+      "severity": "MEDIUM",
+      "title": "Single-task claim computes expiry before acquiring store lock"
+    },
+    {
+      "area": "contracts",
+      "evidence": "Legacy from_dict boundaries accept unknown fields and drop them, unlike strict V2 parser.",
+      "id": "GRILL-M05",
+      "location": "scripts/pd_fleet/contracts.py:597-605,709-718; gates.py:209-220",
+      "recommendation": "Reject unknown fields or preserve under explicit versioned extensions.",
+      "severity": "MEDIUM",
+      "title": "Legacy parsers silently discard unknown fields"
+    },
+    {
+      "area": "evidence",
+      "evidence": "command plus exit_code=0 is accepted without executor provenance, output/artifact digest, scope or freshness window.",
+      "id": "GRILL-M06",
+      "location": "scripts/pd_fleet/evidence.py:79-109,193-233",
+      "recommendation": "Require executed-evidence provenance, bounded output/digest, scope and freshness for gate authorization.",
+      "severity": "MEDIUM",
+      "title": "Evidence record can be accepted without execution provenance or freshness"
+    },
+    {
+      "area": "evidence",
+      "evidence": "Two otherwise identical records without timestamp receive different now timestamps.",
+      "id": "GRILL-L01",
+      "location": "scripts/pd_fleet/evidence.py:68-76",
+      "recommendation": "Require explicit timestamp or inject a clock at orchestration boundary.",
+      "severity": "LOW",
+      "title": "Missing evidence timestamp uses wall clock and breaks deterministic serialization"
+    },
+    {
+      "area": "authorization",
+      "evidence": "Misspelled policy requirements are stored but ignored during evaluation.",
+      "id": "GRILL-L02",
+      "location": "scripts/pd_fleet/gates.py:265-283,299-320",
+      "recommendation": "Reject unknown requirement names or define versioned extensions.",
+      "severity": "LOW",
+      "title": "GatePolicy accepts unknown requirement keys silently"
+    }
+  ],
+  "notes": [
+    "Findings are blockers for formal G1/G2-G6 progression.",
+    "No human approval or release PASS is implied."
+  ],
+  "schema_version": "pd-fleet-grill-001:v1",
+  "scope": "local_adversarial_review"
+}

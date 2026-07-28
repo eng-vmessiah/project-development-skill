@@ -102,3 +102,9 @@ Esta matriz é o índice de auditoria obrigatório. `failing test exacto` nomeia
 A coleta atual confirmou, no workspace corrente, 401 testes V2 e 921 testes totais passando, além de compileall, diff-check e checker de paths com zero violações. O pacote `artifacts/v2/G1-fresh-verification.json` foi validado independentemente e não contém paths absolutos, segredos ou claim de aprovação.
 
 A evidência é local e fresca, mas o status permanece **NOT READY / PARTIAL**: GRILL-001, G2–G5 e a decisão humana G6 continuam pendentes.
+
+## GRILL-001 — 2026-07-28 — BLOCKED
+
+A revisão adversarial independente encontrou **6 HIGH, 6 MEDIUM e 2 LOW**. Os principais blockers são: execução de binary controlado por `PATH` na readiness probe sem sandbox capability; ausência de `use` imediatamente antes do adapter; corrida entre `ready_ids()` e `claim_many()`; bypass de `HumanVerificationGate` por `GateResult`; falta de comparação de `scope`/`run` no gate; e leakage de assignments de segredo em metadata de provider.
+
+Artefato: `artifacts/v2/GRILL-001-findings.json`. A classificação formal é **BLOCKED_NOT_READY**. A suíte verde não reduz esses findings nem concede G1/G6.
