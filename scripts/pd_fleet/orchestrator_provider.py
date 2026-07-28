@@ -28,7 +28,7 @@ _ASSIGN_RE = re.compile(r"(?i)\b(secret|token|password|credential|apikey|authori
 def _safe_text(value: Any) -> str:
     if value is None:
         return ""
-    text = value if type(value) is str else f"[UNSUPPORTED TYPE: {type(value).__name__}]"
+    text = value if type(value) is str else "[UNSUPPORTED TYPE]"
     text = _URL_RE.sub("[redacted-url]", text)
     text = _PATH_RE.sub("[redacted-path]", text)
     text = _SECRET_RE.sub("[redacted-secret]", text)

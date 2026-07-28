@@ -46,7 +46,7 @@ def _immutable(value: Any, *, depth: int = 0, max_depth: int = 8,
         normalized = [_immutable(item, depth=depth + 1, max_depth=max_depth, max_fields=max_fields, max_string_length=max_string_length) for item in value]
         normalized.sort(key=lambda item: json.dumps(_plain(item), ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False))
         return tuple(normalized[:max_fields])
-    return f"[UNSUPPORTED TYPE: {type(value).__name__}]"
+    return "[UNSUPPORTED TYPE]"
 
 def _plain(value: Any) -> Any:
     if isinstance(value, Mapping): return {key: _plain(item) for key, item in value.items()}

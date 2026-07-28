@@ -78,7 +78,7 @@ def test_provider_output_and_error_are_marked_without_rendering_unknown_objects(
             type(self).renders += 1
             raise AssertionError("str must not be called")
 
-    assert _safe_text(Hostile()) == "[UNSUPPORTED TYPE: Hostile]"
+    assert _safe_text(Hostile()) == "[UNSUPPORTED TYPE]"
     assert Hostile.renders == 0
 
     profile = _profile()
@@ -92,9 +92,25 @@ def test_provider_output_and_error_are_marked_without_rendering_unknown_objects(
     lease = {"task_id": "task", "attempt": 1, "lease_id": "lease-1", "owner": "worker",
              "generation": 0, "expires_at": "2999-01-01T00:00:00Z"}
     report = adapter.run(_task(), lease)
-    assert report.outputs["runtime_output"] == "[UNSUPPORTED TYPE: Hostile]"
-    assert _safe_text(Hostile()) == "[UNSUPPORTED TYPE: Hostile]"
+    assert report.outputs["runtime_output"] == "[UNSUPPORTED TYPE]"
     assert Hostile.renders == 0
+
+
+def test_provider_text_marker_never_reads_hostile_type_name_or_renders_value():
+    class RaisingNameMeta(type):
+        def __getattribute__(cls, name):
+            if name == "__name__":
+                raise AssertionError("type name must not be read")
+            return super().__getattribute__(name)
+
+    class Hostile(metaclass=RaisingNameMeta):
+        def __repr__(self):
+            raise AssertionError("repr must not be called")
+
+        def __str__(self):
+            raise AssertionError("str must not be called")
+
+    assert _safe_text(Hostile()) == "[UNSUPPORTED TYPE]"
 
 
 def test_provider_failure_is_terminal_failure_without_boundary_fallback():

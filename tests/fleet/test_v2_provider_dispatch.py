@@ -83,3 +83,36 @@ def test_execution_failure_does_not_fallback_to_another_adapter():
     assert result.status is DispatchStatus.FAILED
     assert failing.calls == 1
     assert fallback.calls == 0
+
+
+def test_runner_exception_metadata_uses_fixed_marker_without_reading_type_name():
+    class SecretNameMeta(type):
+        accesses = 0
+
+        def __getattribute__(cls, name):
+            if name == "__name__":
+                type.__setattr__(cls, "accesses", cls.accesses + 1)
+                return "SECRET\x00\r\nTYPE"
+            return super().__getattribute__(name)
+
+    class HostileError(Exception, metaclass=SecretNameMeta):
+        pass
+
+    profile = _profile("one")
+
+    class FailingAdapter(_Adapter):
+        def execute(self, envelope, *, runner):
+            raise HostileError("secret/control\nvalue")
+
+    adapter = FailingAdapter(profile, RuntimeResult(RuntimeStatus.OK, output="unused"))
+    result = ProviderDispatchBoundary(
+        catalog=(profile,), adapters={"one/runtime": adapter}, runners={"one/runtime": object()},
+    ).dispatch(
+        RuntimeTaskEnvelope("task", "prompt", profile, ("workspace",), ("read",)),
+        ProviderRoutePolicy(preferred_ids=("one/runtime",), required_capabilities=("read",)),
+        run_id="run",
+    )
+
+    assert result.status is DispatchStatus.FAILED
+    assert result.runtime.metadata["exception"] == "[PROVIDER ERROR]"
+    assert HostileError.accesses == 0

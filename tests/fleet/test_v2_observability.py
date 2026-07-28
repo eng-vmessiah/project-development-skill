@@ -89,7 +89,7 @@ def test_unknown_objects_are_marked_without_rendering_them():
 
     sink.record("diagnostic", fields={"value": _HostileObject()})
 
-    assert sink.export()["events"][0]["fields"]["value"] == "[UNSUPPORTED TYPE: _HostileObject]"
+    assert sink.export()["events"][0]["fields"]["value"] == "[UNSUPPORTED TYPE]"
     assert _HostileObject.renders == 0
 
 
@@ -113,5 +113,21 @@ def test_sets_are_deterministic_without_repr_or_string_conversion():
     second.record("diagnostic", fields={"values": set(values)})
 
     assert first.export_json() == second.export_json()
-    assert "[UNSUPPORTED TYPE: _HostileObject]" in first.export_json()
+    assert "[UNSUPPORTED TYPE]" in first.export_json()
     assert _HostileObject.renders == 0
+
+
+def test_unsupported_type_marker_never_reads_hostile_type_name():
+    class RaisingNameMeta(type):
+        def __getattribute__(cls, name):
+            if name == "__name__":
+                raise AssertionError("type name must not be read")
+            return super().__getattribute__(name)
+
+    class Hostile(metaclass=RaisingNameMeta):
+        pass
+
+    sink = AuditSink()
+    sink.record("diagnostic", fields={"value": Hostile()})
+
+    assert sink.export()["events"][0]["fields"]["value"] == "[UNSUPPORTED TYPE]"

@@ -219,7 +219,7 @@ class ProviderDispatchBoundary:
             runtime = adapter.execute(envelope, runner=runner)
         except Exception as exc:
             runtime = RuntimeResult(RuntimeStatus.FAILED, RuntimeErrorCode.RUNNER_ERROR,
-                                    metadata={"exception": type(exc).__name__})
+                                    metadata={"exception": "[PROVIDER ERROR]"})
         if not isinstance(runtime, RuntimeResult):
             raise DispatchConfigurationError("adapter_result_invalid")
         status = DispatchStatus.OK if runtime.status is RuntimeStatus.OK else DispatchStatus.FAILED
