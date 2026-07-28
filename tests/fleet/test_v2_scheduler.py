@@ -24,6 +24,23 @@ def test_ready_ids_are_sorted_and_dependencies_are_barriers(tmp_path: Path):
     assert scheduler.ready_ids() == ["b", "child"]
 
 
+@pytest.mark.parametrize("status", ["completed", "failed", "blocked", "orphaned"])
+def test_malformed_terminal_dependency_blocks_valid_sibling_before_claim(tmp_path: Path, status: str):
+    plan = {"schema_version": "pd-fleet-plan:v2", "tasks": [
+        {"id": "valid", "depends_on": [], "allowed_paths": ["src/valid.py"]},
+        {"id": "terminal", "status": status, "depends_on": {"malformed": True},
+         "allowed_paths": ["src/terminal.py"]},
+    ]}
+    store = FleetRunStore(tmp_path)
+    store.create("run", plan, "owner")
+    scheduler = LeaseScheduler(store, "run", "owner")
+
+    with pytest.raises(SchedulerError, match="task dependencies must be a list"):
+        scheduler.claim("worker", limit=1)
+
+    assert store.load("run")["leases"] == {}
+
+
 @pytest.mark.parametrize("dependency", [["nested"], {"nested": True}, 42, None])
 def test_non_string_dependency_elements_fail_closed_before_claim(tmp_path: Path, dependency):
     plan = {"schema_version": "pd-fleet-plan:v2", "tasks": [

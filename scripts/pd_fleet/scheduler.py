@@ -64,13 +64,27 @@ class LeaseScheduler:
         return self.store.load(self.run_id)
 
     @staticmethod
-    def _task_map(state: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+    def _validate_task_dependencies(task: Mapping[str, Any]) -> None:
+        deps = task.get("depends_on", task.get("dependencies", ()))
+        if isinstance(deps, str) or not isinstance(deps, (list, tuple, set, frozenset)):
+            raise SchedulerError("task dependencies must be a list")
+        for dep in deps:
+            if type(dep) is not str:
+                raise SchedulerError("dependency elements must be exact strings")
+
+    @classmethod
+    def _task_map(cls, state: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
         plan = state.get("plan", {})
         tasks = plan.get("tasks", []) if isinstance(plan, Mapping) else []
         result = {}
         for task in tasks:
-            if isinstance(task, Mapping) and isinstance(task.get("id"), str):
-                result[task["id"]] = task
+            if isinstance(task, Mapping):
+                # Validate the complete plan before indexing/filtering tasks. In
+                # particular, terminal tasks must not hide malformed dependencies
+                # from a read or claim of an otherwise runnable sibling.
+                cls._validate_task_dependencies(task)
+                if isinstance(task.get("id"), str):
+                    result[task["id"]] = task
         return result
 
     @classmethod
@@ -91,11 +105,6 @@ class LeaseScheduler:
             if status in {"completed", "failed", "blocked", "orphaned"} or task_id in state.get("leases", {}):
                 continue
             deps = task.get("depends_on", task.get("dependencies", ()))
-            if isinstance(deps, str) or not isinstance(deps, (list, tuple, set, frozenset)):
-                raise SchedulerError("task dependencies must be a list")
-            for dep in deps:
-                if type(dep) is not str:
-                    raise SchedulerError("dependency elements must be exact strings")
             if all(dep in completed for dep in deps):
                 result.append(task_id)
         return result
