@@ -60,4 +60,10 @@
 - **Acceptance:** missing artifacts fail closed without mkdir; matching empty/valid sources report consistent; sequence/status/owner divergence reports deterministic degraded reasons without exporting raw payload; bytes/mtime of both sources unchanged; bounded detached JSON-safe report; no new persistence, broker, provider, network or process.
 - **Status:** implemented + independently verified (`13 focused`, `850 full`, final review CLOSED / E7 unblocked).
 
-- G2: E1 focused + full verification and fresh-eyes review.
+## E7 — Supervisor reconciliation view
+
+- **Files:** `scripts/pd_fleet/supervisor.py`, `tests/fleet/test_supervisor_reconciliation.py`.
+- **Depends:** E6/E6R closed.
+- **Implementation:** add `FleetSupervisor.reconcile_events(store, event_log, run_id, limit=...)` as a thin read-only facade over `reconcile_run_events`.
+- **Acceptance:** exact report equivalence; no mutation/dispatch/STATE/filesystem writes; existing source instances only; invalid/missing/corrupt inputs fail closed; no raw payload/owner export; bounded immutable deterministic result.
+- **Status:** implemented + independently verified (`6 focused`, `856 full`, final review CLOSED / E8 unblocked).
