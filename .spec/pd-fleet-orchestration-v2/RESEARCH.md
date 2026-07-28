@@ -207,3 +207,11 @@ Artefato: `artifacts/v2/GRILL-001-findings.json`. A classificação formal é **
 - Evidência: focused sandbox/validation/runtime **60 passed**; full **1000 passed**; review independente PASS.
 - Artefato: `artifacts/v2/GRILL-001-M02-resolution.json`.
 - M05–M06 e L01–L02 continuam abertos.
+
+## GRILL-M05 — resolução local
+
+- Status: **RESOLVED_LOCALLY** no commit `b0a9e65`.
+- Parsers legados rejeitam unknown/non-string fields; aliases suportados são explícitos e conflitos falham fechado. Boundary V2 remove apenas `run_id` runtime-only antes da tradução legada.
+- Evidência: focused models/contracts/orchestrator **161 passed**; compatibility review **186 passed**; full **1019 passed**; review final PASS.
+- Artefato: `artifacts/v2/GRILL-001-M05-resolution.json`.
+- M06 e L01–L02 continuam abertos.

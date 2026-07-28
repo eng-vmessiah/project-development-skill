@@ -181,3 +181,10 @@ Próxima fatia recomendada: corrigir os seis HIGH com testes red-first e revisã
 - Pacote corrente atualizado para full `1000 passed`, M02 focused `60 passed`.
 - Artefato: `artifacts/v2/GRILL-001-M02-resolution.json`.
 - Residuais: M05–M06/L01–L02 permanecem OPEN; decisão global `NOT_READY_PARTIAL`.
+
+## Atualização M05 — 2026-07-28
+
+- M05 resolvido localmente no commit `b0a9e65`; review independente PASS.
+- Pacote corrente atualizado para full `1019 passed`, M05 focused `161 passed`.
+- Artefato: `artifacts/v2/GRILL-001-M05-resolution.json`.
+- Residuais: M06/L01–L02 permanecem OPEN; decisão global `NOT_READY_PARTIAL`.

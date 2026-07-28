@@ -1,0 +1,16 @@
+{
+  "change": "All legacy FleetPlan model parsers reject unknown/non-string fields with stable unknown_field diagnostics; supported aliases are explicit and conflicting aliases fail closed with conflicting_alias. V2 boundary removes only explicit runtime-only run_id before legacy translation.",
+  "commit": "b0a9e65",
+  "evidence": [
+    "focused models/contracts/orchestrator: 161 passed",
+    "independent compatibility review: 186 passed",
+    "full suite: 1019 passed",
+    "unknown/nested/hostile key probes passed",
+    "alias equivalence/conflict/type probes passed",
+    "compileall and git diff --check clean"
+  ],
+  "finding_id": "GRILL-M05",
+  "residual": "M06 and L01-L02 remain open; no human G1/G6 approval or release authorization.",
+  "schema_version": "pd-fleet-grill-001-resolution:v1",
+  "status": "RESOLVED_LOCALLY"
+}
