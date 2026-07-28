@@ -1,6 +1,6 @@
 # Checkpoint — E1
 
-**Status:** E1/E1R/E2/E3/E4/E5/E6/E7/E8/E9/E10 closed; E11 unblocked.
+**Status:** E1/E1R/E2/E3/E4/E5/E6/E7/E8/E9/E10/E11 closed; E12 unblocked.
 
 ## Decision
 
@@ -12,7 +12,7 @@ Local, append-only, replayable, redacted, bounded and ownership-aware. No provid
 
 ## Next
 
-E11 — expose ReadinessView through a dedicated read-only CLI command, or stop this wave at the Supervisor facade.
+E12 — next gate: stop this wave and return to V2 orchestration, or add only a narrowly justified readiness integration with evidence from real operator use.
 
 ## Evidence
 
@@ -26,4 +26,5 @@ E11 — expose ReadinessView through a dedicated read-only CLI command, or stop 
 - E8/E8R: CLI reconciliation with strict read-only/symlink/race hardening; `11 focused`, `867 full`, compileall/diff check pass, final fresh-eyes CLOSED. fish runtime parsing not available because fish is not installed.
 - E9/E9R: pure ReadinessView composition; `35 focused`, `902 full`, compileall/diff check pass, final fresh-eyes CLOSED.
 - E10A: Supervisor readiness facade; `10 focused`, `912 full`, compileall/diff check pass, final fresh-eyes CLOSED.
+- E11: CLI readiness view; `9 focused`, `921 full`, compileall/diff check pass, final fresh-eyes CLOSED. fish runtime parsing not available because fish is not installed.
 - Adversarial coverage includes strict IDs/statuses, hostile mappings/len/getattr/bool/deepcopy, deterministic timestamps, summary-only checkpoint payloads, sequence anomalies, empty-source classification, read-only facade/CLI/reconciliation invariance, stable JSON, symlink/race protection, import purity and no forbidden integration.

@@ -1,6 +1,6 @@
 # Verification — E1
 
-**Status:** CLOSED through E10; E11 unblocked.
+**Status:** CLOSED through E11; E12 unblocked.
 
 ## Verified
 
@@ -14,13 +14,14 @@
 - E8/E8R CLI reconciliation: `11 focused`, `867 full`; JSON/text, source-presence semantics, symlink/race/no-write hardening and completions verified.
 - E9/E9R ReadinessView composition: `35 focused`, `902 full`; precedence, component coherence, import purity and safe projection verified.
 - E10A Supervisor readiness facade: `10 focused`, `912 full`; exact delegation, exception/source invariance and no dispatch/STATE writes verified.
+- E11 CLI readiness view: `9 focused`, `921 full`; explicit Supervisor status semantics, missing-source unknown behavior, JSON/text, no-write/symlink/race and completions verified.
 - Compileall and diff check passed after each gate.
-- Fresh-eyes reviews closed E1 through E10.
+- Fresh-eyes reviews closed E1 through E11.
 - Diagnostics, facade, CLI, reconciliation and readiness composition are bounded, immutable/read-only, deterministic and do not mutate event logs, lifecycle, checkpoints, STATE or create a second persistence authority.
 
 ## Next
 
-E11 is the next contract gate: expose ReadinessView through a dedicated read-only CLI command, or stop this wave at the Supervisor facade. No new persistence authority, broker, provider or live execution is implied.
+E12 is the next contract gate: stop this wave and return to V2 orchestration, or add only a narrowly justified readiness integration with evidence from real operator use. No new persistence authority, broker, provider or live execution is implied.
 
 ## Deferred
 

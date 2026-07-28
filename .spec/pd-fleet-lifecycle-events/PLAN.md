@@ -91,3 +91,11 @@
 - **Implementation:** add `FleetSupervisor.readiness_view(...)` as a thin pure delegation to `compose_readiness`.
 - **Acceptance:** exact report equivalence; no dispatch/state/filesystem writes; no provider/network/process; invalid report types fail closed; no payload/owner/proposal leakage.
 - **Status:** implemented + independently verified (`10 focused`, `912 full`, final review CLOSED / E11 unblocked).
+
+## E11 — CLI read-only readiness view
+
+- **Files:** `scripts/pd.py`, shell completion blocks, `tests/fleet/test_cli_readiness.py`.
+- **Depends:** E10A closed.
+- **Implementation:** add `fleet-supervisor-readiness --store --events --run-id [--supervisor-status] --owner-epoch --limit [--json]`; use existing read-only diagnostics/reconciliation paths and optional already-observed Supervisor status; invoke `FleetSupervisor.readiness_view`.
+- **Acceptance:** absent Supervisor status remains unknown; no invented health; strict path/symlink/race/no-write behavior inherited; stable text/JSON; no raw payload/owner/proposal/reason; old commands/completions compatible; no provider/network/process/STATE.
+- **Status:** implemented + independently verified (`9 focused`, `921 full`, final review CLOSED / E12 unblocked).
