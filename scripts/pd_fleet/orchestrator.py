@@ -276,6 +276,8 @@ class FleetOrchestrator:
                 # Hash the untouched canonical V2 input; aliases are runtime-only.
                 self._canonical_plan = candidate
                 runtime_plan["schema_version"] = "1"
+                # V2 run metadata is not part of the legacy FleetPlan model.
+                runtime_plan.pop("run_id", None)
             try:
                 self.plan = FleetPlan.from_dict(runtime_plan)
             except Exception as exc:

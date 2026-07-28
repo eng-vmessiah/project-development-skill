@@ -7,14 +7,58 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 from pd_fleet.models import (  # noqa: E402
+    AgentSpec,
     FleetPlan,
     FleetPlanError,
+    GateSpec,
+    OutputSpec,
     RetryPolicy,
     TaskSpec,
+    WaveSpec,
 )
 
 
 MIN_TASK = {"id": "T-1", "wave": 1, "role": "coder", "objective": "build it"}
+
+
+@pytest.mark.parametrize(
+    ("parser", "value"),
+    [
+        (AgentSpec.from_dict, {"id": "a", "role": "coder"}),
+        (OutputSpec.from_dict, {"name": "artifact"}),
+        (RetryPolicy.from_dict, {}),
+        (TaskSpec.from_dict, MIN_TASK),
+        (WaveSpec.from_dict, {"id": "w"}),
+        (GateSpec.from_dict, {"id": "g"}),
+        (FleetPlan.from_dict, {}),
+    ],
+)
+def test_legacy_parsers_reject_unknown_fields_with_stable_error(parser, value):
+    with pytest.raises(FleetPlanError, match=r"^fleet plan rejected: unknown field$") as exc:
+        parser({**value, "unexpected": True})
+    assert exc.value.code == "unknown_field"
+
+
+@pytest.mark.parametrize(
+    "parser,value",
+    [
+        (AgentSpec.from_dict, {"id": "a", "role": "coder"}),
+        (OutputSpec.from_dict, {"name": "artifact"}),
+        (RetryPolicy.from_dict, {}),
+        (TaskSpec.from_dict, MIN_TASK),
+        (WaveSpec.from_dict, {"id": "w"}),
+        (GateSpec.from_dict, {"id": "g"}),
+        (FleetPlan.from_dict, {}),
+    ],
+)
+def test_legacy_parsers_reject_non_string_keys_with_same_stable_error(parser, value):
+    with pytest.raises(FleetPlanError, match=r"^fleet plan rejected: unknown field$"):
+        parser({**value, 7: True})
+
+
+def test_legacy_alias_fields_remain_supported():
+    assert OutputSpec.from_dict({"id": "artifact"}).name == "artifact"
+    assert RetryPolicy.from_dict({"retry_on": ["timeout"]}).retryable_errors == ["timeout"]
 
 
 class _HostileRepr:

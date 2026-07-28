@@ -76,6 +76,16 @@ def normalize_output(value: Mapping[str, Any]) -> dict[str, Any]:
 class FleetPlanError(ValueError):
     """Erro de contrato ao construir ou normalizar um plano."""
 
+    def __init__(self, message: str, *, code: str | None = None) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+def _reject_unknown(value: Mapping[Any, Any], allowed: set[str] | frozenset[str]) -> None:
+    """Reject unknown or non-string mapping keys with a stable diagnostic."""
+    if any(not isinstance(key, str) or key not in allowed for key in value):
+        raise FleetPlanError("fleet plan rejected: unknown field", code="unknown_field")
+
 
 def _required(data: Mapping[str, Any], name: str) -> Any:
     value = data.get(name)
@@ -128,6 +138,7 @@ class AgentSpec:
             return value
         if not isinstance(value, Mapping):
             raise FleetPlanError("agent deve ser um objeto")
+        _reject_unknown(value, {"id", "role", "capabilities", "status"})
         return cls(_id(_required(value, "id")), _string(_required(value, "role"), "role"),
                    _string_list(value.get("capabilities"), "capabilities"),
                    _string(value.get("status", "available"), "status"))
@@ -147,6 +158,7 @@ class OutputSpec:
             return cls(_id(value, "output name"))
         if not isinstance(value, Mapping):
             raise FleetPlanError("output deve ser string ou objeto")
+        _reject_unknown(value, {"name", "id", "description", "required"})
         name = value.get("name", value.get("id"))
         description = value.get("description")
         if description is not None:
@@ -176,6 +188,7 @@ class RetryPolicy:
             return value
         if not isinstance(value, Mapping):
             raise FleetPlanError("retry_policy deve ser um objeto")
+        _reject_unknown(value, {"max_attempts", "backoff_seconds", "retryable_errors", "retry_on"})
         attempts = value.get("max_attempts", 1)
         if isinstance(attempts, bool) or not isinstance(attempts, int):
             raise FleetPlanError("max_attempts deve ser inteiro")
@@ -222,6 +235,12 @@ class TaskSpec:
             return value
         if not isinstance(value, Mapping):
             raise FleetPlanError("task deve ser um objeto")
+        _reject_unknown(value, {
+            "id", "wave", "role", "objective", "title", "capabilities", "depends_on",
+            "parallel_group", "allowed_paths", "forbidden_paths", "inputs", "outputs",
+            "acceptance_criteria", "validation_commands", "blocked_when", "retry_policy",
+            "owner", "status",
+        })
         for key in cls.REQUIRED:
             _required(value, key)
         return cls(
@@ -252,6 +271,7 @@ class WaveSpec:
             return value
         if not isinstance(value, Mapping):
             raise FleetPlanError("wave deve ser um objeto")
+        _reject_unknown(value, {"id", "tasks", "status", "gates"})
         return cls(_id(_required(value, "id")), _string_list(value.get("tasks"), "wave.tasks"),
                    _string(value.get("status", "pending"), "status"), _string_list(value.get("gates"), "wave.gates"))
 
@@ -271,6 +291,7 @@ class GateSpec:
             return value
         if not isinstance(value, Mapping):
             raise FleetPlanError("gate deve ser um objeto")
+        _reject_unknown(value, {"id", "kind", "scope", "owner", "status", "required_evidence"})
         owner = value.get("owner")
         if owner is not None:
             owner = _string(owner, "owner", required=False)
@@ -299,6 +320,7 @@ class FleetPlan:
             return value
         if not isinstance(value, Mapping):
             raise FleetPlanError("fleet plan deve ser um objeto")
+        _reject_unknown(value, {"schema_version", "agents", "waves", "tasks", "gates"})
         schema_version = value.get("schema_version", SCHEMA_VERSION)
         if not isinstance(schema_version, str) or schema_version != SCHEMA_VERSION:
             raise FleetPlanError("schema_version não suportada")
