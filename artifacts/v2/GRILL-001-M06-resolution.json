@@ -1,0 +1,15 @@
+{
+  "change": "EvidenceRecord requires safe provenance and UTC verified_at; EvidenceStore enforces positive finite max_age_seconds, injected UTC clock, future/stale rejection before artifact/hash checks, and capture stamps verified timestamps. Unknown/conflicting fields and legacy aliases are fail-closed.",
+  "commit": "4fd8b87",
+  "evidence": [
+    "focused evidence/gates/e2e: 42 passed",
+    "independent adversarial review: PASS with 24 targeted probes",
+    "full suite: 1022 passed",
+    "future/stale/exact-boundary/clock/timezone/provenance/capture/artifact/hash probes passed",
+    "git diff --check clean"
+  ],
+  "finding_id": "GRILL-M06",
+  "residual": "L01-L02 remain open; no human G1/G6 approval or release authorization. Independent review noted arbitrary exceptions raised by an injected clock propagate, but no freshness bypass was found.",
+  "schema_version": "pd-fleet-grill-001-resolution:v1",
+  "status": "RESOLVED_LOCALLY"
+}

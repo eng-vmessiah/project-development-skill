@@ -215,3 +215,11 @@ Artefato: `artifacts/v2/GRILL-001-findings.json`. A classificação formal é **
 - Evidência: focused models/contracts/orchestrator **161 passed**; compatibility review **186 passed**; full **1019 passed**; review final PASS.
 - Artefato: `artifacts/v2/GRILL-001-M05-resolution.json`.
 - M06 e L01–L02 continuam abertos.
+
+## GRILL-M06 — resolução local
+
+- Status: **RESOLVED_LOCALLY** no commit `4fd8b87`.
+- Evidence exige provenance seguro e `verified_at` UTC; EvidenceStore aplica `max_age_seconds`, clock UTC injetável, rejeição de future/stale antes de artifact/hash e capture stamped.
+- Evidência: focused evidence/gates/e2e **42 passed**; review independente com **24 probes** PASS; full **1022 passed**.
+- Artefato: `artifacts/v2/GRILL-001-M06-resolution.json`.
+- L01–L02 continuam abertos.
