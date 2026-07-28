@@ -61,6 +61,28 @@ def test_legacy_alias_fields_remain_supported():
     assert RetryPolicy.from_dict({"retry_on": ["timeout"]}).retryable_errors == ["timeout"]
 
 
+@pytest.mark.parametrize(
+    ("parser", "value"),
+    [
+        (OutputSpec.from_dict, {"name": "current", "id": "legacy"}),
+        (RetryPolicy.from_dict, {"retryable_errors": ["timeout"], "retry_on": ["network"]}),
+    ],
+)
+def test_legacy_alias_conflicts_are_rejected_with_stable_error(parser, value):
+    with pytest.raises(FleetPlanError, match=r"^fleet plan rejected: conflicting alias$") as exc:
+        parser(value)
+    assert exc.value.code == "conflicting_alias"
+
+
+def test_equal_output_aliases_are_compared_after_normalization():
+    assert OutputSpec.from_dict({"name": " artifact ", "id": "artifact"}).name == "artifact"
+
+
+def test_equal_retry_aliases_are_compared_after_normalization():
+    policy = RetryPolicy.from_dict({"retryable_errors": (" timeout ",), "retry_on": ["timeout"]})
+    assert policy.retryable_errors == ["timeout"]
+
+
 class _HostileRepr:
     def __repr__(self):
         raise AssertionError("repr must not be called")

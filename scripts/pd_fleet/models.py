@@ -125,6 +125,10 @@ def _id(value: Any, name: str = "id") -> str:
     return value.strip()
 
 
+def _conflicting_alias() -> None:
+    raise FleetPlanError("fleet plan rejected: conflicting alias", code="conflicting_alias")
+
+
 @dataclass
 class AgentSpec:
     id: str
@@ -159,14 +163,26 @@ class OutputSpec:
         if not isinstance(value, Mapping):
             raise FleetPlanError("output deve ser string ou objeto")
         _reject_unknown(value, {"name", "id", "description", "required"})
-        name = value.get("name", value.get("id"))
+        has_name = "name" in value
+        has_id = "id" in value
+        if has_name and has_id:
+            name = _id(value["name"], "output name")
+            legacy_name = _id(value["id"], "output name")
+            if name != legacy_name:
+                _conflicting_alias()
+        elif has_name:
+            name = _id(value["name"], "output name")
+        elif has_id:
+            name = _id(value["id"], "output name")
+        else:
+            name = _required({"name": None}, "name")
         description = value.get("description")
         if description is not None:
             description = _string(description, "description", required=False)
         required = value.get("required", True)
         if not isinstance(required, bool):
             raise FleetPlanError("required deve ser booleano")
-        return cls(_id(_required({"name": name}, "name"), "output name"), description, required)
+        return cls(name, description, required)
 
 
 @dataclass
@@ -202,7 +218,17 @@ class RetryPolicy:
             raise FleetPlanError("backoff_seconds deve ser finito")
         if backoff < 0:
             raise FleetPlanError("backoff_seconds deve ser >= 0")
-        errors = value.get("retryable_errors", value.get("retry_on"))
+        has_retryable_errors = "retryable_errors" in value
+        has_retry_on = "retry_on" in value
+        if has_retryable_errors and has_retry_on:
+            errors = _string_list(value["retryable_errors"], "retryable_errors")
+            legacy_errors = _string_list(value["retry_on"], "retryable_errors")
+            if errors != legacy_errors:
+                _conflicting_alias()
+        elif has_retryable_errors:
+            errors = _string_list(value["retryable_errors"], "retryable_errors")
+        else:
+            errors = _string_list(value.get("retry_on"), "retryable_errors")
         return cls(attempts, backoff, _string_list(errors, "retryable_errors"))
 
 
