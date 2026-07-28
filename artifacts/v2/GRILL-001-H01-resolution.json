@@ -1,0 +1,15 @@
+{
+  "change": "LocalRuntimeReadinessProbe now fails closed before PATH discovery when no runner is injected; injected runner paths remain bounded and supported.",
+  "commit": "9f90221414024b62b3bef2e0a7804efa13b6158f",
+  "evidence": [
+    "RED test reproduced PATH-controlled execution before fix",
+    "focused readiness/sandbox/runtime tests: 94 passed",
+    "parent focused regression slice: 40 passed",
+    "independent marker probe: no execution with runner omitted",
+    "git diff --check: clean"
+  ],
+  "finding_id": "GRILL-H01",
+  "residual": "The historical GRILL-001 report remains BLOCKED; five HIGH findings remain open.",
+  "schema_version": "pd-fleet-grill-001-resolution:v1",
+  "status": "RESOLVED_LOCALLY"
+}

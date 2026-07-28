@@ -95,3 +95,12 @@ Rollback seguro: desabilitar a entrada/feature V2, preservar snapshots, eventos 
 - **Decisão:** GRILL-001 não passa. O status permanece **NOT READY / PARTIAL**; não existe aprovação humana G6.
 
 Próxima fatia recomendada: corrigir os seis HIGH com testes red-first e revisão independente antes de reabrir qualquer gate formal.
+
+
+## Atualização GRILL-H01 — 2026-07-28
+
+- HIGH-01 resolvido localmente no commit `9f90221414024b62b3bef2e0a7804efa13b6158f`.
+- Teste RED reproduziu execução de binary controlado por `PATH`; correção retorna `denied/trusted_runner_required` antes de descoberta ou subprocesso.
+- Review independente: PASS; 94 testes focados.
+- Artefato: `artifacts/v2/GRILL-001-H01-resolution.json`.
+- **Status global:** permanece **BLOCKED_NOT_READY**; HIGH-02…HIGH-06 continuam abertos.

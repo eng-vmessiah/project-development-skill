@@ -108,3 +108,13 @@ A evidência é local e fresca, mas o status permanece **NOT READY / PARTIAL**: 
 A revisão adversarial independente encontrou **6 HIGH, 6 MEDIUM e 2 LOW**. Os principais blockers são: execução de binary controlado por `PATH` na readiness probe sem sandbox capability; ausência de `use` imediatamente antes do adapter; corrida entre `ready_ids()` e `claim_many()`; bypass de `HumanVerificationGate` por `GateResult`; falta de comparação de `scope`/`run` no gate; e leakage de assignments de segredo em metadata de provider.
 
 Artefato: `artifacts/v2/GRILL-001-findings.json`. A classificação formal é **BLOCKED_NOT_READY**. A suíte verde não reduz esses findings nem concede G1/G6.
+
+
+## GRILL-H01 — resolução local
+
+- Status: **RESOLVED_LOCALLY** no commit `9f90221414024b62b3bef2e0a7804efa13b6158f`.
+- `LocalRuntimeReadinessProbe` agora falha fechado antes de `PATH`/subprocess quando não recebe runner explícito.
+- Runner injetado continua bounded e suportado.
+- Artefato: `artifacts/v2/GRILL-001-H01-resolution.json`.
+- Review independente: PASS; 94 testes focados.
+- O relatório histórico GRILL-001 permanece BLOCKED pelos outros cinco HIGH.
