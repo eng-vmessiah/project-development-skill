@@ -2,6 +2,13 @@
 
 A comprehensive skill ecosystem for AI-assisted software development. Works with **Hermes Agent**, **OpenCode**, and **Claude Code**.
 
+## Versioned source releases
+
+The authoritative package version is stored in [`VERSION`](VERSION). A `v*` tag
+must exactly match that value; the release workflow reruns the repository checks
+and publishes a reproducible `project-development-skill-<version>.tar.gz` source
+archive with its `.sha256` checksum as GitHub release assets.
+
 ## What's Included
 
 The repository currently contains **27 skills** (`SKILL.md` files), including the nested `engineering/` category:

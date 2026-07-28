@@ -7,28 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+No changes yet.
+
+## [1.1.0] - 2026-07-28
+
+This additive release is identified by the authoritative [`VERSION`](VERSION)
+file and is published from an exact `v1.1.0` Git tag by the release workflow.
+
 ### Added
 - Installer coverage for existing platform roots, owned manifests, nested skills,
   stale-owned-file cleanup, and the packaged Hermes `pd` CLI runtime.
 - CLI workflows for feature initialization and project-state mutation alongside
   validation, status, checkpoint, verification, task completion, history,
   reporting, and diff inspection.
-- Recursive skill validation and the offline Fleet V2 documentation path checker.
+- Recursive skill validation, shell regression coverage, and the offline Fleet V2
+  documentation path checker.
+- Release CI that reruns tests, validator, installer, link, documentation, and
+  lint checks, then publishes a reproducible source archive and SHA-256 checksum.
 - Current Fleet V2 verification/provenance index and reconciled skill documentation.
 
 ### Changed
 - Documentation now inventories the 27 skills, including nested engineering
   categories, and documents the repository's actual GitHub URL.
-- Lint and documentation checks are described as local/offline verification; no
-  provider, live-network, or production-readiness claim is made.
+- Lint and documentation checks are explicitly local/offline verification; this
+  release makes no provider, live-network, or production-readiness claim.
 
-### Fleet V2: local/experimental
+### Fleet V2: local/experimental limitations
 - Local simulated plan validation, deterministic dispatch/output, contracts,
   gates, checkpoints, inspection, and default-deny boundaries are documented as
   current capabilities.
-- Known limitations remain: no delivered provider/live execution, no production
-  approval, no human G1–G6 approval, and incomplete evidence for parallelism,
-  ownership, leases, resume, and operational rollback.
+- Fleet V2 remains local/experimental: there is no delivered provider/live
+  execution, production approval, or human G1–G6 approval.
+- Evidence remains incomplete for parallelism, ownership, leases, resume, and
+  operational rollback; those capabilities are not approved by this release.
 
 ### Planned
 - Additional examples, cross-skill recommendations, skill modularization, and

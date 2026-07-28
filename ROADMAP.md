@@ -95,7 +95,9 @@ components, update the changelog, and run the repository checks before submittin
 ## Versioning strategy
 
 The project follows [Semantic Versioning](https://semver.org/). A release is not
-implied by this roadmap: update `CHANGELOG.md`, choose a version, tag it, and run
-the release workflow only as part of an explicit release decision.
+implied by this roadmap. The authoritative version is [`VERSION`](VERSION):
+update `CHANGELOG.md`, commit it, tag the exact `v<version>`, and run the release
+workflow only as part of an explicit release decision. The workflow publishes a
+reproducible source archive and SHA-256 checksum for that tag.
 
 *This roadmap is a living document. Priorities may shift based on community feedback.*
