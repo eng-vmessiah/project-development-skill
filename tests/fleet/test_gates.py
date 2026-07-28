@@ -125,3 +125,42 @@ def test_transition_to_passed_requires_full_contract():
 def test_details_must_be_mapping():
     with pytest.raises(GateError):
         GateResult("G1", "review", details=["not", "a", "mapping"])
+
+
+def test_policy_rejects_unknown_top_level_keys_and_non_string_keys():
+    with pytest.raises(GateError, match="campos desconhecidos"):
+        GatePolicy.from_dict({"requirements": {}, "typo": {}})
+    with pytest.raises(GateError, match="chave JSON inválida"):
+        GatePolicy.from_dict({1: {}})
+
+
+@pytest.mark.parametrize("payload", [
+    {"requirements": {"review": {"typo": True}}},
+    {"default_requirements": {"typo": True}},
+])
+def test_policy_rejects_unknown_nested_requirement_keys(payload):
+    with pytest.raises(GateError, match="requirement desconhecido"):
+        GatePolicy.from_dict(payload)
+
+
+@pytest.mark.parametrize("payload", [
+    {"requirements": {"review": {"reports": 1}}},
+    {"default_requirements": {"reports": None}},
+])
+def test_policy_rejects_non_boolean_requirement_values(payload):
+    with pytest.raises(GateError, match="booleano"):
+        GatePolicy.from_dict(payload)
+
+
+def test_policy_aliases_are_compatible_but_conflicts_are_rejected():
+    expected = {"review": {"reports": False}}
+    assert GatePolicy.from_dict({"gates": expected}).requirements["review"]["reports"] is False
+    assert GatePolicy.from_dict({"requirements": expected, "gates": expected}).to_dict() == GatePolicy.from_dict({"requirements": expected}).to_dict()
+    with pytest.raises(GateError, match="conflitantes"):
+        GatePolicy.from_dict({"requirements": expected, "gates": {"review": {"reports": True}}})
+
+
+def test_policy_none_defaults_and_serialization_round_trip():
+    assert GatePolicy.from_dict(None).to_dict() == GatePolicy().to_dict()
+    policy = GatePolicy.from_dict({"gates": {"review": {"reports": False}}, "default_requirements": {"owner": True}})
+    assert GatePolicy.from_json(policy.to_json()).to_dict() == policy.to_dict()

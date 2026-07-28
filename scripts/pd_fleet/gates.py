@@ -43,6 +43,8 @@ class HumanDecision(str, Enum):
 
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_POLICY_KEYS = frozenset({"requirements", "gates", "default_requirements"})
+_REQUIREMENT_KEYS = frozenset({"owner", "decision", "evidence", "reports", "no_blockers"})
 
 
 def _utc_datetime(value: Any, name: str) -> datetime:
@@ -276,14 +278,25 @@ class GatePolicy:
                 raise GateError("gate_type inválido")
             if not isinstance(req, Mapping):
                 raise GateError("requirements deve conter objetos")
-            safe_req = _safe(req, f"requirements.{kind}")
-            normalized[kind] = {key: bool(item) for key, item in safe_req.items()}
+            for key, item in req.items():
+                if type(key) is not str or not key:
+                    raise GateError("requirements contém chave JSON inválida")
+                if key not in _REQUIREMENT_KEYS:
+                    raise GateError(f"requirement desconhecido: {key}")
+                if type(item) is not bool:
+                    raise GateError(f"{key} deve ser booleano")
+            normalized[kind] = dict(req)
         if not isinstance(self.default_requirements, Mapping):
             raise GateError("default_requirements deve ser objeto")
-        safe_defaults = _safe(self.default_requirements, "default_requirements")
-        defaults = {key: bool(item) for key, item in safe_defaults.items()}
+        for key, item in self.default_requirements.items():
+            if type(key) is not str or not key:
+                raise GateError("default_requirements contém chave JSON inválida")
+            if key not in _REQUIREMENT_KEYS:
+                raise GateError(f"requirement desconhecido: {key}")
+            if type(item) is not bool:
+                raise GateError(f"{key} deve ser booleano")
         object.__setattr__(self, "requirements", _frozen_policy(normalized, "requirements"))
-        object.__setattr__(self, "default_requirements", _frozen_policy(defaults, "default_requirements"))
+        object.__setattr__(self, "default_requirements", _frozen_policy(dict(self.default_requirements), "default_requirements"))
 
     @classmethod
     def from_dict(cls, value: Any) -> "GatePolicy":
@@ -293,11 +306,18 @@ class GatePolicy:
             return value
         if not isinstance(value, Mapping):
             raise GateError("policy deve ser objeto")
-        req = value.get("requirements", value.get("gates", {}))
+        if any(type(key) is not str for key in value):
+            raise GateError("policy contém chave JSON inválida")
+        unknown = set(value) - _POLICY_KEYS
+        if unknown:
+            raise GateError("policy contém campos desconhecidos")
+        has_requirements = "requirements" in value
+        has_gates = "gates" in value
+        if has_requirements and has_gates and value["requirements"] != value["gates"]:
+            raise GateError("requirements e gates conflitantes")
+        req = value["requirements"] if has_requirements else value.get("gates", {})
         defaults = value.get("default_requirements", cls().default_requirements)
-        if not isinstance(defaults, Mapping):
-            raise GateError("default_requirements deve ser objeto")
-        return cls(req, {str(k): bool(v) for k, v in defaults.items()})
+        return cls(req, defaults)
 
     def evaluate(self, result: GateResult | Mapping[str, Any]) -> GateStatus:
         gate = result if isinstance(result, GateResult) else GateResult.from_dict(result)
@@ -330,6 +350,13 @@ class GatePolicy:
 
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+    @classmethod
+    def from_json(cls, value: str) -> "GatePolicy":
+        try:
+            return cls.from_dict(json.loads(value))
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise GateError("JSON inválido") from exc
 
 
 @dataclass(frozen=True)
