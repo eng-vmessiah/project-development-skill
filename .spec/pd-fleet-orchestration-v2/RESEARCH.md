@@ -223,3 +223,11 @@ Artefato: `artifacts/v2/GRILL-001-findings.json`. A classificação formal é **
 - Evidência: focused evidence/gates/e2e **42 passed**; review independente com **24 probes** PASS; full **1022 passed**.
 - Artefato: `artifacts/v2/GRILL-001-M06-resolution.json`.
 - L01–L02 continuam abertos.
+
+## GRILL-L01 — resolução local
+
+- Status: **RESOLVED_LOCALLY** no commit `c12148d`.
+- Clock UTC centralizado e injetável para Checkpoint, FleetEvent/EventLog, HumanVerificationGate e timestamps opcionais de EvidenceRecord.
+- Evidência: focused **87 passed**; review independente PASS; full **1026 passed**; monotonic timeout paths preservados.
+- Artefato: `artifacts/v2/GRILL-001-L01-resolution.json`.
+- L02 continua aberto.

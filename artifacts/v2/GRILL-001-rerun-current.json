@@ -1,6 +1,6 @@
 {
   "branch": "feat/pd-fleet-lifecycle-events",
-  "commit": "4fd8b87",
+  "commit": "c12148d",
   "decision": "NOT_READY_PARTIAL",
   "governance": "No human G1/G6 approval, merge authorization, provider authorization, or release PASS.",
   "high_findings": {
@@ -12,19 +12,19 @@
     "H06": "RESOLVED_LOCALLY"
   },
   "remaining_findings": {
-    "L01": "OPEN implicit wall-clock timestamps",
     "L02": "OPEN unknown gate policy requirements ignored"
   },
-  "review": "independent M06 review PASS; L01-L02 remain open",
+  "review": "independent L01 review PASS; L02 remains open",
   "schema_version": "pd-fleet-grill-001-rerun:v1",
   "scope": "consolidated local rerun after H01-H06 remediation",
   "stale_evidence_note": "artifacts/v2/G1-fresh-verification.json records older commit 3036786 and older counts; it is historical, not current rerun evidence.",
   "verification": {
     "compileall": "passed",
     "doc_checker": "valid; 0 violations",
-    "full_pytest": 1022,
+    "full_pytest": 1026,
     "git_diff_check": "passed",
     "governance_contracts_reports": 147,
+    "l01_focused": 87,
     "m01_focused": 227,
     "m02_focused": 60,
     "m03_focused": 36,
