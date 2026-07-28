@@ -13,6 +13,7 @@ import math
 import re
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
+from .clock import Clock, clock_iso
 
 
 class EvidenceError(ValueError):
@@ -70,11 +71,12 @@ def _relative(path: Any) -> str:
     return "/".join(part for part in parts if part) or "."
 
 
-def _timestamp(value: Any, field_name: str = "timestamp", *, required: bool = False) -> str:
+def _timestamp(value: Any, field_name: str = "timestamp", *, required: bool = False,
+               clock: Clock | None = None) -> str:
     if value is None or value == "":
         if required:
             raise EvidenceValidationError(f"{field_name} ausente", code=f"missing_{field_name}")
-        return datetime.now(timezone.utc).isoformat()
+        return clock_iso(clock)
     text = _text(value, field_name)
     try:
         parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
@@ -97,6 +99,8 @@ class EvidenceRecord:
     source: str = "manual"
     provenance: str = ""
     verified_at: str = ""
+    # Used only for optional capture timestamps; excluded from evidence data.
+    clock: Clock | None = field(default=None, repr=False, compare=False)
 
     # artifact_paths is accepted by callers using the contract's terminology.
     def __post_init__(self) -> None:
@@ -111,7 +115,7 @@ class EvidenceRecord:
         if isinstance(raw, str) or not isinstance(raw, (list, tuple)):
             raise EvidenceValidationError("artifacts deve ser lista")
         self.artifacts = [_relative(p) for p in raw]
-        self.timestamp = _timestamp(self.timestamp)
+        self.timestamp = _timestamp(self.timestamp, clock=self.clock)
         self.source = "" if self.source is None else _text(self.source, "source")
         if _URL.search(self.source) or _SECRET_ASSIGNMENT.search(self.source) or _SECRET_TOKEN.search(self.source):
             raise EvidenceValidationError("source contém segredo ou URL")

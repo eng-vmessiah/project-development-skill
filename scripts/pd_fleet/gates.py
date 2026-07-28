@@ -13,6 +13,7 @@ import re
 import json
 from types import MappingProxyType
 from typing import Any, Mapping, cast
+from .clock import Clock, clock_now
 
 
 class GateError(ValueError):
@@ -349,6 +350,8 @@ class HumanVerificationGate:
     updated_at: datetime | str
     freshness_window: timedelta | int | float
     blockers: Any = ()
+    # Optional audit clock used only when evaluate() receives no explicit now.
+    clock: Clock | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "owner", cast(str, _text(self.owner, "owner")))
@@ -387,9 +390,12 @@ class HumanVerificationGate:
         return self.run
 
     def evaluate(self, *, now: datetime | str | None = None, artifact_digest: str | None = None,
-                 evidence_digest: str | None = None, blockers: Any | None = None) -> GateStatus:
+                 evidence_digest: str | None = None, blockers: Any | None = None,
+                 clock: Clock | None = None) -> GateStatus:
         """Return PASSED only when every explicit approval condition is true."""
-        now_value = _utc_datetime(now or datetime.now(timezone.utc), "now")
+        # ``now`` is the explicit audit boundary.  Do not sample a wall clock
+        # when it is supplied, and sample the injected clock only once otherwise.
+        now_value = _utc_datetime(now, "now") if now is not None else clock_now(clock or self.clock)
         if blockers is None:
             current_blockers = self.blockers
         else:
@@ -411,9 +417,11 @@ class HumanVerificationGate:
         return GateStatus.PASSED
 
     def allows(self, *, now: datetime | str | None = None, artifact_digest: str | None = None,
-               evidence_digest: str | None = None, blockers: Any | None = None) -> bool:
+               evidence_digest: str | None = None, blockers: Any | None = None,
+               clock: Clock | None = None) -> bool:
         return self.evaluate(now=now, artifact_digest=artifact_digest,
-                             evidence_digest=evidence_digest, blockers=blockers) is GateStatus.PASSED
+                             evidence_digest=evidence_digest, blockers=blockers,
+                             clock=clock) is GateStatus.PASSED
 
     def to_dict(self) -> dict[str, Any]:
         return {"owner": self.owner, "identity": self.identity, "decision": self.decision.value,

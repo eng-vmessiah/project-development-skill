@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 import json
 import hashlib
 import os
@@ -23,6 +22,7 @@ import fcntl
 
 from .lifecycle import LifecycleState, TaskLifecycle
 from .safe_rendering import safe_repr
+from .clock import Clock, clock_iso
 
 SCHEMA_VERSION = 1
 
@@ -42,22 +42,25 @@ class Checkpoint:
     evidence: Any = field(default_factory=list)
     blockers: list[Any] = field(default_factory=list)
     created_at: str = ""
+    # Audit timestamp source; excluded from the persisted envelope.
+    clock: Clock | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         self.tasks = _task_mapping(self.tasks)
         self.lifecycle = _lifecycle_mapping(self.lifecycle)
         if not self.created_at:
-            self.created_at = datetime.now(timezone.utc).isoformat()
+            self.created_at = clock_iso(self.clock)
         self.validate()
 
     @classmethod
     def create(cls, feature: str, wave: Any, *, tasks: Any = None,
                lifecycle: Any = None, reports: Any = None, evidence: Any = None,
-               blockers: Any = None, created_at: str | None = None) -> "Checkpoint":
+               blockers: Any = None, created_at: str | None = None,
+               clock: Clock | None = None) -> "Checkpoint":
         return cls(feature=feature, wave=wave, tasks=_task_mapping(tasks),
                    lifecycle=_lifecycle_mapping(lifecycle), reports=[] if reports is None else deepcopy(reports),
                    evidence=[] if evidence is None else deepcopy(evidence), blockers=[] if blockers is None else deepcopy(blockers),
-                   created_at=created_at or "")
+                   created_at=created_at or "", clock=clock)
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "Checkpoint":

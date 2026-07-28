@@ -27,6 +27,20 @@ def test_capture_success_and_sanitization(tmp_path):
     assert store.to_dict()[0]["artifacts"] == ["report.txt"]
 
 
+def test_evidence_record_optional_timestamp_uses_injected_clock_once():
+    calls = []
+
+    def clock():
+        calls.append(1)
+        return NOW
+
+    record = EvidenceRecord(command="pytest", exit_code=0, source="test",
+                            provenance="pytest", verified_at=NOW, clock=clock)
+    assert record.timestamp == "2026-01-01T00:00:00+00:00"
+    assert calls == [1]
+    assert "clock" not in record.to_dict()
+
+
 def test_capture_is_fail_closed_without_injected_executor():
     with pytest.raises(EvidenceError, match="executor"):
         EvidenceStore().capture("pytest", provenance="pytest")

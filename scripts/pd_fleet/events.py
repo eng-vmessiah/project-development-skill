@@ -15,6 +15,7 @@ import re
 from types import MappingProxyType
 from typing import Any, Iterator
 from .safe_rendering import UNSUPPORTED_TYPE
+from .clock import Clock, clock_iso
 
 SCHEMA_VERSION = 1
 MAX_STRING = 256
@@ -209,6 +210,8 @@ class FleetEvent:
     owner_epoch: int | float | None = None
     payload: Mapping[str, Any] = field(default_factory=dict)
     created_at: str = ""
+    # Audit timestamp source; deliberately excluded from the event envelope.
+    clock: Clock | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if self.schema_version != SCHEMA_VERSION or isinstance(self.schema_version, bool):
@@ -220,7 +223,7 @@ class FleetEvent:
         _number(self.sequence, "sequence")
         if self.owner_epoch is not None:
             _number(self.owner_epoch, "owner_epoch")
-        created = self.created_at or datetime.now(timezone.utc).isoformat()
+        created = self.created_at or clock_iso(self.clock)
         _created_at(created)
         frozen = _freeze(self.payload)
         object.__setattr__(self, "created_at", created)
@@ -253,15 +256,24 @@ class FleetEvent:
 class EventLog:
     """Log por run; leitura não cria diretórios e escrita é serializada por flock."""
 
-    def __init__(self, root: str | os.PathLike[str], run_id: str, owner_epoch: int | float | None = None) -> None:
+    def __init__(self, root: str | os.PathLike[str], run_id: str,
+                 owner_epoch: int | float | None = None, *, clock: Clock | None = None) -> None:
         self.root = Path(root)
         _string(run_id, "run_id", identifier=True)
         if owner_epoch is not None:
             _number(owner_epoch, "owner_epoch")
-        self.run_id, self.owner_epoch = run_id, owner_epoch
+        self.run_id, self.owner_epoch, self.clock = run_id, owner_epoch, clock
         self._directory = self.root / run_id
         self._path = self._directory / "events.jsonl"
         self._lock_path = self._directory / ".events.lock"
+
+    def create_event(self, **values: Any) -> FleetEvent:
+        """Build an event using this log's run/ownership and audit clock."""
+        values.setdefault("run_id", self.run_id)
+        if self.owner_epoch is not None:
+            values.setdefault("owner_epoch", self.owner_epoch)
+        values.setdefault("clock", self.clock)
+        return FleetEvent(**values)
 
     @contextmanager
     def _lock(self) -> Iterator[Any]:

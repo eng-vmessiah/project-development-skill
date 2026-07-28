@@ -137,3 +137,17 @@ def test_checkpoint_diagnostic_escapes_controls_in_valid_string_boundary():
                    lifecycle={"run": {"task_id": "run", "status": "bad\x1bstatus"}})
     assert "\\x1b" in str(exc.value)
     assert "\x1b" not in str(exc.value)
+
+
+def test_checkpoint_create_uses_injected_clock_once_and_does_not_persist_source():
+    calls = []
+    stamp = "2030-01-02T03:04:05+00:00"
+
+    def clock():
+        calls.append(1)
+        return stamp
+
+    value = Checkpoint.create("demo", 1, clock=clock)
+    assert value.created_at == stamp
+    assert calls == [1]
+    assert "clock" not in value.to_dict()

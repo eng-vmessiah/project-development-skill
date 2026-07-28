@@ -105,3 +105,17 @@ def test_from_dict_rejects_unknown_and_conflicting_alias_fields():
         HumanVerificationGate.from_dict({**payload, "unexpected": True})
     with pytest.raises(GateError):
         HumanVerificationGate.from_dict({**payload, "run_id": "different"})
+
+
+def test_human_gate_injected_clock_is_used_once_only_when_now_is_omitted():
+    calls = []
+
+    def clock():
+        calls.append(1)
+        return NOW
+
+    gate = approved(clock=clock)
+    assert gate.allows()
+    assert calls == [1]
+    assert gate.allows(now=NOW)
+    assert calls == [1]

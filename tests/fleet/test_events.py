@@ -294,3 +294,18 @@ def test_e1r_nested_symlink_components_fail_closed(tmp_path):
     with pytest.raises(ValueError):
         log.append(event())
     assert not (target / "run-1").exists()
+
+
+def test_event_log_factory_uses_injected_clock_once_and_keeps_envelope_compatible(tmp_path):
+    calls = []
+
+    def clock():
+        calls.append(1)
+        return "2030-01-02T03:04:05+00:00"
+
+    log = EventLog(tmp_path, "run-1", owner_epoch=2, clock=clock)
+    value = log.create_event(event_id="evt-clock", task_id="task-1", kind="task.started",
+                             ordering_key="task-1", sequence=0, payload={"state": "running"})
+    assert value.created_at == "2030-01-02T03:04:05+00:00"
+    assert calls == [1]
+    assert "clock" not in value.to_dict()
