@@ -12,24 +12,24 @@ jobs:
     strategy:
       matrix:
         python-version: ['3.10', '3.11', '3.12']
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-    
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install pytest pytest-cov pyyaml
-    
+
     - name: Run tests with coverage
       run: |
         pytest tests/ -v --tb=short --junitxml=test-results-${{ matrix.python-version }}.xml --cov=scripts --cov-report=xml:coverage-${{ matrix.python-version }}.xml
-    
+
     - name: Upload test results
       uses: actions/upload-artifact@v4
       if: always()
@@ -39,102 +39,124 @@ jobs:
           test-results-${{ matrix.python-version }}.xml
           coverage-${{ matrix.python-version }}.xml
         retention-days: 30
-  
-  validate-skills:
+
+  validate:
     runs-on: ubuntu-latest
-    
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.12'
-    
-    - name: Validate skills
+
+    - name: Validate repository skills
       run: |
-        # Check all skills have required sections
-        echo "Validating skill files..."
-        FAILED=0
-        
-        for skill in skills/*/SKILL.md; do
-          echo -n "Checking $skill... "
-          
-          # Check for overview
-          if ! grep -q "## Overview\|# " "$skill"; then
-            echo "❌ Missing overview"
-            FAILED=1
-            continue
-          fi
-          
-          # Check for when to use
-          if ! grep -q "## When to Use\|# When to Use" "$skill"; then
-            echo "❌ Missing 'When to Use'"
-            FAILED=1
-            continue
-          fi
-          
-          echo "✅"
-        done
-        
-        if [ $FAILED -eq 1 ]; then
-          echo "❌ Skill validation failed"
-          exit 1
-        fi
-        
-        echo "✅ All skills validated"
-    
-    - name: Check skill sizes
+        # Keep the canonical recursive validator as the single source of truth.
+        # It prints warnings for visibility but exits non-zero only for errors.
+        ./scripts/validate.sh
+
+    - name: Run shell regression tests
       run: |
-        echo "Skill file sizes:"
-        for skill in skills/*/SKILL.md; do
-          SIZE=$(wc -c < "$skill")
-          NAME=$(basename $(dirname "$skill"))
-          printf "  %-35s %6d bytes\n" "$NAME" "$SIZE"
-        done
-        
-        # Warn if any skill exceeds 20KB
-        LARGE=$(find skills -name "SKILL.md" -size +20k)
-        if [ -n "$LARGE" ]; then
-          echo ""
-          echo "⚠️  Warning: Large skill files detected:"
-          echo "$LARGE"
-        fi
-  
+        # These protect recursive discovery and installer cleanup/determinism.
+        bash tests/test_validate.sh
+        bash tests/test_install.sh
+
+    - name: Check shell syntax
+      run: |
+        # Catch broken CI-adjacent shell before executing the regression tests.
+        find scripts tests -type f -name '*.sh' -print0 | xargs -0 -r -n1 bash -n
+
+    - name: Check tracked Markdown relative links
+      run: |
+        # This is intentionally offline and uses git's tracked set, so generated
+        # or untracked files cannot make link checks pass accidentally.
+        python - <<'PY'
+        import re
+        import subprocess
+        from pathlib import Path
+
+        root = Path.cwd().resolve()
+        files = [Path(item) for item in subprocess.check_output(
+            ['git', 'ls-files', '-z', '--', '*.md']
+        ).decode().split('\0') if item]
+        link_re = re.compile(r'!?\[[^]]*\]\(([^)\n]+)\)')
+        heading_re = re.compile(r'^\s*#{1,6}\s+(.+?)\s*#*\s*$', re.MULTILINE)
+
+        def slug(value):
+            value = re.sub(r'<[^>]+>', '', value).strip().lower()
+            value = re.sub(r'[^\w\s-]', '', value)
+            return re.sub(r'[-\s]+', '-', value).strip('-')
+
+        failures = []
+        for source in sorted(files, key=lambda path: path.as_posix()):
+            text = (root / source).read_text(encoding='utf-8')
+            for raw in link_re.findall(text):
+                target = raw.strip().split()[0].strip('<>')
+                if (not target or target.startswith(('#', '/')) or
+                        target.startswith(('mailto:', '//')) or
+                        re.match(r'^[A-Za-z][A-Za-z0-9+.-]*://', target)):
+                    continue
+                target_path, _, fragment = target.partition('#')
+                destination = root / source if not target_path else (root / source).parent / target_path
+                try:
+                    destination = destination.resolve()
+                    destination.relative_to(root)
+                except ValueError:
+                    failures.append(f'{source}: escapes repository: {target}')
+                    continue
+                if not destination.exists():
+                    failures.append(f'{source}: missing target: {target}')
+                    continue
+                if fragment and destination.is_file() and destination.suffix.lower() == '.md':
+                    headings = {slug(match.group(1)) for match in heading_re.finditer(destination.read_text(encoding='utf-8'))}
+                    if slug(fragment) not in headings:
+                        failures.append(f'{source}: missing anchor: {target}')
+        if failures:
+            print('\n'.join(sorted(failures)))
+            raise SystemExit(1)
+        print(f'Markdown relative-link check: PASS ({len(files)} tracked files)')
+        PY
+
+    - name: Check V2 documentation paths
+      run: |
+        # The checker is read-only, deterministic, and deliberately network-free.
+        python scripts/pd_fleet/v2_doc_paths.py .
+
   lint:
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.12'
-    
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install flake8
-    
+
     - name: Lint Python code
       run: |
         # Correctness-focused contract: syntax (E9), undefined names (F82),
         # and unused imports/locals (F401/F841) are enforced. Legacy style
         # diagnostics are intentionally outside this contract; see .flake8.
         flake8 scripts/ --config=.flake8
-  
+
   docs:
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Validate documentation
       run: |
-        # Check required files exist
+        # Required-file checks protect the release contract and README index.
         REQUIRED_FILES="README.md CONTRIBUTING.md CHANGELOG.md LICENSE ROADMAP.md"
-        
+
         echo "Checking required documentation files..."
         for file in $REQUIRED_FILES; do
           if [ -f "$file" ]; then
@@ -144,13 +166,12 @@ jobs:
             exit 1
           fi
         done
-        
-        # Check README has skill table
+
         if grep -q "| Skill |" README.md; then
           echo "  ✅ README.md has skill table"
         else
           echo "  ❌ README.md missing skill table"
           exit 1
         fi
-        
+
         echo "✅ Documentation validated"
