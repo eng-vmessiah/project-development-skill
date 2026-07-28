@@ -72,3 +72,17 @@ Este documento separa evidência executada de planejamento e não transforma uma
 ## Rollback e próximo passo humano
 
 Rollback seguro: desabilitar a entrada/feature V2, preservar snapshots, eventos e artefatos, e continuar usando a compatibilidade V1; não apagar estado para mascarar drift. Para release, um revisor humano deve repetir os comandos acima sobre o estado final, revisar residuais/artifacts, registrar `owner`, `identity`, escopo, digest, janela de freshness e decisão explícita. Até então, o estado obrigatório é **NOT READY / PARTIAL**.
+
+## Evidência fresca G1 — 2026-07-28 02:22 UTC
+
+- Artefato: `artifacts/v2/G1-fresh-verification.json`.
+- Branch/commit observados: `feat/pd-fleet-lifecycle-events` / `3036786`.
+- `python -m pytest -q tests/fleet/test_v2*.py` → **401 passed**, exit `0`.
+- `python -m pytest -q` → **921 passed**, exit `0`.
+- `python -m compileall -q scripts tests` → exit `0`.
+- `git diff --check` → exit `0`, após a coleta final.
+- `python scripts/pd_fleet/v2_doc_paths.py .` → 7 documentos, 0 violações, exit `0`.
+- Validação independente do artefato → `G1_ARTIFACT_VALID`.
+- SHA-256 bruto atual do artefato: `04ae0076e543bdb9c80926c6aae2883b6b6b15b8d20e56ec1af13ef0554e6430`.
+
+**Classificação:** evidência local fresca, **NOT READY / PARTIAL**. Esta coleta não fecha GRILL-001, G2–G5 ou G6 e não constitui aprovação humana/release PASS.

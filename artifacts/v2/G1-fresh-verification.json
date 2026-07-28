@@ -1,0 +1,63 @@
+{
+  "commands": [
+    {
+      "command": "python -m pytest -q tests/fleet/test_v2*.py",
+      "exit_code": 0,
+      "name": "v2_tests"
+    },
+    {
+      "command": "python -m pytest -q",
+      "exit_code": 0,
+      "name": "full_tests"
+    },
+    {
+      "command": "python -m compileall -q scripts tests",
+      "exit_code": 0,
+      "name": "compileall"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "name": "diff_check"
+    },
+    {
+      "command": "python scripts/pd_fleet/v2_doc_paths.py .",
+      "exit_code": 0,
+      "name": "doc_paths"
+    }
+  ],
+  "decision": "NOT_READY_PARTIAL",
+  "git": [
+    "feat/pd-fleet-lifecycle-events",
+    "3036786",
+    "## feat/pd-fleet-lifecycle-events"
+  ],
+  "notes": [
+    "Fresh evidence from current workspace.",
+    "Test evidence does not constitute human approval or release PASS."
+  ],
+  "schema_version": "pd-fleet-v2-g1-verification:v1",
+  "scope": "local_verification",
+  "summary": {
+    "compileall": {
+      "exit_code": 0,
+      "passed": null
+    },
+    "diff_check": {
+      "exit_code": 0,
+      "passed": null
+    },
+    "doc_paths": {
+      "exit_code": 0,
+      "passed": null
+    },
+    "full_tests": {
+      "exit_code": 0,
+      "passed": 921
+    },
+    "v2_tests": {
+      "exit_code": 0,
+      "passed": 401
+    }
+  }
+}

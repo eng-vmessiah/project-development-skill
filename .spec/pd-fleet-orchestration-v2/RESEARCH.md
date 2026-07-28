@@ -96,3 +96,9 @@ Esta matriz é o índice de auditoria obrigatório. `failing test exacto` nomeia
 - **ValidationExecutor:** a implementação local/in-process é default e não usa shell. Execução de argv só é possível com allowlist exata, `cwd` contido no root, ambiente explícito/mínimo, timeout e limites de stdout/stderr; `sandbox_capability` é uma capability observável. Se sandbox requerida não estiver disponível, falha fechado (não faz fallback para shell ou execução sem sandbox).
 - **AgentReport:** unknown fields são **rejeitados por default** (policy `reject_unknown_fields=True`); qualquer futura política de preservação exigirá versionamento e teste próprio.
 - **Human gate:** registra `identity: str`, `decision`, `evidence_digest`, `created_at`, `updated_at` e `freshness_window`. Rejeita evidência fora da janela ou decisão sem owner/identity. Identity é apenas string registrada (não simula autenticação criptográfica); autenticação real é out-of-scope/futura.
+
+## Evidência fresca G1 — 2026-07-28
+
+A coleta atual confirmou, no workspace corrente, 401 testes V2 e 921 testes totais passando, além de compileall, diff-check e checker de paths com zero violações. O pacote `artifacts/v2/G1-fresh-verification.json` foi validado independentemente e não contém paths absolutos, segredos ou claim de aprovação.
+
+A evidência é local e fresca, mas o status permanece **NOT READY / PARTIAL**: GRILL-001, G2–G5 e a decisão humana G6 continuam pendentes.
