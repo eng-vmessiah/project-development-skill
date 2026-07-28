@@ -75,3 +75,11 @@
 - **Implementation:** add `fleet-supervisor-reconcile --store --events --run-id --owner-epoch --limit [--json]`; construct existing source handles, invoke `FleetSupervisor.reconcile_events`, emit stable bounded text or sorted JSON.
 - **Acceptance:** no feature discovery/PDState; missing source distinction preserved; no mkdir/write/provider/network/process; source bytes/mtime unchanged; old commands/completions compatible; invalid path/id/epoch/limit fail closed; no raw payload/owner export.
 - **Status:** implemented + independently verified (`11 focused`, `867 full`, final review CLOSED / E9 unblocked; fish runtime parser unavailable because `fish` is not installed).
+
+## E9 — Readiness view composition
+
+- **Files:** `scripts/pd_fleet/readiness.py`, `tests/fleet/test_readiness.py`.
+- **Depends:** E8/E8R closed.
+- **Implementation:** compose already-calculated `SupervisorReport`, `EventDiagnosticsReport` and `RunEventReconciliationReport` into frozen `ReadinessView`; no filesystem/provider/state reads inside the compositor.
+- **Acceptance:** deterministic precedence (`blocked`/failed diagnosis > degraded source > unknown > ready); bounded fixed reason codes only; no proposals/payloads/owners/raw details; missing components are explicit; input reports remain immutable; detached JSON-safe output; no dispatch/provider/network/process.
+- **Status:** implemented + independently verified (`35 focused`, `902 full`, final review CLOSED / E10 unblocked).

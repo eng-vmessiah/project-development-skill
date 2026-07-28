@@ -1,6 +1,6 @@
 # Verification — E1
 
-**Status:** CLOSED through E8; E9 unblocked.
+**Status:** CLOSED through E9; E10 unblocked.
 
 ## Verified
 
@@ -12,13 +12,14 @@
 - E6/E6R RunStore/EventLog reconciliation: `13 focused`, `850 full`; matching/missing/divergent/corrupt/empty-source cases verified.
 - E7A Supervisor reconciliation facade: `6 focused`, `856 full`; exact delegation, exception/source invariance and no dispatch/STATE writes verified.
 - E8/E8R CLI reconciliation: `11 focused`, `867 full`; JSON/text, source-presence semantics, symlink/race/no-write hardening and completions verified.
+- E9/E9R ReadinessView composition: `35 focused`, `902 full`; precedence, component coherence, import purity and safe projection verified.
 - Compileall and diff check passed after each gate.
-- Fresh-eyes reviews closed E1 through E8.
-- Diagnostics, facade, CLI and reconciliation are bounded, immutable/read-only, deterministic and do not mutate event logs, lifecycle, checkpoints, STATE or create a second persistence authority.
+- Fresh-eyes reviews closed E1 through E9.
+- Diagnostics, facade, CLI, reconciliation and readiness composition are bounded, immutable/read-only, deterministic and do not mutate event logs, lifecycle, checkpoints, STATE or create a second persistence authority.
 
 ## Next
 
-E9 is the next contract gate: decide whether to integrate reconciliation into a broader readiness/read-only report, or stop this wave and return to V2 orchestration gaps. No new persistence authority, broker, provider or live execution is implied.
+E10 is the next contract gate: decide whether to expose ReadinessView through Supervisor/CLI, or stop this wave at the pure library boundary. No new persistence authority, broker, provider or live execution is implied.
 
 ## Deferred
 
