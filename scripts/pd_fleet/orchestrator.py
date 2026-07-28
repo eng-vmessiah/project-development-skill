@@ -23,10 +23,11 @@ from .dispatch import DispatchResult, Dispatcher
 from .lifecycle import LifecycleState, TaskLifecycle
 from .lifecycle import GatePolicy as LifecycleGatePolicy
 try:
-    from .gates import GatePolicy as ContractGatePolicy, GateResult
+    from .gates import GatePolicy as ContractGatePolicy, GateResult, HumanVerificationGate
 except ImportError:  # pragma: no cover
     ContractGatePolicy = None
     GateResult = None
+    HumanVerificationGate = None
 from .models import FleetPlan, TaskSpec
 from .validation import ValidationReport, compute_ready_tasks, validate_plan
 try:
@@ -896,8 +897,31 @@ class FleetOrchestrator:
     def _gate_passed(gate: Any) -> bool:
         if gate is None:
             return False
-        # Contract GateResult (or its mapping form) is always policy evaluated;
-        # status alone must never grant access.
+        # Governance gates require an explicit human verification record.  A
+        # structurally complete automatic GateResult must never substitute for
+        # that approval.
+        if HumanVerificationGate is not None and isinstance(gate, HumanVerificationGate):
+            try:
+                return bool(gate.allows())
+            except Exception:
+                return False
+        if isinstance(gate, Mapping):
+            human_keys = {"owner", "identity", "decision", "scope", "evidence_digest",
+                          "artifact_digest", "freshness_window"}
+            has_run = "run" in gate or "run_id" in gate
+            if human_keys.issubset(gate) and has_run:
+                try:
+                    return bool(HumanVerificationGate.from_dict(gate).allows()) if HumanVerificationGate is not None else False
+                except Exception:
+                    return False
+            gate_type = gate.get("gate_type", gate.get("kind", gate.get("type")))
+            if str(gate_type) in {"review", "grill"}:
+                return False
+        # Automatic contract GateResult (or its mapping form) remains policy
+        # evaluated; status alone must never grant access.  Governance result
+        # objects are denied before reaching the generic policy path.
+        if GateResult is not None and isinstance(gate, GateResult) and gate.gate_type in {"review", "grill"}:
+            return False
         if GateResult is not None and (isinstance(gate, GateResult) or
                 (isinstance(gate, Mapping) and ("gate_id" in gate or "gate_type" in gate))):
             try:

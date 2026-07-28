@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict
+from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 import re
@@ -23,7 +24,7 @@ if str(SCRIPTS) not in sys.path:
 from pd_fleet.contracts import AgentContract, AgentReport  # noqa: E402
 from pd_fleet.dispatch import Dispatcher  # noqa: E402
 from pd_fleet.evidence import EvidenceRecord  # noqa: E402
-from pd_fleet.gates import GatePolicy, GateResult, GateStatus, GateType  # noqa: E402
+from pd_fleet.gates import GatePolicy, GateResult, GateStatus, GateType, HumanVerificationGate  # noqa: E402
 from pd_fleet.models import FleetPlan  # noqa: E402
 from pd_fleet.orchestrator import FleetOrchestrator  # noqa: E402
 from pd_fleet.validation import validate_plan  # noqa: E402
@@ -148,13 +149,13 @@ def run(plan_path: Path, output_dir: Path) -> int:
     )
     preflight_evidence = {_identity("evidence", "preflight"): preflight_ev}
     preflight_reports = {_identity("report", "preflight"): preflight_report}
-    g1 = GateResult(
-        gate_id="G1", gate_type=GateType.REVIEW.value, status=GateStatus.PASSED,
-        owner="local-simulated", decision="approved", blockers=[],
-        evidence=list(preflight_evidence), reports=list(preflight_reports),
-        details={"source": "local-preflight"},
+    now = datetime.now(timezone.utc)
+    g1 = HumanVerificationGate(
+        owner="local-simulated", identity="local-human@example.test", decision="APPROVED",
+        scope="local-preflight", run="local-run", evidence_digest="a" * 64,
+        artifact_digest="b" * 64, created_at=now, updated_at=now,
+        freshness_window=timedelta(hours=1),
     )
-    g1 = _validated_gate(g1, preflight_evidence, preflight_reports)
     output_dir.mkdir(parents=True, exist_ok=True)
     # Every file below output_dir is created by this example; input is read-only.
     results_dir = _output_path(output_dir, "results")
