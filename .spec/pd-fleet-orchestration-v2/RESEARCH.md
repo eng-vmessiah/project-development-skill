@@ -162,3 +162,15 @@ Artefato: `artifacts/v2/GRILL-001-findings.json`. A classificação formal é **
 - Artefato: `artifacts/v2/GRILL-001-H06-resolution.json`.
 - Review independente: PASS; 22 focados e 959 totais.
 - Identidade continua sendo metadata auditável, não autenticação criptográfica.
+
+## GRILL-001 — rerun consolidado atual
+
+- **Data do rerun:** 2026-07-28.
+- **Commit:** `5e3f9fa`; **branch:** `feat/pd-fleet-lifecycle-events`.
+- H01…H06: **RESOLVED_LOCALLY** com artefatos individuais.
+- Review independente consolidado: **não encontrou novo BLOCKER/HIGH**.
+- Residuais ativos: M01–M06 e L01–L02 (observability `repr`, cwd não pinned por descriptor, lease expirado ocupando path, expiry antes do lock, parsers permissivos, evidence sem provenance/freshness, timestamps implícitos e policy keys desconhecidas).
+- Evidência fresca: security/executor/provider **107 passed**; persistence/scheduler/concurrency **47 passed**; governance/contracts/reports **147 passed**; full **959 passed**; compileall, doc checker (7/0) e diff-check passaram.
+- `artifacts/v2/G1-fresh-verification.json` é histórico e stale (`commit 3036786`, contagens antigas); não é usado como evidência corrente.
+- Artefato corrente: `artifacts/v2/GRILL-001-rerun-current.json`.
+- **Decisão:** **NOT_READY_PARTIAL**. Não há aprovação humana G1/G6, autorização de merge/provider/release ou PASS global.

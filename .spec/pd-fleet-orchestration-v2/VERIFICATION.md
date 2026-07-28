@@ -144,3 +144,12 @@ Próxima fatia recomendada: corrigir os seis HIGH com testes red-first e revisã
 - Review independente: PASS; full independente: 959 passed. Uma execução parent teve falha intermitente fora do escopo no validation executor; rerun isolado passou.
 - Artefato: `artifacts/v2/GRILL-001-H06-resolution.json`.
 - **Status global:** HIGH-01…HIGH-06 resolvidos localmente, mas GRILL-001/G1–G6 continuam **BLOCKED_NOT_READY** até decisão humana formal.
+
+## GRILL-001 — rerun consolidado atual — 2026-07-28
+
+- H01…H06: **RESOLVED_LOCALLY**; nenhum novo BLOCKER/HIGH na revisão independente.
+- M01–M06 e L01–L02 continuam **OPEN** e devem permanecer visíveis no pacote de gate.
+- Fresh verification: focused **301 passed** (107 + 47 + 147); full **959 passed**; compileall, checker e diff-check passaram.
+- Artefato corrente: `artifacts/v2/GRILL-001-rerun-current.json`.
+- O artefato G1 anterior é histórico/stale e não representa este commit.
+- **Decisão formal:** **NOT_READY_PARTIAL**; G1/G6 continuam sem decisão humana `APPROVED`.
