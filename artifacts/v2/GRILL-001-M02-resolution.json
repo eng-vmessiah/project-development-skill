@@ -1,0 +1,15 @@
+{
+  "change": "Sandbox cwd is pinned by directory descriptor with O_DIRECTORY/O_NOFOLLOW/O_CLOEXEC, passed through /proc/self/fd and pass_fds; root identity is revalidated after open; rename/symlink/root replacement and all cleanup paths fail closed.",
+  "commit": "ea825f1",
+  "evidence": [
+    "focused sandbox/validation/runtime: 60 passed",
+    "full suite: 1000 passed",
+    "independent review: PASS",
+    "root/cwd/intermediate replacement, Popen failure, validation error and FD leak probes passed",
+    "git diff --check: clean"
+  ],
+  "finding_id": "GRILL-M02",
+  "residual": "M05-M06 and L01-L02 remain open; no human G1/G6 approval or release authorization.",
+  "schema_version": "pd-fleet-grill-001-resolution:v1",
+  "status": "RESOLVED_LOCALLY"
+}

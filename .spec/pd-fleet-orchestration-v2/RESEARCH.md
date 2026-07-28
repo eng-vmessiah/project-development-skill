@@ -199,3 +199,11 @@ Artefato: `artifacts/v2/GRILL-001-findings.json`. A classificação formal é **
 - Evidência: focused **59 passed**; full **998 passed**; review independente PASS; advancing-clock/stale-token probes PASS.
 - Artefato: `artifacts/v2/GRILL-001-M04-resolution.json`.
 - M02/M05–M06 e L01–L02 continuam abertos.
+
+## GRILL-M02 — resolução local
+
+- Status: **RESOLVED_LOCALLY** no commit `ea825f1`.
+- Sandbox cwd é pinned por descriptor de diretório, passado por `/proc/self/fd`/`pass_fds`; root identity é revalidada após open; root/cwd/intermediate replacement e cleanup falham fechado.
+- Evidência: focused sandbox/validation/runtime **60 passed**; full **1000 passed**; review independente PASS.
+- Artefato: `artifacts/v2/GRILL-001-M02-resolution.json`.
+- M05–M06 e L01–L02 continuam abertos.
