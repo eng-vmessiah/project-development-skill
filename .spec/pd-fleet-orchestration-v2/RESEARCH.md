@@ -183,3 +183,11 @@ Artefato: `artifacts/v2/GRILL-001-findings.json`. A classificação formal é **
 - Evidência: revisão M01 **227 passed**; full **990 passed**; fleet independente **941 passed**.
 - Artefato: `artifacts/v2/GRILL-001-M01-resolution.json`.
 - M02–M06 e L01–L02 continuam abertos.
+
+## GRILL-M03 — resolução local
+
+- Status: **RESOLVED_LOCALLY** no commit `d31b371`.
+- Leases expirados não bloqueiam readiness, capacity ou path overlap; reclaim é atômico sob lock, inclusive com selector vazio. Selector recebe snapshot isolado e não pode persistir mutações.
+- Evidência: focused **36 passed**; full **997 passed**; review independente PASS; probe M03/M03R2 PASS.
+- Artefato: `artifacts/v2/GRILL-001-M03-resolution.json`.
+- M02/M04–M06 e L01–L02 continuam abertos.

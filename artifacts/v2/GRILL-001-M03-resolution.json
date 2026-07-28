@@ -1,0 +1,15 @@
+{
+  "change": "Expired leases are excluded from readiness, capacity, and path occupancy; reclaimed atomically under lock; sole-task expiry is reusable; empty selector reclaim persists generation/timestamp; selectors receive isolated state and support legacy/now signatures.",
+  "commit": "d31b371",
+  "evidence": [
+    "focused scheduler/store/concurrency: 36 passed",
+    "full suite: 997 passed",
+    "independent review: PASS",
+    "M03/M03R2 adversarial probe: PASS",
+    "git diff --check: clean"
+  ],
+  "finding_id": "GRILL-M03",
+  "residual": "M02, M04-M06 and L01-L02 remain open; no human G1/G6 approval or release authorization.",
+  "schema_version": "pd-fleet-grill-001-resolution:v1",
+  "status": "RESOLVED_LOCALLY"
+}
