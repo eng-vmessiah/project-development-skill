@@ -306,6 +306,7 @@ class GatePolicy:
             return value
         if not isinstance(value, Mapping):
             raise GateError("policy deve ser objeto")
+        value = _safe(value, "policy")
         if any(type(key) is not str for key in value):
             raise GateError("policy contém chave JSON inválida")
         unknown = set(value) - _POLICY_KEYS

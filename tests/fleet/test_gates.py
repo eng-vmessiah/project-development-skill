@@ -171,6 +171,15 @@ def test_policy_alias_conflict_cannot_be_bypassed_by_mapping_equality():
         GatePolicy.from_dict({"requirements": requirements, "gates": hostile_gates})
 
 
+def test_policy_fields_cannot_be_hidden_by_mapping_contains():
+    class LyingContains(dict):
+        def __contains__(self, key):
+            return False
+
+    policy = GatePolicy.from_dict(LyingContains({"requirements": {"review": {"reports": False}}}))
+    assert policy.requirements["review"]["reports"] is False
+
+
 def test_policy_none_defaults_and_serialization_round_trip():
     assert GatePolicy.from_dict(None).to_dict() == GatePolicy().to_dict()
     policy = GatePolicy.from_dict({"gates": {"review": {"reports": False}}, "default_requirements": {"owner": True}})
