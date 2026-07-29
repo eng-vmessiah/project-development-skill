@@ -1,6 +1,6 @@
 # PD Fleet → Hermes Gateway Fleet Bridge v1 — Discovery Scope
 
-**Status:** `discovery_pending`
+**Status:** `g0_hold_global_fleet_surface_unconfirmed`
 **Parent evidence:** `pd-fleet-hermes-adapter-v0` — `passed_local_fake_only` / `NOT_READY_RUNTIME`
 **Supersedes:** `pd-fleet-hermes-adapter-real-v1` as the current integration direction
 **Scope authorization:** discovery/design only

@@ -1,6 +1,6 @@
 # Gateway Fleet Bridge — Discovery Baseline
 
-**Status:** `G0_pending`
+**Status:** `G0_hold_global_fleet_surface_unconfirmed`
 **Mode:** read-only reconciliation
 **External effects:** disabled
 
@@ -18,17 +18,29 @@ The Hermes checkout contains a Web UI that is a client of a shared Hermes backen
 
 The dashboard is not the integration target. It is evidence that Hermes already has a client-facing Gateway/event relationship that a Fleet bridge may reuse. Fleet should be a sibling Gateway client or a Hermes-owned Gateway hook, with no dependency on dashboard UI code.
 
-## Not yet confirmed
+## G0 findings
 
-The following remain G0 questions and must be verified before a bridge contract is declared ready:
+The standalone TUI and dashboard share the logical `tui_gateway.server.dispatch`, but the default standalone TUI uses a local stdio child Gateway. The dashboard/serve WebSocket is therefore not automatically a view of every terminal session.
 
-1. whether standalone terminal sessions publish through the same Gateway;
-2. whether the existing event channel is chat/PTY scoped or globally usable;
-3. whether a supported Fleet subscription/registration API exists;
-4. Gateway auth and local ownership semantics for a non-UI client;
-5. replay/cursor guarantees after reconnect;
-6. stable versus presentation-only event payload fields.
+The dashboard event endpoint is not a Fleet stream:
+
+- it requires an opaque `channel` tied to a PTY/chat surface;
+- it fans out only to current subscribers of that in-memory channel;
+- it has no global wildcard, cursor, replay, acknowledgement, or durable event log;
+- it is best-effort and protected by dashboard/WebSocket auth mechanisms;
+- its publisher path has bounded in-memory buffering and can drop frames.
+
+The classic `hermes --cli` path is separate from `tui_gateway` and needs a separate integration decision.
 
 ## Decision
 
-Current decision: `HOLD_G0_PENDING`. The available Gateway evidence is promising and materially better aligned than ACP for the desired user-started-session flow, but it is not yet authorization to implement or activate a live bridge.
+`G0 = HOLD_GLOBAL_FLEET_SURFACE_UNCONFIRMED`.
+
+The Gateway remains the correct host seam, but implementation is blocked until a supported Hermes-owned Fleet registration/subscription surface is designed and authorized. Reusing `/api/events?channel` as a global Fleet contract is rejected.
+
+## Remaining questions moved to G1/G2/G3/G4
+
+- G1: stable versioned Fleet event envelope and supported Gateway extension;
+- G2: user-owned versus Fleet-owned session association;
+- G3: cursor, replay, reconnect, and stale-session behavior;
+- G4: Fleet client authentication, authorization, redaction, and capability boundary.
