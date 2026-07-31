@@ -45,7 +45,7 @@ Hermes owns concrete session/runtime state. Fleet owns coordination state. PD Co
 - Hermes transport foundation commit: `b676501577` (disabled/unwired attachment HTTP/SSE foundation)
 - Hermes API-server composition commit: `2dcde7be81` (flag-gated route/SSE bridge, still `NOT_READY` without activation/auth)
 - Hermes B15a.0 local seam checkpoint: `ec55552a80`, `tui_gateway/plugin_rpc.py`, dispatcher registration/error boundary and focused tests; local-only, not activated
-- PD/Fleet B15a.1 local plugin checkpoint pending: `plugins/pd-fleet-hermes/` lifecycle-only package and tests; not installed or discovered by Hermes runtime
+- PD/Fleet B15a.1 local plugin checkpoint: `824f000`, `plugins/pd-fleet-hermes/` lifecycle-only package and tests; independent review `PASS`; not installed or discovered by Hermes runtime
 - Hermes B9 authority commit: `d3b761a99b` (typed principal, owner epoch, binding validation, lifecycle publisher)
 - Hermes B10 fail-closed seam commit: `41c17d9bc0` (typed resolver and lifecycle hook; global API key is not Fleet identity)
 - Hermes B11 identity adapter commit: `92f068bbff` (verified dashboard Session → FleetPrincipal; TokenPrincipal rejected as human identity)
