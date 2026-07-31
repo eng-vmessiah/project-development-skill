@@ -168,6 +168,6 @@ O scheduler deve verificar a capability antes de usá-la e bloquear de forma exp
 
 ## Estado atual
 
-O contrato de Runtime Adapter e o caminho fake/local independente de Hermes estão implementados e verificados localmente. O Fleet V2 como produto continua experimental e default-deny. O bridge Hermes permanece em `NOT_READY_HERMES_SEAM`; essa limitação não deve degradar o funcionamento do PD Core ou do Fleet local.
+O contrato de Runtime Adapter e o caminho fake/local independente de Hermes estão implementados e verificados localmente. O Fleet V2 como produto continua experimental e default-deny. B15a.2 confirmou o transporte TUI stdio/JSON-RPC e a fronteira de sessão, mas o bridge ainda requer um seam Hermes explícito para registrar RPC namespaced; permanece `IMPLEMENTATION_BLOCKED_EXPLICIT_HERMES_RPC_SEAM`. Essa limitação não deve degradar o funcionamento do PD Core ou do Fleet local.
 
-Evidência local atual: suíte `tests/fleet` verde; a contagem exata deve ser atualizada junto com cada nova regressão. Essa evidência não implica provider/runtime Hermes, dispatch live, produção ou aprovação de promoção.
+Evidência local atual: suíte `tests/fleet` verde; evidência de discovery B15a.2 em [`PD-FLEET-B15A2-TUI-SEAM.md`](PD-FLEET-B15A2-TUI-SEAM.md). A contagem exata deve ser atualizada junto com cada nova regressão. Essa evidência não implica plugin instalado, provider/runtime Hermes, dispatch live, produção ou aprovação de promoção.
