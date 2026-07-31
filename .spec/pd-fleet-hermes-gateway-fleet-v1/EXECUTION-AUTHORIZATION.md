@@ -4,6 +4,18 @@
 **Authorization:** execute the remaining project plan through local implementation, fake/injected Gateway validation, and closeout; prefer existing Hermes Gateway capabilities where they exist.
 **Date:** 2026-07-29
 
+## B15a local implementation approval
+
+**Approved by:** Vitor, 2026-07-31 19:14 -0300
+**Approved scope:** begin implementation in this repository only, using fake/injected dependencies and local tests. The first slice is lifecycle-only plugin loading/contract behavior.
+**Explicit exclusion:** do not modify `/home/vitor/.hermes/hermes-agent`; do not implement or claim the real B15a.0 RPC seam; do not activate live Hermes, providers, credentials, network, subprocesses, dispatch, or external messaging.
+
+## B15a.0 isolated worktree authorization
+
+**Approved by:** Vitor, current session
+**Approved scope:** implement and test the B15a.0 namespaced RPC seam in `/home/vitor/project/hermes-agent-b15a-rpc-seam`, branch `feat/b15a-rpc-seam`, based on Hermes `main` at `3bb422a10f`.
+**Required boundaries:** keep `/home/vitor/.hermes/hermes-agent` `main` clean; no Gateway start/reload, provider calls, network, credentials, subprocess dispatch, session mutation, push, merge, release or deploy. The isolated worktree may hold a local checkpoint, but remains unintegrated until separate integration authorization.
+
 ## Allowed scope
 
 - Implement Fleet-side read-only bridge code in this repository.

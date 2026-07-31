@@ -11,8 +11,8 @@ This record distinguishes local evidence from live Hermes readiness. No claim is
 - Contracts/design: `G1-CONTRACT.md`, `G2-OWNERSHIP.md`, `G3-DELIVERY.md`, `G4-SECURITY.md`.
 - Closure/auth lifecycle: `G4-CLOSURE.md`, `G4-AUTH-LIFECYCLE.md`.
 - Authorization and boundaries: `EXECUTION-AUTHORIZATION.md`.
-- Local implementation: `scripts/pd_fleet/gateway_bridge_contracts.py`, `fleet_gateway_bridge.py`, `fake_gateway.py`, `fixture_harness.py`, `hermes_existing_adapter.py`, `run_g5_fixture_matrix.py`.
-- Tests: corresponding `tests/fleet/test_fake_gateway.py`, `test_fleet_gateway_bridge.py`, `test_gateway_bridge_contracts.py`, `test_g5_fixture_matrix.py`, `test_hermes_existing_adapter.py`, `test_v2_fake_adapter.py`, and G3 closure-debt coverage.
+- Local implementation: `scripts/pd_fleet/gateway_bridge_contracts.py`, `fleet_gateway_bridge.py`, `fake_gateway.py`, `fixture_harness.py`, `hermes_existing_adapter.py`, `hermes_plugin_contract.py`, `run_g5_fixture_matrix.py`.
+- Tests: corresponding `tests/fleet/test_fake_gateway.py`, `test_fleet_gateway_bridge.py`, `test_gateway_bridge_contracts.py`, `test_g5_fixture_matrix.py`, `test_hermes_existing_adapter.py`, `test_hermes_plugin_contract.py`, `test_v2_fake_adapter.py`, and G3 closure-debt coverage.
 
 ## Gate evidence
 
@@ -29,9 +29,12 @@ This record distinguishes local evidence from live Hermes readiness. No claim is
 
 ## Repository verification
 
-- Full local suite after attach hardening: **1198 passing**.
+- Focused bridge/plugin suite after lifecycle/journal hardening: **80 passing**; plugin contract: **10 passing**.
+- Full local Fleet suite after lifecycle/journal hardening: **1160 passing**.
 - G5 fixture matrix: **45/45 passed**, **44 distinct negatives**; direct/module results deterministic.
-- Documentation/path checker: **0 violations** (previously recorded and rerun for this closeout; see command output below).
+- Lifecycle-only plugin publication is staged and fail-closed: private callback bypass is rejected, partial registration is rolled back, and opaque targets without a rollback boundary are rejected before publication.
+- Local journal events and unacknowledged outbox entries have positive configurable global bounds and fail closed on overflow.
+- Documentation/path checker: **0 violations** (rerun for this closeout; see command output below).
 - `git diff --check`: **clean**.
 
 ## Limitations and open blockers
@@ -52,4 +55,4 @@ python scripts/pd_fleet/v2_doc_paths.py .   → `{"repo_root":".","schema_versio
 git diff --check                              → clean
 ```
 
-The full suite and G5 counts above are the current supplied execution evidence for this reconciliation; no code was changed in this documentation wave.
+The focused/full suite counts above are the current execution evidence for this local hardening wave. This wave does not alter the Hermes checkout or establish live readiness.

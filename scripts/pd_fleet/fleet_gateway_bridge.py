@@ -41,7 +41,13 @@ def _json(value: Any) -> str:
 
 class _Store:
     """Small, namespaced, transactional journal owned exclusively by this bridge."""
-    def __init__(self, path: str | None):
+    def __init__(self, path: str | None, *, max_events: int = 1024, max_pending_events: int = 1024):
+        if (isinstance(max_events, bool) or not isinstance(max_events, int) or max_events < 1
+                or isinstance(max_pending_events, bool) or not isinstance(max_pending_events, int)
+                or max_pending_events < 1):
+            raise ValueError("invalid journal bounds")
+        self.max_events = max_events
+        self.max_pending_events = max_pending_events
         self.lock = RLock()
         try:
             self.db = sqlite3.connect(path or ":memory:", check_same_thread=False)
@@ -190,6 +196,13 @@ class _Store:
                         continue
                     by_id = self.db.execute("SELECT association_ref, stream_epoch, sequence, record_json FROM fleet_bridge_events WHERE event_id=?", (event.event_id,)).fetchone()
                     if by_id is not None and (tuple(by_id[:3]) != (event.association_ref, event.stream_epoch, event.sequence) or by_id[3] != encoded): _fail(BridgeErrorCode.INVALID_PROVENANCE, "event_id_conflict")
+                    if by_id is None:
+                        event_count = self.db.execute("SELECT COUNT(*) FROM fleet_bridge_events").fetchone()[0]
+                        pending_count = self.db.execute("SELECT COUNT(*) FROM fleet_bridge_outbox WHERE acknowledged=0").fetchone()[0]
+                        if event_count >= self.max_events:
+                            _fail(BridgeErrorCode.PAYLOAD_TOO_LARGE, "journal_event_limit")
+                        if pending_count >= self.max_pending_events:
+                            _fail(BridgeErrorCode.PAYLOAD_TOO_LARGE, "journal_pending_limit")
                     self.db.execute("INSERT INTO fleet_bridge_events VALUES (?,?,?,?,?)", (event.association_ref, event.stream_epoch, event.sequence, event.event_id, encoded))
                     self._outbox_event(event, encoded)
                 if cursor is not None:
@@ -271,6 +284,12 @@ class _Store:
                     encoded = encoded_events[event.event_id]
                     existing = self.db.execute("SELECT event_id, record_json FROM fleet_bridge_events WHERE association_ref=? AND stream_epoch=? AND sequence=?", (event.association_ref, event.stream_epoch, event.sequence)).fetchone()
                     if existing is None:
+                        event_count = self.db.execute("SELECT COUNT(*) FROM fleet_bridge_events").fetchone()[0]
+                        pending_count = self.db.execute("SELECT COUNT(*) FROM fleet_bridge_outbox WHERE acknowledged=0").fetchone()[0]
+                        if event_count >= self.max_events:
+                            _fail(BridgeErrorCode.PAYLOAD_TOO_LARGE, "journal_event_limit")
+                        if pending_count >= self.max_pending_events:
+                            _fail(BridgeErrorCode.PAYLOAD_TOO_LARGE, "journal_pending_limit")
                         self.db.execute("INSERT INTO fleet_bridge_events VALUES (?,?,?,?,?)", (event.association_ref, event.stream_epoch, event.sequence, event.event_id, encoded))
                         self._outbox_event(event, encoded)
                     elif existing[0] != event.event_id or existing[1] != encoded:
@@ -337,11 +356,11 @@ class _Store:
 
 class FleetGatewayBridge:
     """Read-only observer facade over an injected GatewayClient/connection."""
-    def __init__(self, gateway_client: Any, observer: ObserverIdentity, *, store_path: str | None = None, in_memory: bool = False, store: Any | None = None):
+    def __init__(self, gateway_client: Any, observer: ObserverIdentity, *, store_path: str | None = None, in_memory: bool = False, store: Any | None = None, journal_event_limit: int = 1024, journal_pending_limit: int = 1024):
         if not isinstance(observer, ObserverIdentity): _fail(BridgeErrorCode.INVALID_REQUEST, "malformed_observer")
         if store_path and in_memory: raise ValueError("choose store_path or in_memory")
         self.gateway = gateway_client; self.observer = observer
-        self._store = store or _Store(None if in_memory or store_path is None else store_path)
+        self._store = store or _Store(None if in_memory or store_path is None else store_path, max_events=journal_event_limit, max_pending_events=journal_pending_limit)
         self._connection = None; self._closed = False; self._lock = RLock()
 
     def connect(self) -> "FleetGatewayBridge":

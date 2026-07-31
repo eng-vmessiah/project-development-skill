@@ -84,6 +84,17 @@ The client MUST provide a bounded client identity and requested event version. T
 
 `fleet.subscribe` is scoped to an explicit association/session reference. A wildcard subscription over all Hermes sessions is not part of v1.
 
+### Vocabulary boundary with B15a TUI
+
+G1 bridge commands and B15a TUI control operations are separate layers:
+
+| Layer | Vocabulary | Meaning |
+|---|---|---|
+| TUI control plane | `activate`, `status`, `deactivate` | local operations on the one authoritative active TUI session |
+| Fleet bridge transport | `fleet.connect`, `fleet.subscribe`, `fleet.disconnect` | proposed observer connection/subscription lifecycle at the bridge boundary |
+
+The table is a mapping proposal, not evidence that either surface exists in Hermes. Before implementation, the Hermes owner must select one authoritative wire vocabulary and document the translation, authentication context, collision policy, error/version behavior, and default-off behavior. An implementer must not silently alias one layer to the other.
+
 The authorization granted by this contract is observation-only:
 
 | Capability | Initial v1 |
@@ -207,6 +218,19 @@ These codes are normative across G1, G2, G3, and G4:
 | `no_new_events` | valid cursor has no subsequent event | remain synchronized; do not advance falsely |
 
 Error responses MUST not disclose whether an unscoped session exists. `association_stale` is used for a previously authorized reference; `association_required` is used when no authorized association can be acknowledged.
+
+## 8.1 Pre-implementation closure requirements
+
+The following remain blockers for any live seam implementation:
+
+- public RPC registration/dispatch contract and owner approval;
+- trusted identity binding for transport, process, profile, workspace, session, and observer, including ambiguous/missing identity rejection;
+- composite default-deny evaluation with malformed/missing configuration;
+- normative closed schemas and bounds for every request, response, event, diagnostic, and intermediate buffer;
+- redaction-before-buffer/persistence/replay/logging evidence;
+- snapshot/stream atomicity, cursor issuer/binding, epoch, retention, tombstones, outbox/ack ordering, heartbeat/TTL/grace, and restart recovery.
+
+Until these are closed, G1 remains a design contract only and cannot authorize B15a implementation or change `NOT_READY_HERMES_SEAM`.
 
 ## 8. Registration ordering and G3 dependency
 

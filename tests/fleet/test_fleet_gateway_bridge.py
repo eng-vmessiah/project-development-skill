@@ -500,6 +500,20 @@ def test_requested_binding_mismatch_is_rejected_before_persistence():
     assert not bridge._store.events(binding["association_ref"])
 
 
+def test_journal_event_limit_fails_closed_before_unbounded_growth():
+    gateway, observer, binding, ticket = setup()
+    bridge = FleetGatewayBridge(
+        gateway, observer, in_memory=True, journal_event_limit=1, journal_pending_limit=1,
+    ).connect()
+    association = bridge.attach(ticket, binding)
+    bridge.subscribe(association)
+    with pytest.raises(BridgeValidationError) as exc:
+        bridge.heartbeat(association)
+    assert exc.value.code is BridgeErrorCode.PAYLOAD_TOO_LARGE
+    assert exc.value.audit_reason == "journal_event_limit"
+    assert len(bridge._store.events(association.association_ref)) == 1
+
+
 def test_terminal_state_is_sticky_against_late_observing_snapshot():
     gateway, observer, binding, ticket = setup()
     bridge = FleetGatewayBridge(gateway, observer, in_memory=True).connect()

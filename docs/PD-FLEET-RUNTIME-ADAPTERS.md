@@ -43,10 +43,11 @@ ou `fleet-local`.
   __init__.py
 ```
 
-O plugin pode registrar ferramentas, comandos slash/CLI e hooks de lifecycle Hermes,
-além de traduzir a sessão Hermes atual para o contrato genérico de Runtime Adapter.
-Ele deve ser fino: scheduler, persistência Fleet, checkpoints, DAG, gates e reports
-genéricos continuam no pacote do Fleet e devem funcionar fora do Hermes.
+Na primeira versão B15a, o plugin pode registrar somente hooks de lifecycle Hermes
+aprovados pelo seam público; não registra tools invocáveis pelo modelo, comandos
+slash/CLI ou RPC fora desse seam. Ele deve ser fino: scheduler, persistência Fleet,
+checkpoints, DAG, gates e reports genéricos continuam no pacote do Fleet e devem
+funcionar fora do Hermes.
 
 A descoberta/instalação do plugin é separada e sua ativação exige `plugins.enabled`.
 Isso não autoriza efeitos live por si só; as flags e gates do Fleet continuam obrigatórios.

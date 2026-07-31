@@ -77,10 +77,7 @@ The plugin is installed/discovered separately and explicitly enabled with Hermes
 load, but is not sufficient authorization for live effects; Fleet flags and gates
 remain authoritative.
 
-The plugin may register tools, slash/CLI commands, and Hermes lifecycle hooks. It
-must call the generic Fleet API and keep Fleet state, scheduler, checkpoints, DAG,
-gates, and reports outside the plugin. If the plugin is absent or disabled, Hermes
-and the standalone Fleet paths must continue to work normally.
+The first B15a version may register only the approved lifecycle hooks through the public plugin API. It must not register model-invocable tools, slash/CLI commands, or runtime RPC handlers outside the separately approved Hermes RPC seam. It must call the generic Fleet API and keep Fleet state, scheduler, checkpoints, DAG, gates, and reports outside the plugin. If the plugin is absent or disabled, Hermes and the standalone Fleet paths must continue to work normally.
 
 ## B15a — TUI local por sessão
 
@@ -88,7 +85,7 @@ Implementar atrás de flag default-off e sem alterar o comportamento normal:
 
 1. Implementar primeiro o seam B15a.0 de registro RPC namespaced, com teste de plugin ausente/desabilitado.
 2. Resolver a sessão authoritative dentro de `tui_gateway.server`.
-3. Adicionar uma operação RPC explícita de ativação/status/desativação, com owner derivado server-side.
+3. Adicionar operações locais explícitas `activate/status/deactivate`, com owner derivado server-side. Esses nomes pertencem ao control plane TUI; não são os nomes do bridge G1.
 4. Emitir/consumir a capacidade de ativação somente no backend Hermes; o ticket bruto não atravessa para a TUI TypeScript.
 5. Associar o observer a uma única `session_ref` ativa.
 6. Entregar à TUI somente eventos Fleet redigidos e bounded.
@@ -108,6 +105,21 @@ Implementar atrás de flag default-off e sem alterar o comportamento normal:
 - flag off mantém o comportamento atual byte-for-byte no caminho não Fleet;
 - testes Python do `tui_gateway` e testes do cliente TUI cobrem o protocolo RPC;
 - canary local reproduzível prova attach → evento → replay → detach → cleanup.
+
+### Contract blockers before implementation
+
+The following are required design gates, not assumptions to be filled in by the implementer:
+
+| Boundary | Required decision/evidence |
+|---|---|
+| RPC seam | public registration signature, namespace collision, exception isolation, versioning, disabled/absent behavior, and non-Fleet golden tests |
+| identity | trusted binding for stdio connection, TUI process, profile, workspace, active session, and observer; ambiguity/absence must deny |
+| effective enablement | plugin allow-list + integration flag + supported seam + authenticated caller + explicit association + capability + lifecycle state; all are mandatory |
+| payload | closed allow-list, byte/depth/cardinality bounds, control/Unicode policy, bounded diagnostics, and redaction before buffer/persistence/log/replay |
+| delivery | snapshot boundary, opaque server-issued cursor, epoch, retention/tombstone, replay gap, outbox/ack, heartbeat/TTL/grace, and restart behavior |
+| lifecycle | state machine and authority for attach, reconnect, deactivate, session end, TUI exit, crash, and in-flight RPCs |
+
+Candidate values from G4 remain candidates only: 5-minute activation TTL, 90-second association idle TTL, 30-second heartbeat, 15-minute cursor TTL, 60-second reconnect grace, 4 KiB payload, 8 KiB envelope, and 100-event replay batch. They require owner/security approval before becoming normative.
 
 ## B15b — Gateway de mensagens/API
 

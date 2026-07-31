@@ -35,6 +35,8 @@ These are review candidates, not approved production values:
 
 These values require owner/security review and clock-skew policy. They MUST NOT be embedded in runtime until approved.
 
+The candidate table is also the minimum review checklist for B15a. It is not a normative runtime configuration. Approval must additionally freeze byte, depth, cardinality, Unicode/control, diagnostic, retry, clock-skew, and retention limits, with named fixtures and commands proving each bound.
+
 ## 3. Cursor and activation integrity
 
 Recommended design:
@@ -138,3 +140,15 @@ Conflicts are `invalid_provenance` and require resync.
 | authorize G5 test fixtures | locally authorized and verified under `EXECUTION-AUTHORIZATION.md`; live Hermes remains excluded | PD Core governance owner |
 
 The local G4 policy is verified by fake/injected fixtures, while live authentication, issuer, Gateway ownership, and security closure remain open. G5 local verification and G6 local implementation are authorized within the bounded repository scope; neither changes the live Hermes status.
+
+## 8. B15a-specific blockers carried forward
+
+Before a TUI seam can be implemented, the owner/security review must close:
+
+- the trusted identity chain from stdio/TUI process to profile, workspace, authoritative session, and Fleet observer;
+- the all-gates-pass default-deny matrix, including absent/invalid flags and direct dispatcher calls;
+- one closed redacted wire schema, with redaction before every buffer, persistence, replay, audit, log, metric, and delivery boundary;
+- lifecycle authority for reconnect, duplicate attach, session end, normal exit, crash, restart epoch, and in-flight operations;
+- the mapping between B15a TUI control vocabulary and G1 bridge vocabulary.
+
+These are unresolved design gates. Fake/injected evidence may validate them locally once specified, but cannot establish Hermes seam or live readiness.
