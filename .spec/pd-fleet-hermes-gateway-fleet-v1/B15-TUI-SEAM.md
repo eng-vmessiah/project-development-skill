@@ -20,6 +20,26 @@ O `tui_gateway` não é um segundo `isis-gateway.service`. Ele é um backend loc
 
 O Gateway de mensagens/API permanece uma segunda etapa (`B15b`) e não deve ser inferido como resolvido por esta integração.
 
+## Descoberta de implementação — pré-requisito B15a.0
+
+A inspeção do Hermes confirmou que `tui_gateway.server` registra RPCs por decorators
+internos (`@method(...)`) e que o `PluginContext` atual oferece hooks, commands e
+tools, mas não oferece um registro público de RPC. Portanto, `pd-fleet-hermes` não
+pode adicionar `fleet.*` somente pela API atual de plugins.
+
+Antes de B15a, será necessário um seam mínimo no Hermes/TUI para registro explícito
+de RPCs namespaced e default-off. Esse seam deve:
+
+- aceitar somente handlers registrados pelo plugin habilitado;
+- manter o namespace `fleet.*` separado dos RPCs existentes;
+- não expor ticket bruto, principal ou credencial ao TypeScript;
+- manter o comportamento byte-for-byte quando o plugin estiver ausente/desabilitado;
+- rejeitar métodos Fleet quando a flag de integração estiver desligada;
+- não mover scheduler, persistência, DAG, checkpoints, gates ou reports para o Hermes.
+
+Esse item é uma extensão de infraestrutura do Hermes para suportar o plugin; não é
+implementação do Fleet Core nem autorização de live dispatch.
+
 ## Por que o TUI vem primeiro
 
 - caller local e acionado explicitamente pelo usuário;
@@ -46,14 +66,15 @@ and the standalone Fleet paths must continue to work normally.
 
 Implementar atrás de flag default-off e sem alterar o comportamento normal:
 
-1. Resolver a sessão authoritative dentro de `tui_gateway.server`.
-2. Adicionar uma operação RPC explícita de ativação/status/desativação, com owner derivado server-side.
-3. Emitir/consumir a capacidade de ativação somente no backend Hermes; o ticket bruto não atravessa para a TUI TypeScript.
-4. Associar o observer a uma única `session_ref` ativa.
-5. Entregar à TUI somente eventos Fleet redigidos e bounded.
-6. Implementar reconnect, cursor/replay, gap, TTL, detach e session-end.
-7. Revogar e limpar a associação quando a sessão ou o processo terminarem.
-8. Manter `NOT_READY_HERMES_SEAM` até haver teste contra o caminho real do `tui_gateway` e revisão de segurança.
+1. Implementar primeiro o seam B15a.0 de registro RPC namespaced, com teste de plugin ausente/desabilitado.
+2. Resolver a sessão authoritative dentro de `tui_gateway.server`.
+3. Adicionar uma operação RPC explícita de ativação/status/desativação, com owner derivado server-side.
+4. Emitir/consumir a capacidade de ativação somente no backend Hermes; o ticket bruto não atravessa para a TUI TypeScript.
+5. Associar o observer a uma única `session_ref` ativa.
+6. Entregar à TUI somente eventos Fleet redigidos e bounded.
+7. Implementar reconnect, cursor/replay, gap, TTL, detach e session-end.
+8. Revogar e limpar a associação quando a sessão ou o processo terminarem.
+9. Manter `NOT_READY_HERMES_SEAM` até haver teste contra o caminho real do `tui_gateway` e revisão de segurança.
 
 ### Critérios de B15a
 

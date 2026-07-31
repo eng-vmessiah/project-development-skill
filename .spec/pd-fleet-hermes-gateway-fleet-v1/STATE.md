@@ -51,6 +51,6 @@ Hermes owns concrete session/runtime state. Fleet owns coordination state. PD Co
 
 ## Next blocker
 
-The next planned blocker is **B15a — TUI Gateway local session seam**, documented in `B15-TUI-SEAM.md`: backend-owned activation caller, session-scoped attach, bounded event delivery over the existing TUI RPC path, replay/reconnect, detach/end cleanup, and crash invalidation. It is planned only and remains `NOT_READY_HERMES_SEAM`.
+The next planned blocker is **B15a.0 — namespaced TUI RPC registration seam**, followed by **B15a — TUI Gateway local session seam**, documented in `B15-TUI-SEAM.md`. The current Hermes plugin API has hooks/commands/tools but no public RPC registration API; this must be solved with a minimal default-off Hermes/TUI extension before Fleet activation/status/deactivation RPCs can exist. B15a then requires backend-owned activation caller, session-scoped attach, bounded event delivery over the TUI RPC path, replay/reconnect, detach/end cleanup, and crash invalidation. It is planned only and remains `NOT_READY_HERMES_SEAM`.
 
 After B15a, B15b must separately solve the messaging/API Gateway seam: authenticated registration, global or multi-session subscription, opaque ticket issuance/consume/revoke and issuer verification, durable cursor/replay/association semantics, and operational rollback. Until those waves are implemented, reviewed, and separately authorized, do not start live activation, access credentials, connect to a live Gateway, or treat the local fake as a runtime fallback.
