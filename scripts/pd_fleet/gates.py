@@ -214,6 +214,27 @@ def _plain_json(value: Any, path: str = "value", seen: set[int] | None = None) -
         seen.discard(marker)
 
 
+def _canonical_scope(value: Any, path: str = "scope") -> str | None:
+    """Return a deterministic, order-independent representation of a scope."""
+    try:
+        plain = _plain_json(value, path)
+
+        def normalize(item: Any) -> Any:
+            if type(item) is dict:
+                return {key: normalize(item[key]) for key in sorted(item)}
+            if type(item) is list:
+                normalized = [normalize(child) for child in item]
+                return sorted(normalized, key=lambda child: json.dumps(
+                    child, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+                ))
+            return item
+
+        return json.dumps(normalize(plain), sort_keys=True, separators=(",", ":"),
+                          ensure_ascii=False, allow_nan=False)
+    except (GateError, TypeError, ValueError):
+        return None
+
+
 def _open_blocker(item: Any) -> bool:
     if isinstance(item, Mapping):
         # Blocker metadata is an untrusted boundary: normalize only strings and
@@ -475,11 +496,19 @@ class HumanVerificationGate:
 
     def evaluate(self, *, now: datetime | str | None = None, artifact_digest: str | None = None,
                  evidence_digest: str | None = None, blockers: Any | None = None,
-                 clock: Clock | None = None) -> GateStatus:
+                 clock: Clock | None = None, expected_run: str | None = None,
+                 expected_scope: Any | None = None) -> GateStatus:
         """Return PASSED only when every explicit approval condition is true."""
         # ``now`` is the explicit audit boundary.  Do not sample a wall clock
         # when it is supplied, and sample the injected clock only once otherwise.
         now_value = _utc_datetime(now, "now") if now is not None else clock_now(clock or self.clock)
+        expected_scope_value = _canonical_scope(expected_scope)
+        actual_scope_value = _canonical_scope(_safe(self.scope))
+        if (type(expected_run) is not str or not expected_run.strip() or
+                expected_scope is None or expected_scope_value is None or
+                actual_scope_value is None or self.run != expected_run or
+                actual_scope_value != expected_scope_value):
+            return GateStatus.PENDING
         if blockers is None:
             current_blockers = self.blockers
         else:
@@ -504,10 +533,12 @@ class HumanVerificationGate:
 
     def allows(self, *, now: datetime | str | None = None, artifact_digest: str | None = None,
                evidence_digest: str | None = None, blockers: Any | None = None,
-               clock: Clock | None = None) -> bool:
+               clock: Clock | None = None, expected_run: str | None = None,
+               expected_scope: Any | None = None) -> bool:
         return self.evaluate(now=now, artifact_digest=artifact_digest,
                              evidence_digest=evidence_digest, blockers=blockers,
-                             clock=clock) is GateStatus.PASSED
+                             clock=clock, expected_run=expected_run,
+                             expected_scope=expected_scope) is GateStatus.PASSED
 
     def to_dict(self) -> dict[str, Any]:
         return {"owner": self.owner, "identity": self.identity, "decision": self.decision.value,

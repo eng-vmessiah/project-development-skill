@@ -1,47 +1,56 @@
 # PD Fleet → Hermes Gateway Fleet Bridge v1 — State
 
-- **Status:** `g0_hold_global_fleet_surface_unconfirmed`
+- **Status:** `g8_local_closeout_not_promotable`
 - **Plan:** `pd-fleet-hermes-gateway-fleet-v1`
-- **Current gate:** `G0_hold_global_fleet_surface_unconfirmed`
-- **Supersedes:** `pd-fleet-hermes-adapter-real-v1` as current direction
+- **Current gate:** `G8_local_closeout_not_promotable`
 - **Parent:** `pd-fleet-hermes-adapter-v0` — `passed_local_fake_only` / `NOT_READY_RUNTIME`
 - **Owner/orchestrator:** `isis`
-- **Scope authorization:** discovery/design only
+- **Scope authorization:** local/fake/injected implementation and verification only
 - **External effects:** disabled
 - **Runtime/provider authorization:** none
-- **Implementation authorization:** none
+- **Live Hermes status:** `NOT_READY_HERMES_SEAM`
+
+## Gate statuses
+
+| Gate | Status | Evidence / limitation |
+|---|---|---|
+| G0 | `HOLD_live_surface_unconfirmed` | No supported global Fleet subscription, activation, replay, or opaque issuer seam confirmed. |
+| G1 | `local_verified` | Versioned bridge contract and review packet. |
+| G2 | `local_verified` | Ownership/association rules and local tests. |
+| G3 | `local_verified` | Cursor, replay, reconnect, stale, and recovery behavior in local fixtures. |
+| G4 | `local_verified_live_auth_open` | Local default-deny/redaction/auth policy verified; Hermes Gateway mechanism, issuer, transport, and security closure remain open. |
+| G5 | `local_fake_verified` | 45/45 scenarios; 44 distinct negative scenarios; direct and module runs deterministic. |
+| G6 | `local_injected_verified_live_not_ready` | Local bridge and adapter verified; unsupported live Fleet operations explicitly return `NOT_READY_HERMES_SEAM`. |
+| G7 | `local_fake_canary_verified` | Isolated fake Gateway canary only; no live or provider effect. |
+| G8 | `local_closeout_not_promotable` | Documentation/evidence closeout complete; no promotion, merge, release, or production readiness claim. |
 
 ## Authority boundary
 
-Hermes Gateway owns concrete session/runtime state. Fleet owns coordination state. PD Core owns intent, contracts, gates, and human delivery decisions. The dashboard is a sibling presentation client and is not a Fleet dependency.
+Hermes owns concrete session/runtime state. Fleet owns coordination state. PD Core owns intent, contracts, gates, and human delivery decisions. The dashboard remains a sibling presentation client and is not a Fleet dependency or global observer source. The TUI backend is now the planned first Hermes caller for B15a, but it is not yet wired to Fleet and does not authorize global observation.
 
-## Operating modes
+## Implemented local artifacts
 
-| Mode | Initial Fleet role | Control status |
-|---|---|---|
-| `user_owned_session` | discover, observe, heartbeat, attach metadata, detach | read-only/default-deny |
-| `fleet_owned_task` | task lifecycle and explicit coordination | future, separately authorized |
+- `scripts/pd_fleet/fake_gateway.py`
+- `scripts/pd_fleet/fleet_gateway_bridge.py`
+- `scripts/pd_fleet/gateway_bridge_contracts.py`
+- `scripts/pd_fleet/hermes_existing_adapter.py`
+- `scripts/pd_fleet/fixture_harness.py`
+- `scripts/pd_fleet/run_g5_fixture_matrix.py`
+- corresponding `tests/fleet/test_*` coverage and the existing v0 fake-only contract
+- Hermes patch artifact: `patches/0001-fleet-observer-contract.patch`
+- Hermes worktree commit: `7e27e622e4` on `feat/fleet-observer-seam` (disabled in-process contract only)
+- Hermes transport foundation commit: `b676501577` (disabled/unwired attachment HTTP/SSE foundation)
+- Hermes API-server composition commit: `2dcde7be81` (flag-gated route/SSE bridge, still `NOT_READY` without activation/auth)
+- Hermes B9 authority commit: `d3b761a99b` (typed principal, owner epoch, binding validation, lifecycle publisher)
+- Hermes B10 fail-closed seam commit: `41c17d9bc0` (typed resolver and lifecycle hook; global API key is not Fleet identity)
+- Hermes B11 identity adapter commit: `92f068bbff` (verified dashboard Session → FleetPrincipal; TokenPrincipal rejected as human identity)
+- Hermes B12 request bridge commit: `d25ab5f4cc` (cookie-only verified Session bridge, provider delegation, all API agent paths carry request context, exact flag guard)
+- Hermes B13 activation registry commit: `c4ed90d144` (bounded per-session binding, monotonic opaque one-shot tickets, hash-only storage, consume/revoke/expiry/epoch invalidation)
+- Hermes B14 lifecycle integration commit: `25880126f4` (ticket-to-attach service, session-scoped registered/status/end/detach, API create/status/end hook composition, forged-principal teardown protection)
+- Replayable patches: `patches/0001-fleet-observer-contract.patch`, `patches/0002-disabled-attachment-transport.patch`, `patches/0003-api-server-gated-transport.patch`, `patches/0004-typed-activation-owner-lifecycle-publisher.patch`, `patches/0005-fail-closed-auth-lifecycle-seam.patch`, `patches/0006-dashboard-session-identity-adapter.patch`, `patches/0007-session-request-lifecycle-bridge.patch`, `patches/0008-bounded-session-activation-tickets.patch`, `patches/0009-ticket-attach-session-lifecycle.patch`
 
-## Gates
+## Next blocker
 
-| Gate | Status | Purpose |
-|---|---|---|
-| G0 | `hold` | inventory complete; supported global Fleet surface is unconfirmed |
-| G1 | `not_started` | define versioned Gateway → Fleet contract |
-| G2 | `not_started` | define ownership and association |
-| G3 | `not_started` | define cursor/replay/reconnect/stale semantics |
-| G4 | `not_started` | define security/capability/effect boundaries |
-| G5 | `not_started` | define injected tests and local observer harness |
-| G6 | `not_authorized` | future read-only implementation |
-| G7 | `not_authorized` | future isolated local canary |
-| G8 | `not_started` | closeout and explicit promotion decision |
+The next planned blocker is **B15a — TUI Gateway local session seam**, documented in `B15-TUI-SEAM.md`: backend-owned activation caller, session-scoped attach, bounded event delivery over the existing TUI RPC path, replay/reconnect, detach/end cleanup, and crash invalidation. It is planned only and remains `NOT_READY_HERMES_SEAM`.
 
-## G0 result
-
-The Gateway is confirmed as the correct host seam, but the current dashboard channel cannot serve as the Fleet contract. The default standalone TUI uses a local stdio Gateway child; the classic CLI is separate; no supported global Fleet subscription, registration method, replay contract, or Fleet-specific auth boundary was found.
-
-G0 therefore remains a technical hold, not a failed discovery. G1 must design the smallest Hermes-owned Gateway extension/bridge needed for Fleet, initially read-only.
-
-## Resume
-
-Start with G1 contract design. Do not start Hermes, install dependencies, access credentials, change config, connect to a live Gateway, or implement runtime code from this scope.
+After B15a, B15b must separately solve the messaging/API Gateway seam: authenticated registration, global or multi-session subscription, opaque ticket issuance/consume/revoke and issuer verification, durable cursor/replay/association semantics, and operational rollback. Until those waves are implemented, reviewed, and separately authorized, do not start live activation, access credentials, connect to a live Gateway, or treat the local fake as a runtime fallback.

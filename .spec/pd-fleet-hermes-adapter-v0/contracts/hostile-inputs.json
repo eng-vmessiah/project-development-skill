@@ -1,0 +1,52 @@
+{
+  "schema_version": "pd-fleet-hermes-adapter:v0",
+  "fixture_id": "hostile-inputs",
+  "operation": "prepare",
+  "cases": [
+    {
+      "case": "cyclic_value",
+      "representation": "test-only cyclic object",
+      "error_code": "forbidden_field"
+    },
+    {
+      "case": "non_finite_number",
+      "value": "NaN",
+      "error_code": "forbidden_field"
+    },
+    {
+      "case": "control_in_id",
+      "value": "owner\\nteam",
+      "error_code": "forbidden_field"
+    },
+    {
+      "case": "nested_unknown_field",
+      "value": {
+        "workspace": {
+          "unexpected": true
+        }
+      },
+      "error_code": "unknown_field"
+    },
+    {
+      "case": "depth_exceeded",
+      "depth": 5,
+      "error_code": "input_too_large"
+    },
+    {
+      "case": "utf8_id_bytes",
+      "bytes": 129,
+      "error_code": "input_too_large"
+    },
+    {
+      "case": "hostile_mapping",
+      "representation": "mapping.items raises",
+      "error_code": "forbidden_field"
+    }
+  ],
+  "expected": {
+    "all_fail_closed": true,
+    "no_sensitive_exception_text": true,
+    "no_mutation": true
+  },
+  "request_fingerprint": "sha256:ded53f69b1a0fe90408b24958481730b878d36b268ec34e5579e6a434348f605"
+}

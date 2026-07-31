@@ -1,0 +1,9 @@
+{
+  "schema_version": "pd-fleet-hermes-adapter:v0",
+  "artifact_id": "handoff-001",
+  "artifact_version": 1,
+  "lineage_ref": {"run_id":"run-001","task_id":"task-001","attempt_id":"attempt-001","session_handle_id":"handle-001","workspace_id":"ws-001"},
+  "status": "ready",
+  "next_action": "resume_local_fake",
+  "evidence_refs": ["evidence-handoff-001"]
+}

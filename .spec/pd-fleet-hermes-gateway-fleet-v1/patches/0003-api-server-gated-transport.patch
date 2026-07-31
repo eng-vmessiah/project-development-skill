@@ -1,0 +1,560 @@
+From 2dcde7be81f4935920fe714a02f831178364c3e6 Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Thu, 30 Jul 2026 12:55:49 -0300
+Subject: [PATCH] feat(fleet): gate observer transport in api server
+
+---
+ gateway/platforms/api_server.py               |  37 +++
+ hermes_cli/fleet_observer_aiohttp.py          | 161 +++++++++++
+ hermes_cli/fleet_observer_transport.py        |  17 ++
+ .../gateway/test_api_server_fleet_observer.py | 259 ++++++++++++++++++
+ 4 files changed, 474 insertions(+)
+ create mode 100644 hermes_cli/fleet_observer_aiohttp.py
+ create mode 100644 tests/gateway/test_api_server_fleet_observer.py
+
+diff --git a/gateway/platforms/api_server.py b/gateway/platforms/api_server.py
+index c71d92a29b..567ae2b098 100644
+--- a/gateway/platforms/api_server.py
++++ b/gateway/platforms/api_server.py
+@@ -62,6 +62,12 @@ from gateway.platforms.base import (
+ )
+ from agent.redact import redact_sensitive_text
+ from gateway.readiness import collect_runtime_readiness
++from hermes_cli.fleet_observer import FleetObserverConfig, FleetObserverHub
++from hermes_cli.fleet_observer_transport import (
++    FleetObserverHTTPAdapter,
++    FleetTransportConfig,
++    create_internal_capability,
++)
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -901,6 +907,29 @@ class APIServerAdapter(BasePlatformAdapter):
+         # Number of in-flight runs on the non-streaming chat/responses paths
+         # (the /v1/runs path tracks its own in-flight set via _run_streams).
+         self._inflight_agent_runs: int = 0
++        # pd-fleet is an explicit, disabled-by-default attachment. The flag
++        # comes only from this platform's extra config; there is no env enable.
++        self._pd_fleet_enabled: bool = extra.get("pd_fleet_gateway_enabled") is True
++        self._fleet_transport: Optional[FleetObserverHTTPAdapter] = None
++
++    def _compose_fleet_observer(self, app: Any) -> None:
++        """Attach the deliberately incomplete B8 pd-fleet composition."""
++        if not self._pd_fleet_enabled:
++            return
++        if self._fleet_transport is not None:
++            self._fleet_transport.close()
++            self._fleet_transport = None
++        # Composition only: no activation/issuer/principal seam exists yet.
++        # Keep the hub disabled and the transport unwired, so the exposed
++        # routes always return bounded NOT_READY.
++        fleet_config = FleetTransportConfig(enabled=True)
++        fleet_hub = FleetObserverHub(FleetObserverConfig(enabled=False))
++        fleet_capability = create_internal_capability(fleet_config, wired=False)
++        self._fleet_transport = FleetObserverHTTPAdapter(
++            fleet_hub, fleet_capability, fleet_config, wired=False,
++        )
++        from hermes_cli.fleet_observer_aiohttp import add_fleet_routes
++        add_fleet_routes(app, self._fleet_transport)
+ 
+     def _readiness_work_counts(self) -> tuple[int, int, int]:
+         """Return bounded work counts from each subsystem's public state."""
+@@ -4848,6 +4877,8 @@ class APIServerAdapter(BasePlatformAdapter):
+             # upstream session-control handlers.
+             self._app["api_server_adapter"] = self
+ 
++            self._compose_fleet_observer(self._app)
++
+             # Start background sweep to clean up orphaned (unconsumed) run streams
+             sweep_task = asyncio.create_task(self._sweep_orphaned_runs())
+             try:
+@@ -4898,6 +4929,9 @@ class APIServerAdapter(BasePlatformAdapter):
+             return True
+ 
+         except Exception as e:
++            if self._fleet_transport is not None:
++                self._fleet_transport.close()
++                self._fleet_transport = None
+             logger.error("[%s] Failed to start API server: %s", self.name, e)
+             return False
+ 
+@@ -4914,6 +4948,9 @@ class APIServerAdapter(BasePlatformAdapter):
+         (OSError: [Errno 24] Too many open files, #37011).
+         """
+         self._mark_disconnected()
++        if self._fleet_transport is not None:
++            self._fleet_transport.close()
++            self._fleet_transport = None
+         if self._response_store is not None:
+             try:
+                 self._response_store.close()
+diff --git a/hermes_cli/fleet_observer_aiohttp.py b/hermes_cli/fleet_observer_aiohttp.py
+new file mode 100644
+index 0000000000..2804103bf1
+--- /dev/null
++++ b/hermes_cli/fleet_observer_aiohttp.py
+@@ -0,0 +1,161 @@
++"""Small aiohttp boundary for the framework-agnostic pd-fleet transport."""
++from __future__ import annotations
++
++import asyncio
++from typing import Any
++
++from .fleet_observer_transport import (
++    MAX_BODY_BYTES,
++    FleetObserverHTTPAdapter,
++    SSEStream,
++    TransportResponse,
++)
++
++
++_BODY_READ_CHUNK = 4096
++
++
++# This is deliberately a polling bridge: the framework-agnostic stream has no
++# async wait primitive, and the bridge must not turn that into a busy loop.
++SSE_POLL_INTERVAL = 15.0
++
++
++def _request_disconnected(request: Any) -> bool:
++    transport = getattr(request, "transport", None)
++    if transport is None:
++        return True
++    closing = getattr(transport, "is_closing", False)
++    return bool(closing() if callable(closing) else closing)
++
++
++async def _read_bounded_body(request: Any) -> tuple[bytes | None, int | None]:
++    """Read at most the fleet transport body limit from an aiohttp request.
++
++    Returns ``(body, error_status)``.  A missing/empty body is represented by
++    ``None`` so the transport can distinguish it from a present GET body.
++    Content-Length is checked before reading; chunked/unknown bodies are read
++    in bounded chunks and rejected as soon as the limit is exceeded.
++    """
++    try:
++        content_length = request.content_length
++    except (TypeError, ValueError, OverflowError):
++        return None, 400
++
++    if content_length is not None:
++        if content_length < 0:
++            return None, 400
++        if content_length == 0:
++            return None, None
++        if content_length > MAX_BODY_BYTES:
++            return None, 413
++        target = content_length
++    else:
++        target = MAX_BODY_BYTES + 1
++
++    content = getattr(request, "content", None)
++    if content is None or not hasattr(content, "read"):
++        return None, 400
++
++    chunks: list[bytes] = []
++    total = 0
++    try:
++        while total < target:
++            chunk = await content.read(min(_BODY_READ_CHUNK, target - total))
++            if not chunk:
++                break
++            if not isinstance(chunk, (bytes, bytearray, memoryview)):
++                return None, 400
++            chunk = bytes(chunk)
++            if len(chunk) > MAX_BODY_BYTES - total:
++                return None, 413
++            chunks.append(chunk)
++            total += len(chunk)
++    except Exception:
++        return None, 400
++
++    if total > MAX_BODY_BYTES:
++        return None, 413
++    if total == 0:
++        return None, None
++    return b"".join(chunks), None
++
++
++async def handle_fleet_request(request: Any, transport: FleetObserverHTTPAdapter) -> Any:
++    """Translate an aiohttp request and return its transport response."""
++    from aiohttp import web
++
++    body, error_status = await _read_bounded_body(request)
++    if error_status is not None:
++        return web.Response(status=error_status)
++    result = transport.handle({
++        "method": request.method,
++        "path": request.path,
++        "headers": dict(request.headers),
++        "body": body,
++    })
++    return await transport_response(result, request=request)
++
++
++async def transport_response(result: TransportResponse | SSEStream, *, request: Any = None) -> Any:
++    """Convert a transport result into an aiohttp response."""
++    from aiohttp import web
++
++    if isinstance(result, SSEStream):
++        if request is None:
++            raise ValueError("SSE response requires an aiohttp request")
++        response = web.StreamResponse(status=200, headers=dict(result.headers))
++        prepared = False
++        failed = False
++        try:
++            await response.prepare(request)
++            prepared = True
++            while not result.closed:
++                if _request_disconnected(request):
++                    failed = True
++                    break
++                for chunk in result.read():
++                    if _request_disconnected(request):
++                        failed = True
++                        break
++                    await response.write(chunk.encode("utf-8"))
++                if failed or result.closed:
++                    break
++                await asyncio.sleep(SSE_POLL_INTERVAL)
++        except asyncio.CancelledError:
++            failed = True
++            raise
++        except (ConnectionResetError, BrokenPipeError):
++            failed = True
++        except Exception:
++            failed = True
++            raise
++        finally:
++            # Closing first is essential: it removes the hub subscription even
++            # when prepare/write/sleep is interrupted or the client vanishes.
++            result.close()
++            if prepared and not failed and not _request_disconnected(request):
++                try:
++                    await response.write_eof()
++                except (ConnectionResetError, BrokenPipeError):
++                    pass
++        return response
++    if isinstance(result.body, str):
++        return web.Response(status=result.status, text=result.body, headers=dict(result.headers))
++    return web.json_response(result.body, status=result.status, headers=dict(result.headers))
++
++
++def add_fleet_routes(app: Any, transport: FleetObserverHTTPAdapter) -> None:
++    """Register the explicit pd-fleet route set on an aiohttp application."""
++    for method, path in (
++        ("POST", "/pd-fleet/v1/observers/register"),
++        ("POST", "/pd-fleet/v1/tickets/consume"),
++        ("GET", "/pd-fleet/v1/associations/{association_ref}/snapshot"),
++        ("GET", "/pd-fleet/v1/associations/{association_ref}/stream"),
++        ("POST", "/pd-fleet/v1/associations/{association_ref}/detach"),
++    ):
++        async def route(request: Any, _transport: FleetObserverHTTPAdapter = transport) -> Any:
++            return await handle_fleet_request(request, _transport)
++        app.router.add_route(method, path, route)
++
++
++__all__ = ["add_fleet_routes", "handle_fleet_request", "transport_response"]
+diff --git a/hermes_cli/fleet_observer_transport.py b/hermes_cli/fleet_observer_transport.py
+index b3571ae784..aa49589d95 100644
+--- a/hermes_cli/fleet_observer_transport.py
++++ b/hermes_cli/fleet_observer_transport.py
+@@ -329,6 +329,11 @@ class SSEStream:
+     def headers(self) -> Mapping[str, str]:
+         return {"Content-Type": "text/event-stream", "Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+ 
++    @property
++    def closed(self) -> bool:
++        with self._lock:
++            return self._closed
++
+     def read(self, limit: int | None = None) -> tuple[str, ...]:
+         if not self._is_valid():
+             self.close()
+@@ -384,6 +389,18 @@ class FleetObserverHTTPAdapter:
+     def issue_ticket(self, *_: Any, **__: Any) -> None:
+         raise FleetTransportError("ticket issuance is internal-only")
+ 
++    def close(self) -> None:
++        """Release streams and deactivate the owned observer attachment."""
++        with self._lock:
++            streams = tuple(self._streams.values())
++            self._streams.clear()
++            self._stream_locks.clear()
++            self._attachments.clear()
++            self._total_attachments = 0
++        for stream in streams:
++            stream.close()
++        self.hub.deactivate()
++
+     def handle(self, request: Any) -> TransportResponse | SSEStream:
+         if self.status()["transport"] != "READY": return self._error(404, "NOT_READY")
+         self._sweep_attachments()
+diff --git a/tests/gateway/test_api_server_fleet_observer.py b/tests/gateway/test_api_server_fleet_observer.py
+new file mode 100644
+index 0000000000..dd34bbd680
+--- /dev/null
++++ b/tests/gateway/test_api_server_fleet_observer.py
+@@ -0,0 +1,259 @@
++"""B8 API-server composition is opt-in but intentionally not ready."""
++from __future__ import annotations
++
++import asyncio
++from typing import Any
++
++import pytest
++from aiohttp import web
++from aiohttp.test_utils import TestClient, TestServer
++
++from gateway.config import PlatformConfig
++from gateway.platforms.api_server import APIServerAdapter
++from hermes_cli import fleet_observer_aiohttp
++from hermes_cli.fleet_observer_transport import MAX_BODY_BYTES, SSEStream, TransportResponse
++
++
++def _adapter(extra=None):
++    return APIServerAdapter(PlatformConfig(extra=extra or {}))
++
++
++def _paths(app):
++    return {resource.canonical for resource in app.router.resources()}
++
++
++def test_default_off_does_not_compose_or_register_pd_fleet_routes():
++    adapter = _adapter()
++    app = web.Application()
++    adapter._compose_fleet_observer(app)
++    assert adapter._fleet_transport is None
++    assert not any(path.startswith("/pd-fleet/") for path in _paths(app))
++
++
++@pytest.mark.asyncio
++async def test_flag_on_is_explicitly_not_ready_and_does_not_authenticate_or_bind():
++    adapter = _adapter({"pd_fleet_gateway_enabled": True})
++    app = web.Application()
++    adapter._compose_fleet_observer(app)
++    assert adapter._fleet_transport is not None
++    assert adapter._fleet_transport.status()["transport"] == "NOT_READY"
++    assert adapter._fleet_transport.hub.active is False
++
++    server = TestServer(app)
++    client = TestClient(server)
++    await client.start_server()
++    try:
++        response = await client.get(
++            "/pd-fleet/v1/associations/caller-supplied/snapshot",
++            headers={"Authorization": "Bearer caller-key"},
++        )
++        assert response.status == 404
++        assert await response.json() == {"error": "NOT_READY"}
++        assert adapter._fleet_transport._attachments == {}
++    finally:
++        await client.close()
++
++
++@pytest.mark.asyncio
++async def test_composed_transport_cleanup_is_idempotent():
++    adapter = _adapter({"pd_fleet_gateway_enabled": True})
++    app = web.Application()
++    adapter._compose_fleet_observer(app)
++    transport = adapter._fleet_transport
++    assert transport is not None
++    transport.close()
++    transport.close()
++    assert adapter._fleet_transport is transport
++    assert transport.hub.active is False
++    adapter._fleet_transport = None
++
++
++def test_flag_requires_exact_true_and_does_not_read_environment(monkeypatch):
++    monkeypatch.setenv("PD_FLEET_GATEWAY_ENABLED", "1")
++    assert _adapter({"pd_fleet_gateway_enabled": 1})._pd_fleet_enabled is False
++    assert _adapter({"pd_fleet_gateway_enabled": "true"})._pd_fleet_enabled is False
++    assert _adapter({"pd_fleet_gateway_enabled": True})._pd_fleet_enabled is True
++
++
++class _FakeTransport:
++    def is_closing(self):
++        return False
++
++
++class _FakeRequest:
++    transport = _FakeTransport()
++
++
++class _BodyContent:
++    def __init__(self, body, *, chunk_size=None):
++        self.body = bytearray(body)
++        self.chunk_size = chunk_size
++        self.read_calls = []
++
++    async def read(self, size=-1):
++        self.read_calls.append(size)
++        if not self.body:
++            return b""
++        size = len(self.body) if size < 0 else size
++        if self.chunk_size is not None:
++            size = min(size, self.chunk_size)
++        chunk = bytes(self.body[:size])
++        del self.body[:size]
++        return chunk
++
++
++class _BodyRequest:
++    method = "GET"
++    path = "/pd-fleet/v1/associations/ref/snapshot"
++    headers = {}
++    transport = _FakeTransport()
++
++    def __init__(self, body, content_length):
++        self.content = _BodyContent(body, chunk_size=3)
++        self.content_length = content_length
++
++
++class _CaptureTransport:
++    def __init__(self):
++        self.request = None
++
++    def handle(self, request):
++        self.request = request
++        return TransportResponse(
++            400 if request["method"] == "GET" and request["body"] is not None else 200,
++            {"ok": True},
++            {},
++        )
++
++
++@pytest.mark.asyncio
++async def test_aiohttp_get_body_reaches_transport_and_is_rejected():
++    transport: Any = _CaptureTransport()
++    response = await fleet_observer_aiohttp.handle_fleet_request(
++        _BodyRequest(b"{}", 2), transport
++    )
++    assert response.status == 400
++    assert transport.request is not None
++    assert transport.request["body"] == b"{}"
++
++
++@pytest.mark.asyncio
++async def test_aiohttp_rejects_oversized_content_length_before_reading():
++    request = _BodyRequest(b"x" * (MAX_BODY_BYTES + 1), MAX_BODY_BYTES + 1)
++    transport: Any = _CaptureTransport()
++    response = await fleet_observer_aiohttp.handle_fleet_request(request, transport)
++    assert response.status == 413
++    assert request.content.read_calls == []
++    assert transport.request is None
++
++
++@pytest.mark.asyncio
++async def test_aiohttp_rejects_oversized_chunked_body_without_full_buffering():
++    request = _BodyRequest(b"x" * (MAX_BODY_BYTES + 100), None)
++    transport: Any = _CaptureTransport()
++    response = await fleet_observer_aiohttp.handle_fleet_request(request, transport)
++    assert response.status == 413
++    assert len(request.content.body) > 0
++    assert len(request.content.body) < MAX_BODY_BYTES + 100
++    assert transport.request is None
++
++
++@pytest.mark.asyncio
++async def test_aiohttp_empty_body_is_passed_as_none():
++    request = _BodyRequest(b"", 0)
++    transport: Any = _CaptureTransport()
++    response = await fleet_observer_aiohttp.handle_fleet_request(request, transport)
++    assert response.status == 200
++    assert transport.request is not None
++    assert transport.request["body"] is None
++
++
++class _FakeResponse:
++    def __init__(self, *args, **kwargs):
++        self.writes = []
++        self.eof = False
++
++    async def prepare(self, request):
++        return self
++
++    async def write(self, chunk):
++        self.writes.append(chunk)
++
++    async def write_eof(self):
++        self.eof = True
++
++
++class _FakeStream(SSEStream):
++    @property
++    def headers(self):
++        return {"Content-Type": "text/event-stream", "X-Test": "preserved"}
++
++    def __init__(self, reads):
++        self.reads = list(reads)
++        self._closed = False
++        self.close_calls = 0
++
++    @property
++    def closed(self):
++        return self._closed
++
++    def read(self, limit=None):
++        value = self.reads.pop(0)
++        if not self.reads:
++            self._closed = True
++        return (value,)
++
++    def close(self):
++        self.close_calls += 1
++        self._closed = True
++
++
++@pytest.mark.asyncio
++async def test_sse_bridge_polls_events_and_heartbeats_then_closes(monkeypatch):
++    response = _FakeResponse()
++    monkeypatch.setattr(web, "StreamResponse", lambda **kwargs: response)
++    sleeps = []
++
++    async def fake_sleep(interval):
++        sleeps.append(interval)
++
++    monkeypatch.setattr(fleet_observer_aiohttp.asyncio, "sleep", fake_sleep)
++    stream = _FakeStream(("event: update\\ndata: {}\\n\\n", ": heartbeat\\n\\n"))
++    result = await fleet_observer_aiohttp.transport_response(stream, request=_FakeRequest())
++    assert result is response
++    assert response.writes == [b"event: update\\ndata: {}\\n\\n", b": heartbeat\\n\\n"]
++    assert response.eof is True
++    assert stream.close_calls == 1
++    assert sleeps == [fleet_observer_aiohttp.SSE_POLL_INTERVAL]
++
++
++@pytest.mark.asyncio
++async def test_sse_bridge_closes_stream_on_cancellation(monkeypatch):
++    response = _FakeResponse()
++    monkeypatch.setattr(web, "StreamResponse", lambda **kwargs: response)
++
++    async def cancelled_sleep(interval):
++        raise asyncio.CancelledError
++
++    monkeypatch.setattr(fleet_observer_aiohttp.asyncio, "sleep", cancelled_sleep)
++    stream = _FakeStream((": heartbeat\\n\\n", "never reached"))
++    with pytest.raises(asyncio.CancelledError):
++        await fleet_observer_aiohttp.transport_response(stream, request=_FakeRequest())
++    assert stream.close_calls == 1
++    assert response.eof is False
++
++
++@pytest.mark.asyncio
++async def test_sse_bridge_closes_stream_on_write_error(monkeypatch):
++    response = _FakeResponse()
++    monkeypatch.setattr(web, "StreamResponse", lambda **kwargs: response)
++
++    async def broken_write(chunk):
++        raise RuntimeError("write failed")
++
++    response.write = broken_write
++    stream = _FakeStream(("event: update\\ndata: {}\\n\\n",))
++    with pytest.raises(RuntimeError, match="write failed"):
++        await fleet_observer_aiohttp.transport_response(stream, request=_FakeRequest())
++    assert stream.close_calls == 1
++    assert response.eof is False
+-- 
+2.43.0
+

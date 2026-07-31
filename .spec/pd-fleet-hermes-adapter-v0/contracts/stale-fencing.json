@@ -1,0 +1,25 @@
+{
+  "schema_version": "pd-fleet-hermes-adapter:v0",
+  "fixture_id": "stale-fencing",
+  "operation": "execute",
+  "lineage": {
+    "run_id": "run-001",
+    "task_id": "task-001",
+    "attempt_id": "attempt-001",
+    "session_handle_id": "handle-001",
+    "workspace_id": "ws-001"
+  },
+  "owner": "owner-team",
+  "expected_generation": 2,
+  "stored_generation": 3,
+  "idempotency_key": "idem-stale-001",
+  "request_fingerprint": "sha256:e2cf730c288a020507d1ffaf4bd7c897b9533a8403bb79a4fb5f6b2f07c19d3d",
+  "expected": {
+    "status": "rejected",
+    "error_code": "stale_generation",
+    "dispatch_count_delta": 0,
+    "attempts_delta": 0,
+    "events_delta": 0,
+    "state_unchanged": true
+  }
+}

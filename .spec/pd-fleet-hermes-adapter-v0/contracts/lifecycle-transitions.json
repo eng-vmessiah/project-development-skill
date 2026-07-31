@@ -1,0 +1,26 @@
+{
+  "schema_version": "pd-fleet-hermes-adapter:v0",
+  "fixture_id": "lifecycle-transitions",
+  "states": ["queued", "preparing", "ready", "running", "succeeded", "failed", "timed_out", "cancelling", "cancelled"],
+  "cleanup_marker": ["not_cleaned", "cleaning", "cleaned"],
+  "transitions": {
+    "queued": ["preparing", "cancelling"],
+    "preparing": ["ready", "failed", "cancelling"],
+    "ready": ["running", "cancelling", "failed"],
+    "running": ["succeeded", "failed", "timed_out", "cancelling"],
+    "cancelling": ["cancelled", "failed", "timed_out"],
+    "succeeded": [],
+    "failed": [],
+    "timed_out": [],
+    "cancelled": []
+  },
+  "cleanup_rule": "cleanup is idempotent, orthogonal, and cannot rewrite the original terminal outcome",
+  "fleet_mapping": {
+    "ready": "ready",
+    "running": "running",
+    "succeeded": "completed",
+    "failed": "failed",
+    "timed_out": "failed_with_timeout_reason",
+    "cancelled": "blocked"
+  }
+}

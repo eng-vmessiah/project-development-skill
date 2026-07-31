@@ -1,0 +1,36 @@
+{
+  "schema_version": "pd-fleet-hermes-adapter:v0",
+  "fixture_id": "redaction-before-fingerprint",
+  "operation": "prepare",
+  "untrusted_input": {
+    "label": "safe",
+    "token": "secret-value",
+    "nested": {
+      "api_key": "another-secret"
+    },
+    "path": "/private/path"
+  },
+  "redaction_result": {
+    "label": "safe",
+    "nested": {
+      "api_key": "[REDACTED]"
+    },
+    "path": "[PATH REDACTED]",
+    "token": "[REDACTED]"
+  },
+  "canonical_json_utf8": "{\"label\":\"safe\",\"nested\":{\"api_key\":\"[REDACTED]\"},\"path\":\"[PATH REDACTED]\",\"token\":\"[REDACTED]\"}",
+  "canonicalization": {
+    "sort_keys": true,
+    "encoding": "utf-8",
+    "allow_nan": false,
+    "domain": "pd-fleet-hermes-adapter:v0\u0000request\u0000"
+  },
+  "fingerprint": "sha256:1c7c18e240645fdfd8b4a62a51266ee3ba12bac1aea8f757849282816323cf34",
+  "expected": {
+    "raw_secret_in_fingerprint": false,
+    "raw_path_in_fingerprint": false,
+    "raw_secret_in_events": false,
+    "raw_secret_in_storage": false
+  },
+  "request_fingerprint": "sha256:ded53f69b1a0fe90408b24958481730b878d36b268ec34e5579e6a434348f605"
+}

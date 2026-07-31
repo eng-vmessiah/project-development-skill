@@ -1,0 +1,959 @@
+From 7e27e622e48ff6a47e76617f975db998ac22096a Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Thu, 30 Jul 2026 01:12:47 -0300
+Subject: [PATCH] feat(fleet): add disabled in-process observer contract
+
+---
+ hermes_cli/fleet_observer.py            | 513 ++++++++++++++++++++++++
+ tests/hermes_cli/test_fleet_observer.py | 419 +++++++++++++++++++
+ 2 files changed, 932 insertions(+)
+ create mode 100644 hermes_cli/fleet_observer.py
+ create mode 100644 tests/hermes_cli/test_fleet_observer.py
+
+diff --git a/hermes_cli/fleet_observer.py b/hermes_cli/fleet_observer.py
+new file mode 100644
+index 0000000000..e720cd8fc9
+--- /dev/null
++++ b/hermes_cli/fleet_observer.py
+@@ -0,0 +1,513 @@
++"""Disabled-by-default, in-process Fleet observer contract.
++
++This module deliberately has no runtime wiring.  It is a bounded metadata
++seam only. Subscriber callbacks are trusted, non-blocking, synchronous
++in-process callables; no external or untrusted subscriber can be registered.
++Transport, global discovery, and an issuer remain NOT_READY.
++"""
++
++from __future__ import annotations
++
++from collections import deque
++from dataclasses import dataclass
++from datetime import datetime, timezone
++from math import isfinite
++from threading import RLock
++from types import MappingProxyType
++from typing import Any, Callable, Mapping
++from uuid import uuid4
++
++MAX_REF_LENGTH = 128
++MAX_FIELD_COUNT = 16
++MAX_VALUE_LENGTH = 256
++MAX_REPLAY = 100
++MAX_CURSOR_NUMBER = 10**12
++CURSOR_TTL = 3600
++MAX_RETENTION_TTL = 24 * 60 * 60
++MAX_STREAMS = 1024
++MAX_SUBSCRIBERS_PER_STREAM = 1024
++MAX_JSON_INTEGER = 2**53 - 1
++
++EVENT_TYPES = frozenset(
++    {
++        "session.registered",
++        "session.status_changed",
++        "session.heartbeat",
++        "session.metadata_changed",
++        "session.detached",
++        "session.ended",
++    }
++)
++_EVENT_FIELDS = {
++    "session.registered": frozenset({"status", "metadata"}),
++    "session.status_changed": frozenset({"status"}),
++    "session.heartbeat": frozenset({"status", "heartbeat_at"}),
++    "session.metadata_changed": frozenset({"metadata"}),
++    "session.detached": frozenset({"reason"}),
++    "session.ended": frozenset({"reason"}),
++}
++_FORBIDDEN = frozenset(
++    {
++        "password", "pass", "authorization", "auth", "cookie", "secret", "token",
++        "api_key", "apikey", "private_key", "privatekey", "credential", "credentials", "prompt", "history",
++        "message", "messages", "tool", "tools", "provider", "terminal", "filesystem",
++        "path", "file", "files", "dispatch", "mutation", "content",
++    }
++)
++_FORBIDDEN_COMPACT = frozenset(term.replace("_", "") for term in _FORBIDDEN)
++
++
++class FleetObserverError(ValueError):
++    """Invalid observer input."""
++
++
++class FleetObserverNotReady(RuntimeError):
++    """A requested observer operation is unavailable while disabled."""
++
++
++class ReplayGap(FleetObserverError):
++    """Replay cannot claim continuity from the supplied cursor."""
++
++
++@dataclass(frozen=True)
++class FleetObserverConfig:
++    enabled: bool = False
++    replay_limit: int = MAX_REPLAY
++    retention_ttl: int | float = CURSOR_TTL
++    diagnostic_limit: int = MAX_REPLAY
++    max_streams: int = 256
++    max_subscribers_per_stream: int = 256
++
++    def __post_init__(self) -> None:
++        if type(self.enabled) is not bool:
++            raise FleetObserverError("enabled must be a boolean")
++        if type(self.replay_limit) is not int or not 1 <= self.replay_limit <= MAX_REPLAY:
++            raise FleetObserverError("replay_limit must be between 1 and 100")
++        if type(self.retention_ttl) not in (int, float) or not isfinite(self.retention_ttl) or not 0 < self.retention_ttl <= MAX_RETENTION_TTL:
++            raise FleetObserverError("retention_ttl must be a finite positive value no greater than 86400")
++        if type(self.diagnostic_limit) is not int or not 1 <= self.diagnostic_limit <= MAX_REPLAY:
++            raise FleetObserverError("diagnostic_limit must be between 1 and 100")
++        if type(self.max_streams) is not int or not 1 <= self.max_streams <= MAX_STREAMS:
++            raise FleetObserverError("max_streams must be between 1 and 1024")
++        if type(self.max_subscribers_per_stream) is not int or not 1 <= self.max_subscribers_per_stream <= MAX_SUBSCRIBERS_PER_STREAM:
++            raise FleetObserverError("max_subscribers_per_stream must be between 1 and 1024")
++
++
++@dataclass(frozen=True)
++class FleetObserverScope:
++    profile_ref: str
++    instance_ref: str
++    session_ref: str | None = None
++    stream_ref: str | None = None
++
++    def __post_init__(self) -> None:
++        for name in ("profile_ref", "instance_ref", "session_ref", "stream_ref"):
++            value = getattr(self, name, None)
++            if value is not None or name in {"profile_ref", "instance_ref"}:
++                _validate_ref(value, name)
++
++    @property
++    def key(self) -> tuple[str, str, str | None, str | None]:
++        """Structured scope identity; fields are never delimiter-concatenated."""
++        return (self.profile_ref, self.instance_ref, self.session_ref, self.stream_ref)
++
++
++@dataclass(frozen=True)
++class FleetObserverCursor:
++    stream_ref: str
++    stream_epoch: str
++    sequence: int
++    scope_key: tuple[str, str, str | None, str | None] | None = None
++    issued_at: int = 0
++    expires_at: int = MAX_CURSOR_NUMBER
++
++    def __post_init__(self) -> None:
++        _validate_ref(self.stream_ref, "cursor stream_ref")
++        _validate_ref(self.stream_epoch, "cursor stream_epoch")
++        if isinstance(self.sequence, bool) or not isinstance(self.sequence, int) or not 0 <= self.sequence <= MAX_CURSOR_NUMBER:
++            raise FleetObserverError("cursor sequence must be a bounded non-negative integer")
++        if self.scope_key is not None:
++            if not isinstance(self.scope_key, tuple) or len(self.scope_key) != 4:
++                raise FleetObserverError("cursor scope_key must be a structured scope tuple")
++            try:
++                FleetObserverScope(*self.scope_key)
++            except (FleetObserverError, TypeError) as exc:
++                raise FleetObserverError("cursor scope_key is invalid") from exc
++        for name, value in (("issued_at", self.issued_at), ("expires_at", self.expires_at)):
++            if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= MAX_CURSOR_NUMBER:
++                raise FleetObserverError(f"cursor {name} must be a bounded integer timestamp")
++        if self.expires_at < self.issued_at:
++            raise FleetObserverError("cursor expires_at must not precede issued_at")
++
++
++@dataclass(frozen=True)
++class FleetObserverEvent:
++    event_id: str
++    event_type: str
++    scope: FleetObserverScope
++    payload: Mapping[str, Any]
++    sequence: int
++    stream_epoch: str
++    occurred_at: datetime
++    cursor_issued_at: int | None = None
++    cursor_ttl: int | float = CURSOR_TTL
++
++    @property
++    def cursor(self) -> FleetObserverCursor:
++        now = self.cursor_issued_at
++        if now is None:
++            now = int(datetime.now(timezone.utc).timestamp())
++        return FleetObserverCursor(self.scope.stream_ref or self.scope.instance_ref, self.stream_epoch, self.sequence, self.scope.key, now, min(MAX_CURSOR_NUMBER, int(now + self.cursor_ttl)))
++
++
++@dataclass(frozen=True)
++class ReplayResult:
++    events: tuple[FleetObserverEvent, ...]
++    next_cursor: FleetObserverCursor | None
++    gap: str | None = None
++
++    @property
++    def continuous(self) -> bool:
++        return self.gap is None
++
++
++@dataclass(frozen=True)
++class FleetObserverDiagnostic:
++    subscriber_ref: str
++    kind: str
++    detail: str
++
++
++@dataclass(frozen=True)
++class _StoredEvent:
++    """Internal event envelope; retention is owned by hub insertion time."""
++
++    event: FleetObserverEvent
++    inserted_at: datetime
++
++
++def _validate_ref(value: Any, name: str) -> None:
++    if not isinstance(value, str) or not value or len(value) > MAX_REF_LENGTH:
++        raise FleetObserverError(f"{name} must be a non-empty bounded opaque reference")
++    if any(ord(ch) < 32 for ch in value):
++        raise FleetObserverError(f"{name} contains a control character")
++
++
++def _validate_cursor(cursor: FleetObserverCursor) -> None:
++    if not isinstance(cursor, FleetObserverCursor):
++        raise ReplayGap("cursor is malformed")
++    try:
++        cursor.__post_init__()
++    except (FleetObserverError, TypeError, ValueError) as exc:
++        raise ReplayGap("cursor is malformed") from exc
++
++
++def _normalize_occurred_at(value: datetime | None, *, fallback: datetime | None = None) -> datetime:
++    if value is None:
++        return fallback or datetime.now(timezone.utc)
++    if type(value) is not datetime:
++        raise FleetObserverError("occurred_at must be a timezone-aware datetime or None")
++    try:
++        if value.utcoffset() is None:
++            raise FleetObserverError("occurred_at must be timezone-aware")
++        normalized = value.astimezone(timezone.utc)
++        result = datetime(
++            normalized.year, normalized.month, normalized.day,
++            normalized.hour, normalized.minute, normalized.second,
++            normalized.microsecond, tzinfo=timezone.utc,
++        )
++        if not result.isoformat():
++            raise FleetObserverError("occurred_at is not serializable")
++        return result
++    except FleetObserverError:
++        raise
++    except Exception as exc:
++        raise FleetObserverError("occurred_at must be a bounded serializable datetime") from exc
++
++
++def _validate_value(value: Any, key: str, depth: int = 0) -> Any:
++    if not isinstance(key, str) or len(key) > MAX_REF_LENGTH:
++        raise FleetObserverError("payload keys must be bounded strings")
++    normalized = "".join(ch for ch in key if ch.isalnum()).casefold()
++    if any(term in normalized for term in _FORBIDDEN_COMPACT):
++        raise FleetObserverError(f"forbidden payload key: {key}")
++    if depth > 1:
++        raise FleetObserverError("payload nesting is too deep")
++    if isinstance(value, str):
++        if len(value) > MAX_VALUE_LENGTH:
++            raise FleetObserverError("payload value is too large")
++        return value
++    if isinstance(value, bool) or value is None:
++        return value
++    if isinstance(value, int):
++        if abs(value) > MAX_JSON_INTEGER:
++            raise FleetObserverError("JSON integer magnitude exceeds safe limit")
++        return value
++    if isinstance(value, float):
++        if not isfinite(value):
++            raise FleetObserverError("payload values must be finite JSON numbers")
++        return value
++    if isinstance(value, Mapping):
++        if len(value) > MAX_FIELD_COUNT:
++            raise FleetObserverError("payload mapping has too many fields")
++        result = {}
++        for child, child_value in value.items():
++            if not isinstance(child, str) or len(child) > MAX_REF_LENGTH:
++                raise FleetObserverError("payload keys must be bounded strings")
++            result[child] = _validate_value(child_value, child, depth + 1)
++        return MappingProxyType(result)
++    raise FleetObserverError("payload values must be redacted scalar metadata")
++
++
++def _validate_payload(event_type: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
++    if not isinstance(event_type, str) or not event_type or len(event_type) > MAX_REF_LENGTH:
++        raise FleetObserverError("event_type must be a bounded string")
++    if event_type not in EVENT_TYPES:
++        raise FleetObserverError(f"unknown event type: {event_type}")
++    if not isinstance(payload, Mapping) or len(payload) > MAX_FIELD_COUNT:
++        raise FleetObserverError("payload must be a bounded mapping")
++    allowed = _EVENT_FIELDS[event_type]
++    if any(not isinstance(key, str) or key not in allowed for key in payload):
++        raise FleetObserverError("unknown or forbidden payload key")
++    return MappingProxyType({key: _validate_value(value, key) for key, value in payload.items()})
++
++
++class FleetObserverHub:
++    """An opt-in observer hub with bounded replay and trusted sync callbacks.
++
++    Callbacks execute synchronously in the publishing thread and must be
++    trusted, non-blocking in-process code. This API has no transport,
++    global-subscription, or issuer integration, so external/untrusted callers
++    cannot register callbacks through it.
++    """
++
++    def __init__(self, config: FleetObserverConfig | None = None, *, clock: Callable[[], datetime] | None = None):
++        self.config = config or FleetObserverConfig()
++        self._clock = clock or (lambda: datetime.now(timezone.utc))
++        self._active = False
++        self._lock = RLock()
++        self._streams: dict[tuple[str, str, str | None, str | None], tuple[str, deque[_StoredEvent], int]] = {}
++        self._retained_floors: dict[tuple[str, str, str | None, str | None], int] = {}
++        self._subscribers: dict[str, tuple[FleetObserverScope, Callable[[FleetObserverEvent], Any]]] = {}
++        self._diagnostics: deque[FleetObserverDiagnostic] = deque(maxlen=self.config.diagnostic_limit)
++
++    @property
++    def active(self) -> bool:
++        return self._active
++
++    def status(self) -> dict[str, str | bool]:
++        """Return the transport boundary without implying runtime readiness."""
++        report = fleet_observer_status()
++        report["enabled"] = self.config.enabled
++        report["fleet_activation"] = "READY" if self._active else "NOT_READY"
++        return report
++
++    def activate(self) -> bool:
++        with self._lock:
++            if self._active:
++                return False
++            if not self.config.enabled:
++                return False
++            # Reclaim expired, unsubscribed streams before activation can
++            # leave a later publish/subscribe allocation at the bound.
++            self._sweep_expired_streams_locked(self._now())
++            self._active = True
++            return True
++
++    def deactivate(self) -> bool:
++        with self._lock:
++            changed = self._active
++            self._active = False
++            self._subscribers.clear()
++            self._streams.clear()
++            self._retained_floors.clear()
++            self._diagnostics.clear()
++            return changed
++
++    def subscribe(self, scope: FleetObserverScope, callback: Callable[[FleetObserverEvent], Any], *, cursor: FleetObserverCursor | None = None) -> str:
++        """Register a trusted, non-blocking in-process synchronous callback."""
++        if not callable(callback):
++            raise FleetObserverError("callback must be callable")
++        scope = self._canonical_scope(scope)
++        subscriber_ref = uuid4().hex
++        with self._lock:
++            if not self._active:
++                raise FleetObserverNotReady("fleet observer is disabled or inactive")
++            # Replay validation and registration are one atomic operation.  Keep
++            # the subscription visible while replay evicts an empty stream.
++            self._sweep_expired_streams_locked(self._now())
++            subscribers_for_scope = sum(1 for sub_scope, _ in self._subscribers.values() if sub_scope == scope)
++            if subscribers_for_scope >= self.config.max_subscribers_per_stream:
++                raise FleetObserverError("maximum observer subscribers per stream reached")
++            if cursor is None:
++                self._ensure_stream_locked(scope)
++            self._subscribers[subscriber_ref] = (scope, callback)
++            try:
++                result = self._replay_locked(scope, cursor)
++            except Exception:
++                self._subscribers.pop(subscriber_ref, None)
++                self._discard_empty_stream_locked(scope.key)
++                raise
++        for event in result.events:
++            self._deliver(subscriber_ref, callback, event)
++        return subscriber_ref
++
++    def unsubscribe(self, subscriber_ref: str) -> bool:
++        with self._lock:
++            registration = self._subscribers.pop(subscriber_ref, None)
++            if registration is None:
++                return False
++            scope, _ = registration
++            self._discard_empty_stream_locked(scope.key)
++            return True
++
++    def publish(self, event_type: str, scope: FleetObserverScope, payload: Mapping[str, Any], *, occurred_at: datetime | None = None) -> FleetObserverEvent | None:
++        effective_scope = self._canonical_scope(scope)
++        with self._lock:
++            if not self._active:
++                return None
++            clean = _validate_payload(event_type, payload)
++            now = self._now()
++            normalized_occurred_at = _normalize_occurred_at(occurred_at, fallback=now)
++            scope_key = effective_scope.key
++            self._sweep_expired_streams_locked(now)
++            self._ensure_stream_locked(effective_scope)
++            epoch, events, next_sequence = self._streams[scope_key]
++            event = FleetObserverEvent(uuid4().hex, event_type, effective_scope, clean, next_sequence, epoch, normalized_occurred_at, int(now.timestamp()), self.config.retention_ttl)
++            events.append(_StoredEvent(event, now))
++            self._streams[scope_key] = (epoch, events, next_sequence + 1)
++            self._evict_expired_locked(scope_key, now)
++            targets = [(ref, cb) for ref, (sub_scope, cb) in self._subscribers.items() if sub_scope == effective_scope]
++        for ref, callback in targets:
++            self._deliver(ref, callback, event)
++        return event
++
++    def replay(self, scope: FleetObserverScope, cursor: FleetObserverCursor | None = None) -> ReplayResult:
++        effective_scope = self._canonical_scope(scope)
++        with self._lock:
++            if not self._active:
++                raise FleetObserverNotReady("fleet observer is disabled or inactive")
++            return self._replay_locked(effective_scope, cursor)
++
++    def _replay_locked(self, scope: FleetObserverScope, cursor: FleetObserverCursor | None = None) -> ReplayResult:
++        if scope.key not in self._streams:
++            if cursor is not None:
++                raise ReplayGap("cursor is unknown or expired")
++            return ReplayResult((), None)
++        self._evict_expired_locked(scope.key, self._now())
++        stream = self._streams.get(scope.key)
++        if stream is None:
++            if cursor is not None:
++                raise ReplayGap("cursor is too old; replay continuity expired")
++            return ReplayResult((), None)
++        epoch, events, next_sequence = stream
++        if cursor is not None:
++            _validate_cursor(cursor)
++            if cursor.scope_key != scope.key or cursor.stream_ref != (scope.stream_ref or scope.instance_ref) or cursor.stream_epoch != epoch:
++                raise ReplayGap("cursor does not belong to this stream")
++            now = int(self._now().timestamp())
++            if cursor.issued_at > now:
++                raise ReplayGap("cursor is issued in the future")
++            if cursor.expires_at < now:
++                raise ReplayGap("cursor has expired")
++            if cursor.sequence > next_sequence - 1:
++                raise ReplayGap("cursor is ahead of the current stream")
++            floor = self._retained_floors.get(scope.key, events[0].event.sequence if events else next_sequence)
++            if cursor.sequence < floor - 1:
++                raise ReplayGap("cursor is too old; replay continuity expired")
++        selected = tuple(stored.event for stored in events if cursor is None or stored.event.sequence > cursor.sequence)
++        return ReplayResult(selected, selected[-1].cursor if selected else cursor)
++
++    def _now(self) -> datetime:
++        return _normalize_occurred_at(self._clock())
++
++    def _ensure_stream_locked(self, scope: FleetObserverScope) -> None:
++        if scope.key in self._streams:
++            return
++        if len(self._streams) >= self.config.max_streams:
++            raise FleetObserverError("maximum observer stream count reached")
++        self._streams[scope.key] = (uuid4().hex, deque(maxlen=self.config.replay_limit), 1)
++        self._retained_floors[scope.key] = 1
++
++    def _evict_expired_locked(self, scope_key: tuple[str, str, str | None, str | None], now: datetime) -> None:
++        stream = self._streams.get(scope_key)
++        if stream is None:
++            return
++        epoch, events, next_sequence = stream
++        cutoff = now.timestamp() - self.config.retention_ttl
++        while events and events[0].inserted_at.timestamp() < cutoff:
++            self._retained_floors[scope_key] = events.popleft().event.sequence + 1
++        if not events and not self._scope_has_subscription_locked(scope_key):
++            self._streams.pop(scope_key, None)
++            self._retained_floors.pop(scope_key, None)
++            return
++        if events:
++            self._retained_floors[scope_key] = max(self._retained_floors.get(scope_key, 1), events[0].event.sequence)
++        self._streams[scope_key] = (epoch, events, next_sequence)
++
++    def _sweep_expired_streams_locked(self, now: datetime) -> None:
++        """Reclaim every expired, unsubscribed stream before an allocation.
++
++        The stream table is bounded by ``max_streams``; a sorted snapshot makes
++        the sweep bounded and deterministic while all state changes remain
++        under the hub lock. Eviction never invokes subscriber callbacks.
++        """
++        for scope_key in sorted(tuple(self._streams), key=repr):
++            self._evict_expired_locked(scope_key, now)
++
++    def _scope_has_subscription_locked(self, scope_key: tuple[str, str, str | None, str | None]) -> bool:
++        return any(scope.key == scope_key for scope, _ in self._subscribers.values())
++
++    def _discard_empty_stream_locked(self, scope_key: tuple[str, str, str | None, str | None]) -> None:
++        stream = self._streams.get(scope_key)
++        if stream is not None and not stream[1] and not self._scope_has_subscription_locked(scope_key):
++            self._streams.pop(scope_key, None)
++            self._retained_floors.pop(scope_key, None)
++
++    @staticmethod
++    def _canonical_scope(scope: FleetObserverScope) -> FleetObserverScope:
++        if not isinstance(scope, FleetObserverScope):
++            raise FleetObserverError("scope must be a FleetObserverScope")
++        try:
++            return FleetObserverScope(
++                scope.profile_ref,
++                scope.instance_ref,
++                scope.session_ref,
++                scope.stream_ref,
++            )
++        except Exception as exc:
++            raise FleetObserverError("scope is malformed") from exc
++
++    def diagnostics(self) -> tuple[FleetObserverDiagnostic, ...]:
++        with self._lock:
++            return tuple(self._diagnostics)
++
++    def _deliver(self, subscriber_ref: str, callback: Callable[[FleetObserverEvent], Any], event: FleetObserverEvent) -> None:
++        with self._lock:
++            registration = self._subscribers.get(subscriber_ref)
++            if not self._active or registration is None or registration[1] is not callback or registration[0] != event.scope:
++                return
++        try:
++            callback(event)
++        except Exception as exc:  # subscriber isolation is part of the contract
++            with self._lock:
++                self._diagnostics.append(FleetObserverDiagnostic(subscriber_ref, "subscriber_failed", type(exc).__name__))
++
++
++def fleet_observer_status() -> dict[str, str | bool]:
++    return {
++        "enabled": False,
++        "callback_model": "trusted_in_process_sync",
++        "transport": "NOT_READY",
++        "fleet_activation": "NOT_READY",
++        "global_subscription": "NOT_READY",
++        "issuer": "NOT_READY",
++    }
++
++
++# Short aliases make the contract convenient without adding alternate behavior.
++ObserverScope = FleetObserverScope
++ObserverEvent = FleetObserverEvent
++ObserverCursor = FleetObserverCursor
++ObserverHub = FleetObserverHub
++observer_capability_status = fleet_observer_status
+diff --git a/tests/hermes_cli/test_fleet_observer.py b/tests/hermes_cli/test_fleet_observer.py
+new file mode 100644
+index 0000000000..1d043a9a35
+--- /dev/null
++++ b/tests/hermes_cli/test_fleet_observer.py
+@@ -0,0 +1,419 @@
++from __future__ import annotations
++
++import ast
++from datetime import datetime, timezone
++import math
++
++import pytest
++
++from hermes_cli.fleet_observer import (
++    FleetObserverConfig,
++    FleetObserverError,
++    FleetObserverHub,
++    FleetObserverNotReady,
++    FleetObserverScope,
++    ReplayGap,
++    fleet_observer_status,
++)
++
++
++SCOPE = FleetObserverScope("profile-a", "instance-a", "session-a")
++
++
++@pytest.mark.parametrize(
++    ("field", "values"),
++    [
++        ("enabled", [1, "true", None]),
++        ("replay_limit", [True, 0, 101, "10", None, -1]),
++        ("retention_ttl", [True, 0.0, -1.0, 86401.0, "3600", None, math.inf]),
++        ("diagnostic_limit", [True, 0, 101, "10", None, -1]),
++        ("max_streams", [True, 0, 1025, "10", None, -1]),
++        ("max_subscribers_per_stream", [True, 0, 1025, "10", None, -1]),
++    ],
++)
++def test_config_rejects_wrong_types_and_unbounded_values(field, values):
++    for value in values:
++        with pytest.raises(FleetObserverError):
++            FleetObserverConfig(**{field: value})
++
++
++def test_disabled_default_has_no_state_and_no_side_effects():
++    hub = FleetObserverHub()
++    assert hub.config == FleetObserverConfig()
++    assert not hub.active
++    assert hub.publish("session.heartbeat", SCOPE, {"status": "ok"}) is None
++    assert hub.diagnostics() == ()
++    with pytest.raises(FleetObserverNotReady):
++        hub.subscribe(SCOPE, lambda event: None)
++    assert hub._streams == {} and hub._subscribers == {}
++
++
++def test_activation_is_explicit_and_idempotent():
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    assert hub.activate() is True
++    assert hub.activate() is False
++    assert hub.active
++    assert hub.deactivate() is True
++    assert hub.deactivate() is False
++
++
++def test_subscribe_unsubscribe_and_scope_association():
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    received = []
++    ref = hub.subscribe(SCOPE, received.append)
++    assert ref and hub.unsubscribe(ref)
++    hub.publish("session.heartbeat", SCOPE, {"status": "ok"})
++    assert received == []
++
++
++def test_subscriber_cardinality_is_bounded_and_slots_are_reusable():
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True, max_subscribers_per_stream=2))
++    hub.activate()
++    callback = lambda event: None
++    refs = [hub.subscribe(SCOPE, callback), hub.subscribe(SCOPE, callback)]
++    with pytest.raises(FleetObserverError, match="maximum observer subscribers per stream"):
++        hub.subscribe(SCOPE, callback)
++    assert hub.unsubscribe(refs[0])
++    assert hub.subscribe(SCOPE, callback)
++
++
++def test_5000_subscriber_attempts_are_rejected_without_unbounded_registration():
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True, max_subscribers_per_stream=1024))
++    hub.activate()
++    callback = lambda event: None
++    accepted = rejected = 0
++    for _ in range(5000):
++        try:
++            hub.subscribe(SCOPE, callback)
++        except FleetObserverError as exc:
++            assert str(exc) == "maximum observer subscribers per stream reached"
++            rejected += 1
++        else:
++            accepted += 1
++    assert accepted == 1024
++    assert rejected == 3976
++    assert len(hub._subscribers) == 1024
++
++
++def test_allowlist_redaction_and_closed_payload():
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    event = hub.publish("session.metadata_changed", SCOPE, {"metadata": {"label": "safe"}})
++    assert event and event.payload == {"metadata": {"label": "safe"}}
++    for event_type, payload in [
++        ("session.heartbeat", {"prompt": "do not retain"}),
++        ("session.heartbeat", {"unknown": "nope"}),
++        ("session.heartbeat", {"metadata": {"message": "nope"}}),
++        ("session.nope", {}),
++    ]:
++        with pytest.raises(FleetObserverError):
++            hub.publish(event_type, SCOPE, payload)
++
++
++def test_bounded_replay_eviction_and_explicit_gap():
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True, replay_limit=100))
++    hub.activate()
++    first = hub.publish("session.heartbeat", SCOPE, {"status": "ok"})
++    assert first
++    for _ in range(100):
++        hub.publish("session.heartbeat", SCOPE, {"status": "ok"})
++    result = hub.replay(SCOPE)
++    assert len(result.events) == 100
++    assert result.events[0].sequence == 2
++    with pytest.raises(ReplayGap, match="too old"):
++        hub.replay(SCOPE, type(first.cursor)(first.cursor.stream_ref, first.cursor.stream_epoch, 0, first.cursor.scope_key))
++    assert result.events[-1].sequence == 101
++
++
++def test_cursor_binding_and_monotonic_stream_fields():
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    event = hub.publish("session.registered", SCOPE, {"status": "new"})
++    assert event
++    assert event.event_id and event.stream_epoch and event.occurred_at
++    wrong = type(event.cursor)(event.cursor.stream_ref, "other-epoch", event.cursor.sequence)
++    with pytest.raises(ReplayGap, match="does not belong"):
++        hub.replay(SCOPE, wrong)
++
++
++def test_retention_ttl_controls_cursor_and_replay_gap_deterministically():
++    now = [datetime(2026, 1, 1, tzinfo=timezone.utc)]
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True, retention_ttl=10), clock=lambda: now[0])
++    hub.activate()
++    event = hub.publish("session.heartbeat", SCOPE, {"status": "ok"})
++    assert event and event.cursor.issued_at == int(now[0].timestamp())
++    assert event.cursor.expires_at == event.cursor.issued_at + 10
++    now[0] = now[0].replace(second=11)
++    with pytest.raises(ReplayGap, match="too old"):
++        hub.replay(SCOPE, type(event.cursor)(event.cursor.stream_ref, event.cursor.stream_epoch, 0, event.cursor.scope_key))
++    assert hub.replay(SCOPE).events == ()
++
++
++def test_retention_ttl_uses_hub_insertion_clock_not_occurred_at():
++    now = [datetime(2026, 1, 1, tzinfo=timezone.utc)]
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True, retention_ttl=10), clock=lambda: now[0])
++    hub.activate()
++    event = hub.publish(
++        "session.heartbeat",
++        SCOPE,
++        {"status": "ok"},
++        occurred_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
++    )
++    assert event and event.occurred_at.year == 2099
++    now[0] = now[0].replace(second=11)
++    with pytest.raises(ReplayGap, match="too old"):
++        hub.replay(SCOPE, type(event.cursor)(event.cursor.stream_ref, event.cursor.stream_epoch, 0, event.cursor.scope_key))
++    assert hub.replay(SCOPE).events == ()
++
++
++def test_expired_empty_unsubscribed_stream_releases_capacity():
++    now = [datetime(2026, 1, 1, tzinfo=timezone.utc)]
++    first = FleetObserverScope("p", "i", "first")
++    second = FleetObserverScope("p", "i", "second")
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True, retention_ttl=10, max_streams=1), clock=lambda: now[0])
++    hub.activate()
++    event = hub.publish("session.heartbeat", first, {"status": "ok"})
++    assert event
++    now[0] = now[0].replace(second=11)
++    assert hub.replay(first).events == ()
++    assert first.key not in hub._streams
++    assert hub.publish("session.heartbeat", second, {"status": "ok"}) is not None
++
++
++def test_expired_empty_subscribed_stream_keeps_capacity_until_unsubscribe():
++    now = [datetime(2026, 1, 1, tzinfo=timezone.utc)]
++    first = FleetObserverScope("p", "i", "first")
++    second = FleetObserverScope("p", "i", "second")
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True, retention_ttl=10, max_streams=1), clock=lambda: now[0])
++    hub.activate()
++    subscriber = hub.subscribe(first, lambda _: None)
++    hub.publish("session.heartbeat", first, {"status": "ok"})
++    now[0] = now[0].replace(second=11)
++    assert hub.replay(first).events == ()
++    assert first.key in hub._streams
++    with pytest.raises(FleetObserverError, match="maximum observer stream count"):
++        hub.publish("session.heartbeat", second, {"status": "ok"})
++    assert hub.unsubscribe(subscriber)
++    assert first.key not in hub._streams
++    assert hub.publish("session.heartbeat", second, {"status": "ok"}) is not None
++
++
++def test_global_expired_stream_sweep_reclaims_capacity_for_untouched_scope():
++    now = [datetime(2026, 1, 1, tzinfo=timezone.utc)]
++    scopes = [FleetObserverScope("p", "i", f"stale-{index}") for index in range(3)]
++    untouched = FleetObserverScope("p", "i", "untouched")
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True, retention_ttl=10, max_streams=3), clock=lambda: now[0])
++    hub.activate()
++    for scope in scopes:
++        assert hub.publish("session.heartbeat", scope, {"status": "ok"}) is not None
++    now[0] = now[0].replace(second=11)
++
++    # Reclaim all stale streams before creating the unrelated requested scope.
++    assert hub.publish("session.heartbeat", untouched, {"status": "ok"}) is not None
++    assert untouched.key in hub._streams
++    assert all(scope.key not in hub._streams for scope in scopes)
++
++
++def test_global_stream_bound_applies_to_subscription_and_publish_and_deactivate_releases_it():
++    first = FleetObserverScope("p", "i", "one")
++    second = FleetObserverScope("p", "i", "two")
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True, max_streams=1))
++    hub.activate()
++    hub.subscribe(first, lambda _: None)
++    with pytest.raises(FleetObserverError, match="maximum observer stream count"):
++        hub.publish("session.heartbeat", second, {"status": "ok"})
++    hub.deactivate()
++    hub.activate()
++    assert hub.publish("session.heartbeat", second, {"status": "ok"}) is not None
++
++
++def test_failing_subscriber_isolated_and_diagnostics_bounded():
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    received = []
++    hub.subscribe(SCOPE, lambda event: (_ for _ in ()).throw(RuntimeError("boom")))
++    hub.subscribe(SCOPE, received.append)
++    hub.publish("session.heartbeat", SCOPE, {"status": "ok"})
++    assert len(received) == 1
++    assert hub.diagnostics()[0].kind == "subscriber_failed"
++    assert "boom" not in hub.diagnostics()[0].detail
++
++
++def test_deactivate_clears_retained_state():
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    hub.subscribe(SCOPE, lambda event: None)
++    hub.publish("session.heartbeat", SCOPE, {"status": "ok"})
++    hub.deactivate()
++    assert hub._streams == {} and hub._subscribers == {}
++    assert hub.publish("session.heartbeat", SCOPE, {"status": "ok"}) is None
++
++
++def test_status_has_explicit_not_ready_transport_boundary():
++    status = fleet_observer_status()
++    assert status == {
++        "enabled": False,
++        "callback_model": "trusted_in_process_sync",
++        "transport": "NOT_READY",
++        "fleet_activation": "NOT_READY",
++        "global_subscription": "NOT_READY",
++        "issuer": "NOT_READY",
++    }
++
++
++def test_module_is_stdlib_only_and_import_is_not_wired():
++    tree = ast.parse(open("hermes_cli/fleet_observer.py", encoding="utf-8").read())
++    imports = [node for node in ast.walk(tree) if isinstance(node, (ast.Import, ast.ImportFrom))]
++    assert all(
++        (getattr(node, "module", "") or "").split(".")[0]
++        in {"__future__", "collections", "dataclasses", "datetime", "math", "threading", "types", "typing", "uuid"}
++        for node in imports
++    )
++
++
++def test_structured_scope_prevents_shared_stream_cross_scope_replay():
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    left = FleetObserverScope("p", "i", "s1", "shared")
++    right = FleetObserverScope("p", "i", "s2", "shared")
++    event = hub.publish("session.heartbeat", left, {"status": "ok"})
++    assert event and hub.replay(right).events == ()
++    with pytest.raises(ReplayGap):
++        hub.replay(right, event.cursor)
++
++
++def test_ahead_cursor_is_never_continuous():
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    event = hub.publish("session.heartbeat", SCOPE, {"status": "ok"})
++    assert event
++    ahead = type(event.cursor)(event.cursor.stream_ref, event.cursor.stream_epoch, 99, event.cursor.scope_key)
++    with pytest.raises(ReplayGap, match="ahead"):
++        hub.replay(SCOPE, ahead)
++
++
++def test_event_payload_is_deeply_immutable():
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    event = hub.publish("session.metadata_changed", SCOPE, {"metadata": {"label": "safe"}})
++    assert event
++    with pytest.raises(TypeError):
++        event.payload["metadata"]["label"] = "changed"
++    replayed = hub.replay(SCOPE).events[0]
++    assert replayed.payload["metadata"]["label"] == "safe"
++
++
++def test_invalid_cursor_subscription_does_not_retain_subscriber():
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    event = hub.publish("session.heartbeat", SCOPE, {"status": "ok"})
++    assert event
++    ahead = type(event.cursor)(event.cursor.stream_ref, event.cursor.stream_epoch, 2, event.cursor.scope_key)
++    with pytest.raises(ReplayGap):
++        hub.subscribe(SCOPE, lambda _: None, cursor=ahead)
++    assert hub._subscribers == {}
++
++
++def test_sensitive_metadata_names_are_rejected_case_insensitively():
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    for key in ("PasswordHash", "authorization_header", "apiKey", "api.key", "private-key", "TerminalPath"):
++        with pytest.raises(FleetObserverError):
++            hub.publish("session.metadata_changed", SCOPE, {"metadata": {key: "redact"}})
++
++
++def test_snapshot_delivery_rechecks_registration_and_activation():
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    received = []
++    refs = {}
++
++    def first(event):
++        received.append("a")
++        hub.unsubscribe(refs["b"])
++
++    refs["a"] = hub.subscribe(SCOPE, first)
++    refs["b"] = hub.subscribe(SCOPE, lambda event: received.append("b"))
++    hub.publish("session.heartbeat", SCOPE, {"status": "ok"})
++    assert received == ["a"]
++
++    received.clear()
++    hub.deactivate()
++    hub.activate()
++    refs["a"] = hub.subscribe(SCOPE, lambda event: (received.append("a"), hub.deactivate()))
++    refs["b"] = hub.subscribe(SCOPE, lambda event: received.append("b"))
++    hub.publish("session.heartbeat", SCOPE, {"status": "ok"})
++    assert received == ["a"]
++
++
++def test_malformed_cursor_and_event_type_are_bounded_observer_errors():
++    from hermes_cli.fleet_observer import FleetObserverCursor
++
++    for args in (("stream", "epoch", True), ("stream", "epoch", -1), ([], "epoch", 0)):
++        with pytest.raises(FleetObserverError):
++            FleetObserverCursor(*args)
++    with pytest.raises(FleetObserverError):
++        FleetObserverCursor("stream", "epoch", 0, None, 10, 9)
++
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    for event_type in ([], {}, None):
++        with pytest.raises(FleetObserverError):
++            hub.publish(event_type, SCOPE, {})
++
++
++@pytest.mark.parametrize("scope", [None, {}, [], object(), FleetObserverScope])
++def test_public_scope_boundaries_reject_malformed_scopes(scope):
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    for operation in (
++        lambda: hub.publish("session.heartbeat", scope, {"status": "ok"}),
++        lambda: hub.subscribe(scope, lambda _: None),
++        lambda: hub.replay(scope),
++    ):
++        with pytest.raises(FleetObserverError):
++            operation()
++    assert hub._streams == {} and hub._subscribers == {}
++
++
++@pytest.mark.parametrize("occurred_at", ["2026-01-01T00:00:00Z", 1, object(), datetime(2026, 1, 1)])
++def test_occurred_at_requires_timezone_aware_datetime(occurred_at):
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    with pytest.raises(FleetObserverError):
++        hub.publish("session.heartbeat", SCOPE, {"status": "ok"}, occurred_at=occurred_at)
++    assert hub._streams == {}
++
++
++def test_occurred_at_is_normalized_to_utc_datetime():
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    event = hub.publish("session.heartbeat", SCOPE, {"status": "ok"}, occurred_at=datetime(2026, 1, 1, 3, 4, 5, tzinfo=timezone.utc))
++    assert event and type(event.occurred_at) is datetime
++    assert event.occurred_at.tzinfo is timezone.utc
++
++
++@pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf])
++def test_nonfinite_payload_numbers_are_rejected_recursively(value):
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    with pytest.raises(FleetObserverError):
++        hub.publish("session.metadata_changed", SCOPE, {"metadata": {"value": value}})
++    assert hub._streams == {}
++
++
++@pytest.mark.parametrize("value", [2**53, -(2**53), 10**100])
++def test_json_integer_magnitude_is_bounded_recursively(value):
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    with pytest.raises(FleetObserverError, match="JSON integer"):
++        hub.publish("session.metadata_changed", SCOPE, {"metadata": {"value": value}})
++    assert hub._streams == {}
++
++
++def test_json_safe_integer_boundary_is_retained():
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    event = hub.publish("session.metadata_changed", SCOPE, {"metadata": {"value": 2**53 - 1}})
++    assert event and event.payload["metadata"]["value"] == 2**53 - 1
+-- 
+2.43.0
+

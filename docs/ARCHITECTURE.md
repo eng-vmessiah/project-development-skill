@@ -165,8 +165,10 @@ User Request
       └──► Phase 7: Merge
                 │
                 ▼
-           Production code
+           Delivered project code
 ```
+
+This generic PD workflow describes delivery of project artifacts; it does not imply deployment, production readiness, or live runtime activation.
 
 ## Platform Compatibility
 
@@ -190,15 +192,57 @@ Templates are stored in `skills/pd/templates/` and provide standardized formats:
 
 These are copied to the appropriate location during installation.
 
-## Fleet V2 boundary and recovery
+## PD/Fleet/Hermes architecture boundary
+
+The repository separates workflow decisions from local coordination and concrete
+runtime execution:
+
+```text
+PD Core
+  goal → discovery → SPEC/PLAN → gates → evidence interpretation → delivery decision
+       │
+       └── optional local coordination
+             │
+             ▼
+PD Fleet
+  TaskSpec → DAG/waves → ready/claim → lifecycle/lease → report/evidence → reconcile
+       │
+       └── future Hermes Gateway Fleet Bridge (observer first; not a live dispatcher)
+             │ JSON-RPC/WebSocket/events
+             ▼
+Hermes Runtime/Gateway
+  sessions → events → delegate_task → providers/models → tools/cron/credentials/capabilities
+
+OMH
+  workflow patterns and learning reference only; no runtime authority or integration
+```
+
+**PD Core** owns the development workflow, plans, gates, evidence interpretation,
+and human delivery decisions. **PD Fleet** is an optional local/simulated
+coordination protocol and engine for task lifecycle, dependencies, leases, reports,
+checkpoints, events, and reconciliation. Fleet does not own cron, provider
+execution, credentials, live dispatch, deployment, or production sandboxing.
+
+**Hermes Runtime/Gateway** owns `delegate_task`, sessions, providers, models, tools,
+cron, credentials, effective runtime capabilities/policy, and the Gateway event
+surfaces used by Hermes clients. A future **Hermes Gateway Fleet Bridge** may consume
+those events and associate user-owned sessions with Fleet state. Fleet-owned task
+execution remains a separate, deferred authorization; the dashboard is only a
+sibling Gateway client and is not an integration dependency.
+
+**OMH is reference-only**: it may inform workflow patterns and learning, but is not
+installed, integrated, scheduled, synchronized, or a source of truth.
+
+## Fleet V2 local boundary and recovery
 
 Fleet V2 is local-first and **PARTIAL/OPEN**: parsing, normalization,
 reconciliation, checkpointing, and simulation stay within an explicit output root.
-Shell, network, credentials, and external providers are denied by default. An
-opt-in executor requires exact argv allowlists, sandbox/root containment, timeout,
-bounded redacted output, leases, and CAS. Threats include untrusted plans,
-traversal/symlink escape, stale ownership, crashes, and secret leakage.
+Shell, network, credentials, external providers, and live dispatch remain denied;
+local simulation must not be represented as production readiness or as a strong
+production sandbox. Any future runtime executor/adapters require separate scope,
+security evidence, and approval.
 
 Migration keeps V1 state untouched and runs V2 in a separate namespace. Rollback is
-stop dispatch, invalidate leases, preserve evidence, and restore the latest valid
-snapshot; no destructive rewrite of V1 is permitted.
+stop local dispatch/simulation, invalidate leases, preserve evidence, and restore
+the latest valid snapshot; no destructive rewrite of V1 is permitted. No production,
+release, or live-runtime claim follows from this local recovery model.

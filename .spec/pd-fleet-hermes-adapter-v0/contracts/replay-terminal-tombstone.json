@@ -1,0 +1,24 @@
+{
+  "schema_version": "pd-fleet-hermes-adapter:v0",
+  "fixture_id": "replay-terminal-tombstone",
+  "operation": "cleanup",
+  "scope": {
+    "run_id": "run-001",
+    "task_id": "task-001",
+    "operation": "cleanup",
+    "idempotency_key": "idem-cleanup-001"
+  },
+  "request_fingerprint": "sha256:eac7bcce9c082540455fdc9c69bee80ea833f4511cfff8a8e813958934ac7675",
+  "prior_terminal_result": "succeeded",
+  "retention": {
+    "expired": true,
+    "tombstone_present": true
+  },
+  "expected": {
+    "status": "rejected",
+    "error_code": "idempotency_conflict",
+    "key_reuse_allowed": false,
+    "original_terminal_preserved": true
+  },
+  "cleanup_reason": "test_cleanup"
+}

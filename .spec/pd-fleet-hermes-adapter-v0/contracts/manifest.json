@@ -1,0 +1,72 @@
+{
+  "schema_version": "pd-fleet-hermes-adapter:v0",
+  "bundle_id": "g0-contract-fixtures-v0",
+  "status": "g1_passed_local",
+  "normative_format": "review-fixture-wrapper-plus-wire-request-result",
+  "contract_document": "CONTRACT.md",
+  "request_schema": "schema.json",
+  "result_schema": "result-schema.json",
+  "machine_readable_schema": "schema.json",
+  "fixture_validation_mode": "request_and_result_separate",
+  "fixture_files": [
+    "valid-prepare.json",
+    "invalid-owner.json",
+    "replay-conflict.json",
+    "forbidden-input.json",
+    "lifecycle-transitions.json",
+    "stale-fencing.json",
+    "stale-handle.json",
+    "invalid-lineage-workspace.json",
+    "replay-same-fingerprint.json",
+    "replay-concurrent-reservation.json",
+    "replay-terminal-tombstone.json",
+    "cancel-not-confirmed.json",
+    "cancel-confirmed.json",
+    "cleanup-failure.json",
+    "observe-read-only.json",
+    "handoff-forbidden-fields.json",
+    "hostile-inputs.json",
+    "workspace-invalid.json",
+    "redaction-before-fingerprint.json",
+    "no-dispatch-boundary.json",
+    "result-execution-succeeded.json",
+    "result-harness-event.json",
+    "result-cancellation-confirmed.json",
+    "result-handoff.json",
+    "result-cleanup.json"
+  ],
+  "operation_schemas": ["prepare", "execute", "observe", "cancel", "handoff", "cleanup"],
+  "result_bindings": {
+    "prepare": "PrepareResult",
+    "execute": "ExecutionResult",
+    "observe": "HarnessEvent[]",
+    "cancel": "CancellationResult",
+    "handoff": "HandoffArtifact",
+    "cleanup": "CleanupResult"
+  },
+  "required_operation_fields": {
+    "mutating": ["schema_version", "operation", "lineage", "owner", "expected_generation", "idempotency_key", "request_fingerprint"],
+    "observe": ["schema_version", "operation", "lineage", "cursor"]
+  },
+  "bounds": {
+    "id_bytes": 128,
+    "lineage_depth": 4,
+    "metadata_keys": 16,
+    "metadata_scalar_bytes": 4096,
+    "execute_input_bytes": 8192,
+    "handoff_bytes": 8192,
+    "event_bytes": 4096,
+    "event_count": 64,
+    "evidence_ref_bytes": 128
+  },
+  "stable_error_codes": [
+    "invalid_lineage", "owner_mismatch", "stale_generation", "stale_handle",
+    "invalid_transition", "idempotency_conflict", "replay_in_progress",
+    "input_too_large", "forbidden_field", "invalid_cursor", "cancel_not_confirmed",
+    "cleanup_failed", "dispatch_not_allowed", "unknown_field"
+  ],
+  "external_effects": false,
+  "provider_execution": false,
+  "network": false,
+  "subprocess": false
+}

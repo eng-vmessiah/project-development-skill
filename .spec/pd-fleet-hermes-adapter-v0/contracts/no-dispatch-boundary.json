@@ -1,0 +1,12 @@
+{
+  "schema_version": "pd-fleet-hermes-adapter:v0",
+  "fixture_id": "no-dispatch-boundary",
+  "mode": "local_fake_only",
+  "fake_entrypoint": "FakeAgentRuntime",
+  "allowed_import_roots": ["dataclasses", "enum", "hashlib", "json", "typing", "pd_fleet.contracts"],
+  "forbidden_import_roots": ["hermes", "subprocess", "socket", "requests", "httpx", "urllib", "mcp", "discord", "asyncio.subprocess"],
+  "forbidden_capabilities": ["provider", "network", "subprocess", "gateway", "mcp", "discord", "external_filesystem", "credentials"],
+  "operations_with_zero_dispatch": ["prepare", "observe", "cancel", "handoff", "cleanup"],
+  "execute_rule": "only the fake execute path may increment dispatch_count, exactly once per non-replay request",
+  "expected": {"hermes_reachable":false,"provider_reachable":false,"network_reachable":false,"subprocess_reachable":false,"gateway_reachable":false,"mcp_reachable":false,"external_filesystem_reachable":false}
+}

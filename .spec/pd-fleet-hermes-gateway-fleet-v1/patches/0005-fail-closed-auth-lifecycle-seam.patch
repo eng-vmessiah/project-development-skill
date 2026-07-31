@@ -1,0 +1,310 @@
+From 41c17d9bc0f7ca4f82e70c91797495cbe2b603d1 Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Thu, 30 Jul 2026 14:40:48 -0300
+Subject: [PATCH] feat(fleet): add fail-closed auth and lifecycle seam
+
+---
+ gateway/platforms/api_server.py               | 75 ++++++++++++++++++-
+ hermes_cli/fleet_activation.py                | 43 +++++++++++
+ .../gateway/test_api_server_fleet_observer.py | 59 +++++++++++++++
+ tests/hermes_cli/test_fleet_activation.py     | 18 ++++-
+ 4 files changed, 192 insertions(+), 3 deletions(-)
+
+diff --git a/gateway/platforms/api_server.py b/gateway/platforms/api_server.py
+index 567ae2b098..d39d23270c 100644
+--- a/gateway/platforms/api_server.py
++++ b/gateway/platforms/api_server.py
+@@ -62,7 +62,14 @@ from gateway.platforms.base import (
+ )
+ from agent.redact import redact_sensitive_text
+ from gateway.readiness import collect_runtime_readiness
+-from hermes_cli.fleet_observer import FleetObserverConfig, FleetObserverHub
++from hermes_cli.fleet_observer import FleetObserverConfig, FleetObserverHub, FleetObserverScope
++from hermes_cli.fleet_activation import (
++    FleetActivationBinding,
++    FleetActivationOwner,
++    FleetLifecyclePublisher,
++    FleetPrincipal,
++    FleetPrincipalResolver,
++)
+ from hermes_cli.fleet_observer_transport import (
+     FleetObserverHTTPAdapter,
+     FleetTransportConfig,
+@@ -849,7 +856,11 @@ class APIServerAdapter(BasePlatformAdapter):
+     # ``async_delivery_supported()``.
+     supports_async_delivery: bool = False
+ 
+-    def __init__(self, config: PlatformConfig):
++    def __init__(self, config: PlatformConfig, *,
++                 fleet_principal_resolver: Optional[FleetPrincipalResolver] = None,
++                 fleet_activation_owner: Optional[FleetActivationOwner] = None,
++                 fleet_lifecycle_publisher: Optional[FleetLifecyclePublisher] = None,
++                 fleet_activation_binding: Optional[FleetActivationBinding] = None):
+         super().__init__(config, Platform.API_SERVER)
+         extra = config.extra or {}
+         self._host: str = extra.get("host", os.getenv("API_SERVER_HOST", DEFAULT_HOST))
+@@ -911,6 +922,52 @@ class APIServerAdapter(BasePlatformAdapter):
+         # comes only from this platform's extra config; there is no env enable.
+         self._pd_fleet_enabled: bool = extra.get("pd_fleet_gateway_enabled") is True
+         self._fleet_transport: Optional[FleetObserverHTTPAdapter] = None
++        # B10 is a seam only. Identity is never derived from _api_key or
++        # request body/path/query claims; B8 composition remains unchanged.
++        self._fleet_principal_resolver = fleet_principal_resolver
++        self._fleet_activation_owner = fleet_activation_owner
++        self._fleet_lifecycle_publisher = fleet_lifecycle_publisher
++        self._fleet_activation_binding = fleet_activation_binding
++
++    def _resolve_fleet_principal(self, request_or_context: Any) -> Optional[FleetPrincipal]:
++        """Return only an exact, owner-validated principal; otherwise None."""
++        resolver = self._fleet_principal_resolver
++        if not isinstance(resolver, FleetPrincipalResolver):
++            return None
++        principal = resolver.resolve(request_or_context)
++        if type(principal) is not FleetPrincipal:
++            return None
++        owner = self._fleet_activation_owner
++        if owner is not None:
++            try:
++                owner.validate_principal(principal)
++            except Exception:
++                return None
++        return principal
++
++    def _publish_fleet_session_lifecycle(self, *, publisher: Any, principal: Any,
++                                         binding: Any, event_type: Any,
++                                         payload: Any) -> Any:
++        """Publish a bounded session event, failing closed when not ready."""
++        allowed_events = {"session.registered", "session.status_changed",
++                          "session.heartbeat", "session.metadata_changed",
++                          "session.detached", "session.ended"}
++        if (type(publisher) is not FleetLifecyclePublisher
++                or type(principal) is not FleetPrincipal
++                or type(binding) is not FleetActivationBinding
++                or type(event_type) is not str or event_type not in allowed_events
++                or not isinstance(payload, dict)):
++            return None
++        if (self._fleet_activation_owner is None
++                or self._fleet_lifecycle_publisher is not publisher
++                or self._fleet_activation_binding is not binding):
++            return None
++        try:
++            self._fleet_activation_owner.validate_binding(principal, binding)
++            scope = FleetObserverScope("api_server", binding.observer_ref, principal.subject_ref)
++            return publisher.publish(principal, event_type, binding, scope, payload)
++        except Exception:
++            return None
+ 
+     def _compose_fleet_observer(self, app: Any) -> None:
+         """Attach the deliberately incomplete B8 pd-fleet composition."""
+@@ -4095,6 +4152,7 @@ class APIServerAdapter(BasePlatformAdapter):
+         agent_ref: Optional[list] = None,
+         gateway_session_key: Optional[str] = None,
+         route: Optional[Dict[str, Any]] = None,
++        fleet_context: Any = None,
+     ) -> tuple:
+         """
+         Create an agent and run a conversation in a thread executor.
+@@ -4151,6 +4209,19 @@ class APIServerAdapter(BasePlatformAdapter):
+                 _eff_sid = getattr(agent, "session_id", session_id)
+                 if isinstance(_eff_sid, str) and _eff_sid:
+                     result["session_id"] = _eff_sid
++                # The only lifecycle seam is the terminal run boundary.  The
++                # context must have been explicitly supplied by a server owner;
++                # request claims and the API key never reach this resolver.
++                principal = self._resolve_fleet_principal(fleet_context)
++                if (principal is not None and self._fleet_lifecycle_publisher is not None
++                        and self._fleet_activation_binding is not None):
++                    self._publish_fleet_session_lifecycle(
++                        publisher=self._fleet_lifecycle_publisher,
++                        principal=principal,
++                        binding=self._fleet_activation_binding,
++                        event_type="session.ended",
++                        payload={"reason": "completed"},
++                    )
+                 return result, usage
+             finally:
+                 clear_session_vars(tokens)
+diff --git a/hermes_cli/fleet_activation.py b/hermes_cli/fleet_activation.py
+index b607f72fa0..0fbf928f85 100644
+--- a/hermes_cli/fleet_activation.py
++++ b/hermes_cli/fleet_activation.py
+@@ -223,6 +223,47 @@ class FleetActivationOwner:
+             return _OwnerCapability(self, self._identity, self._epoch)
+ 
+ 
++class FleetPrincipalResolver:
++    """Framework-neutral adapter for an owner-verified principal.
++
++    Input is an object supplied by a server owner after authentication and
++    authorization. Strings, mappings, and absent input are never interpreted
++    as identity claims.
++    """
++
++    def __init__(self, resolver: Callable[[Any], FleetPrincipal | None], *,
++                 owner: FleetActivationOwner | None = None) -> None:
++        if not callable(resolver):
++            raise FleetActivationError("principal resolver must be callable")
++        if owner is None:
++            raise FleetActivationNotReady("principal resolver requires an owner")
++        if not isinstance(owner, FleetActivationOwner):
++            raise FleetActivationError("resolver owner must be a FleetActivationOwner")
++        self._resolver, self._owner = resolver, owner
++
++    def resolve(self, verified_context: Any) -> FleetPrincipal | None:
++        if self._owner is None:
++            return None
++        if verified_context is None or isinstance(verified_context, (str, bytes, bytearray, Mapping)):
++            return None
++        try:
++            principal = self._resolver(verified_context)
++        except Exception:
++            return None
++        if type(principal) is not FleetPrincipal:
++            return None
++        # Direct construction is intentionally authority-free.  The configured
++        # owner must validate the current epoch and its own issuance marker;
++        # provenance alone is never accepted as identity validation.
++        if principal._authority is None or principal._activation_epoch is None:
++            return None
++        try:
++            self._owner.validate_principal(principal)
++        except (FleetActivationError, FleetActivationNotReady):
++            return None
++        return principal
++
++
+ @dataclass(frozen=True)
+ class _OwnerCapability:
+     owner: FleetActivationOwner
+@@ -275,6 +316,8 @@ class FleetLifecyclePublisher:
+         # deactivation cannot invalidate this epoch between validation and append.
+         with self._owner._lock:
+             self._owner._check_epoch_locked(self._activation_epoch)
++            if not self.active:
++                raise FleetActivationNotReady("fleet lifecycle publisher is not ready")
+             if type(binding) is not FleetActivationBinding:
+                 raise FleetActivationError("binding must be a FleetActivationBinding")
+             if binding != self._binding:
+diff --git a/tests/gateway/test_api_server_fleet_observer.py b/tests/gateway/test_api_server_fleet_observer.py
+index dd34bbd680..1faba2959e 100644
+--- a/tests/gateway/test_api_server_fleet_observer.py
++++ b/tests/gateway/test_api_server_fleet_observer.py
+@@ -2,6 +2,7 @@
+ from __future__ import annotations
+ 
+ import asyncio
++from types import SimpleNamespace
+ from typing import Any
+ 
+ import pytest
+@@ -12,6 +13,11 @@ from gateway.config import PlatformConfig
+ from gateway.platforms.api_server import APIServerAdapter
+ from hermes_cli import fleet_observer_aiohttp
+ from hermes_cli.fleet_observer_transport import MAX_BODY_BYTES, SSEStream, TransportResponse
++from hermes_cli.fleet_activation import (
++    CAPABILITY_OBSERVE, FleetActivationOwner, FleetLifecyclePublisher,
++    FleetPrincipal, FleetPrincipalResolver,
++)
++from hermes_cli.fleet_observer import FleetObserverConfig, FleetObserverHub, FleetObserverScope
+ 
+ 
+ def _adapter(extra=None):
+@@ -75,6 +81,59 @@ def test_flag_requires_exact_true_and_does_not_read_environment(monkeypatch):
+     assert _adapter({"pd_fleet_gateway_enabled": True})._pd_fleet_enabled is True
+ 
+ 
++def test_principal_seam_never_turns_api_key_into_identity():
++    owner = FleetActivationOwner("server", "owner", enabled=True, wired=True)
++    assert owner.activate()
++    principal = owner.issue_principal("observer")
++    resolver = FleetPrincipalResolver(lambda context: principal, owner=owner)
++    adapter = APIServerAdapter(PlatformConfig(extra={"key": "caller-key"}),
++                               fleet_principal_resolver=resolver,
++                               fleet_activation_owner=owner)
++    assert adapter._resolve_fleet_principal("caller-key") is None
++    assert adapter._resolve_fleet_principal({"subject": "observer"}) is None
++    assert adapter._resolve_fleet_principal(SimpleNamespace(server_verified=True)) == principal
++    assert adapter._resolve_fleet_principal(SimpleNamespace(subject="attacker")) == principal
++
++
++def test_principal_seam_fails_closed_for_missing_or_malformed_resolver():
++    adapter = _adapter({"key": "caller-key"})
++    assert adapter._resolve_fleet_principal(SimpleNamespace()) is None
++    owner = FleetActivationOwner("server", "owner", enabled=True, wired=True)
++    assert owner.activate()
++    adapter._fleet_principal_resolver = FleetPrincipalResolver(lambda _: {"subject": "bad"}, owner=owner)
++    assert adapter._resolve_fleet_principal(SimpleNamespace()) is None
++    adapter._fleet_principal_resolver = FleetPrincipalResolver(lambda _: FleetPrincipal(
++        "server", "observer", "owner", "local", (CAPABILITY_OBSERVE,)), owner=owner)
++    assert adapter._resolve_fleet_principal(SimpleNamespace()) is None
++
++
++def test_lifecycle_hook_requires_typed_ready_objects_and_allowlisted_metadata():
++    owner = FleetActivationOwner("server", "owner", enabled=True, wired=True)
++    assert owner.activate()
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    assert hub.activate()
++    principal = owner.issue_principal("observer")
++    binding = owner.issue_binding("observer")
++    publisher = FleetLifecyclePublisher(hub, owner, binding)
++    adapter = APIServerAdapter(PlatformConfig(), fleet_activation_owner=owner,
++                               fleet_lifecycle_publisher=publisher,
++                               fleet_activation_binding=binding)
++    received = []
++    scope = FleetObserverScope("api_server", "observer", "observer")
++    subscription = hub.subscribe(scope, received.append)
++    assert adapter._publish_fleet_session_lifecycle(
++        publisher=publisher, principal=principal, binding=binding,
++        event_type="session.ended", payload={"reason": "completed"})
++    assert received and received[0].payload == {"reason": "completed"}
++    hub.unsubscribe(subscription)
++    assert adapter._publish_fleet_session_lifecycle(
++        publisher=publisher, principal=principal, binding=binding,
++        event_type="run.raw", payload={"prompt": "secret"}) is None
++    assert adapter._publish_fleet_session_lifecycle(
++        publisher=None, principal=principal, binding=binding,
++        event_type="session.ended", payload={"reason": "completed"}) is None
++
++
+ class _FakeTransport:
+     def is_closing(self):
+         return False
+diff --git a/tests/hermes_cli/test_fleet_activation.py b/tests/hermes_cli/test_fleet_activation.py
+index c51c08cd47..79e4357623 100644
+--- a/tests/hermes_cli/test_fleet_activation.py
++++ b/tests/hermes_cli/test_fleet_activation.py
+@@ -5,7 +5,7 @@ import pytest
+ from hermes_cli.fleet_activation import (
+     CAPABILITY_OBSERVE, FleetActivationBinding, FleetActivationError,
+     FleetActivationNotReady, FleetActivationOwner, FleetLifecyclePublisher,
+-    FleetPrincipal, validate_server_binding,
++    FleetPrincipal, FleetPrincipalResolver, validate_server_binding,
+ )
+ from hermes_cli.fleet_observer import FleetObserverConfig, FleetObserverHub, FleetObserverScope
+ 
+@@ -94,6 +94,22 @@ def test_publisher_active_tracks_hub_deactivation_and_config_disable():
+     assert publisher.active
+     h.config = FleetObserverConfig(enabled=False)
+     assert not publisher.active
++    with pytest.raises(FleetActivationNotReady):
++        publisher.publish(p, "session.status_changed", FleetObserverScope("p", "i"), {"status": "ok"})
++
++
++def test_principal_resolver_requires_owner_and_validates_issued_principals():
++    with pytest.raises(FleetActivationNotReady):
++        FleetPrincipalResolver(lambda _: None)
++
++    o = active_owner()
++    principal = o.issue_principal("observer")
++    resolver = FleetPrincipalResolver(lambda _: principal, owner=o)
++    assert resolver.resolve(object()) == principal
++
++    other = active_owner()
++    foreign = other.issue_principal("observer")
++    assert FleetPrincipalResolver(lambda _: foreign, owner=o).resolve(object()) is None
+ 
+ 
+ def test_publisher_rejects_wrong_binding_scope_and_events():
+-- 
+2.43.0
+

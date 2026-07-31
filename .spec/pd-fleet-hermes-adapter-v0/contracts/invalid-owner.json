@@ -1,0 +1,21 @@
+{
+  "schema_version": "pd-fleet-hermes-adapter:v0",
+  "fixture_id": "invalid-owner",
+  "operation": "execute",
+  "lineage": {
+    "run_id": "run-001",
+    "task_id": "task-001",
+    "attempt_id": "attempt-001",
+    "session_handle_id": "handle-001",
+    "workspace_id": "ws-001"
+  },
+  "owner": "wrong-owner",
+  "expected_generation": 3,
+  "idempotency_key": "idem-execute-001",
+  "request_fingerprint": "sha256:6f5e6744be38d69d1383da5f5bb42a72f9d1e7beb60085d2dc5fae0492d8b6ec",
+  "expected": {
+    "status": "rejected",
+    "dispatch_count_delta": 0,
+    "error_code": "owner_mismatch"
+  }
+}

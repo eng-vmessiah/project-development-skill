@@ -1,0 +1,783 @@
+From b67650157716edffd222c238e7c078c03cabb72a Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Thu, 30 Jul 2026 11:21:40 -0300
+Subject: [PATCH] feat(fleet): add disabled attachment transport foundation
+
+---
+ hermes_cli/fleet_observer_transport.py        | 545 ++++++++++++++++++
+ .../test_fleet_observer_transport.py          | 211 +++++++
+ 2 files changed, 756 insertions(+)
+ create mode 100644 hermes_cli/fleet_observer_transport.py
+ create mode 100644 tests/hermes_cli/test_fleet_observer_transport.py
+
+diff --git a/hermes_cli/fleet_observer_transport.py b/hermes_cli/fleet_observer_transport.py
+new file mode 100644
+index 0000000000..b3571ae784
+--- /dev/null
++++ b/hermes_cli/fleet_observer_transport.py
+@@ -0,0 +1,545 @@
++"""Unwired ``pd-fleet`` HTTP/SSE foundation.
++
++This module is deliberately only a server-side attachment seam.  It imports no
++server, network, database, or credential code.  ``wired`` is an explicit
++in-process capability supplied by the eventual API server; enabling config is
++not sufficient to make this module ready.
++"""
++from __future__ import annotations
++
++from collections import deque
++from dataclasses import dataclass
++from hashlib import sha256
++import json
++from math import isfinite
++from secrets import token_urlsafe
++from threading import RLock
++from time import monotonic
++from datetime import datetime
++from typing import Any, Callable, Mapping
++
++from .fleet_observer import FleetObserverCursor, FleetObserverError, FleetObserverHub, FleetObserverNotReady, FleetObserverScope, ReplayGap
++
++AUDIENCE = "pd-fleet"
++MAX_REF = 128
++MAX_TICKET_TTL = 300.0
++MIN_TICKET_TTL = 1.0
++MAX_BODY_BYTES = 16_384
++MAX_TOKEN_LENGTH = 256
++MAX_REPLAY_LIMIT = 100
++HEARTBEAT = ": heartbeat\n\n"
++
++
++class FleetTransportError(ValueError):
++    """Uniform transport input/state error (never contains secrets or claims)."""
++
++
++class FleetTransportNotReady(RuntimeError):
++    pass
++
++
++@dataclass(frozen=True)
++class FleetTransportConfig:
++    enabled: bool = False
++    ticket_ttl: float = 60.0
++    replay_limit: int = 100
++    max_active_tickets: int = 1024
++    max_total_tickets: int = 4096
++    attachment_ttl: float = 3600.0
++    max_active_attachments: int = 1024
++    max_total_attachments: int = 4096
++    max_sse_queue: int = 100
++
++    def __post_init__(self) -> None:
++        if type(self.enabled) is not bool:
++            raise FleetTransportError("invalid transport configuration")
++        if type(self.ticket_ttl) not in (int, float) or not isfinite(self.ticket_ttl) or not MIN_TICKET_TTL <= self.ticket_ttl <= MAX_TICKET_TTL:
++            raise FleetTransportError("invalid transport configuration")
++        if type(self.attachment_ttl) not in (int, float) or not isfinite(self.attachment_ttl) or not MIN_TICKET_TTL <= self.attachment_ttl <= 86400:
++            raise FleetTransportError("invalid transport configuration")
++        for value, low, high in ((self.replay_limit, 1, 100), (self.max_active_tickets, 1, 4096), (self.max_total_tickets, 1, 16384), (self.max_active_attachments, 1, 4096), (self.max_total_attachments, 1, 16384), (self.max_sse_queue, 1, 1000)):
++            if type(value) is not int or not low <= value <= high:
++                raise FleetTransportError("invalid transport configuration")
++        if self.max_active_tickets > self.max_total_tickets or self.max_active_attachments > self.max_total_attachments:
++            raise FleetTransportError("invalid transport configuration")
++
++
++@dataclass(frozen=True)
++class FleetTicketBinding:
++    observer_ref: str
++    owner_ref: str
++    profile_ref: str
++    workspace_ref: str
++    session_ref: str
++    association_ref: str
++    purpose: str
++    ownership_mode: str
++
++    def __post_init__(self) -> None:
++        if any(type(v) is not str or not v or len(v) > MAX_REF or any(ord(c) < 32 for c in v) for v in (self.observer_ref, self.owner_ref, self.profile_ref, self.workspace_ref, self.session_ref, self.association_ref, self.purpose, self.ownership_mode)):
++            raise FleetTransportError("invalid ticket binding")
++        if self.purpose != "pd_observation" or self.ownership_mode != "user_owned_session":
++            raise FleetTransportError("ticket unavailable")
++
++
++@dataclass(frozen=True)
++class FleetTicket:
++    ticket_ref: str
++    audience: str
++    binding: FleetTicketBinding
++    issued_at: float
++    expires_at: float
++    status: str = "issued"
++
++
++@dataclass
++class _TicketState:
++    binding: FleetTicketBinding
++    issued_at: float
++    expires_at: float
++    status: str = "issued"
++
++
++class InternalFleetTransportCapability:
++    """Unforgeable-by-convention issuance capability held by API-server code."""
++    __slots__ = ("_issuer", "_marker")
++    def __init__(self, issuer: "OpaqueTicketIssuer") -> None:
++        self._issuer, self._marker = issuer, object()
++
++
++def create_internal_capability(config: FleetTransportConfig | None = None, *, wired: bool = False, clock: Callable[[], float] | None = None) -> InternalFleetTransportCapability:
++    return InternalFleetTransportCapability(OpaqueTicketIssuer(config, wired=wired, clock=clock))
++
++
++def issue_internal(capability: InternalFleetTransportCapability, binding: FleetTicketBinding, *, ttl: float | None = None) -> str:
++    if not isinstance(capability, InternalFleetTransportCapability) or not isinstance(binding, FleetTicketBinding):
++        raise FleetTransportError("ticket unavailable")
++    return capability._issuer._issue(binding, ttl=ttl)
++
++
++class OpaqueTicketIssuer:
++    """Digest-only, one-use issuer.  Public ``issue_ticket`` is intentionally absent."""
++    def __init__(self, config: FleetTransportConfig | None = None, *, wired: bool = False, clock: Callable[[], float] | None = None):
++        self.config = config or FleetTransportConfig()
++        self.wired = type(wired) is bool and wired
++        self._clock = clock or monotonic
++        self._lock = RLock()
++        self._tickets: dict[str, _TicketState] = {}
++        self._total_issued = 0
++
++    @property
++    def ready(self) -> bool:
++        return self.config.enabled and self.wired
++
++    def _issue(self, binding: FleetTicketBinding, *, ttl: float | None = None) -> str:
++        if not self.ready:
++            raise FleetTransportNotReady("pd-fleet is not ready")
++        lifetime = self.config.ticket_ttl if ttl is None else ttl
++        if type(lifetime) not in (int, float) or not isfinite(lifetime) or not MIN_TICKET_TTL <= lifetime <= MAX_TICKET_TTL or not isinstance(binding, FleetTicketBinding):
++            raise FleetTransportError("ticket unavailable")
++        now = self._clock()
++        with self._lock:
++            self._sweep_locked(now)
++            active = sum(state.status == "issued" for state in self._tickets.values())
++            if active >= self.config.max_active_tickets or self._total_issued >= self.config.max_total_tickets:
++                raise FleetTransportError("ticket unavailable")
++            token = token_urlsafe(32)
++            self._tickets[self._digest(token)] = _TicketState(binding, now, now + float(lifetime))
++            self._total_issued += 1
++            return token
++
++    def consume(self, token: str) -> FleetTicket:
++        if not self.ready:
++            raise FleetTransportNotReady("pd-fleet is not ready")
++        if type(token) is not str or not token or len(token) > MAX_TOKEN_LENGTH:
++            raise FleetTransportError("ticket unavailable")
++        with self._lock:
++            state = self._tickets.get(self._digest(token))
++            now = self._clock()
++            if state is None or state.status != "issued":
++                raise FleetTransportError("ticket unavailable")
++            if now >= state.expires_at:
++                state.status = "expired"
++                raise FleetTransportError("ticket unavailable")
++            state.status = "consumed"
++            return FleetTicket("opaque", AUDIENCE, state.binding, state.issued_at, state.expires_at, "consumed")
++
++    def consume_for_principal(self, token: str, principal: str) -> FleetTicket:
++        """Consume only when the server-stored binding names ``principal``.
++
++        Lookup, expiry validation, principal comparison, and the one-use
++        transition all happen under one lock so a rejected principal cannot
++        burn the ticket.
++        """
++        if not self.ready:
++            raise FleetTransportNotReady("pd-fleet is not ready")
++        if (type(token) is not str or not token or len(token) > MAX_TOKEN_LENGTH
++                or type(principal) is not str or not _ref(principal)):
++            raise FleetTransportError("ticket unavailable")
++        with self._lock:
++            state = self._tickets.get(self._digest(token))
++            now = self._clock()
++            if (state is None or state.status != "issued"
++                    or now >= state.expires_at
++                    or state.binding.observer_ref != principal):
++                if state is not None and state.status == "issued" and now >= state.expires_at:
++                    state.status = "expired"
++                raise FleetTransportError("ticket unavailable")
++            state.status = "consumed"
++            return FleetTicket("opaque", AUDIENCE, state.binding, state.issued_at, state.expires_at, "consumed")
++
++    def revoke(self, token: str) -> bool:
++        if not self.ready or type(token) is not str or not token or len(token) > MAX_TOKEN_LENGTH:
++            return False
++        with self._lock:
++            state = self._tickets.get(self._digest(token))
++            if state is None or state.status not in {"issued", "consumed"}:
++                return False
++            state.status = "revoked"
++            return True
++
++    def _sweep_locked(self, now: float) -> None:
++        for state in self._tickets.values():
++            if state.status in {"issued", "consumed"} and now >= state.expires_at:
++                state.status = "expired"
++        # Total issuance is a bounded window, not an excuse to retain secrets.
++        if len(self._tickets) > self.config.max_total_tickets:
++            for key, state in list(self._tickets.items()):
++                if state.status != "issued":
++                    del self._tickets[key]
++                    self._total_issued -= 1
++                    if len(self._tickets) <= self.config.max_total_tickets:
++                        break
++
++    @staticmethod
++    def _digest(value: str) -> str:
++        return sha256(value.encode()).hexdigest()
++
++
++@dataclass(frozen=True)
++class TransportResponse:
++    status: int
++    body: Mapping[str, Any] | str
++    headers: Mapping[str, str]
++
++
++@dataclass
++class _Attachment:
++    token_digest: str
++    attachment_ref: str
++    principal: str
++    binding: FleetTicketBinding
++    issued_at: float
++    expires_at: float
++    status: str = "active"
++
++
++def _ref(value: Any) -> bool:
++    return type(value) is str and bool(value) and len(value) <= MAX_REF and not any(ord(c) < 32 for c in value)
++
++
++def _cursor_text(cursor: FleetObserverCursor) -> str:
++    return f"{cursor.stream_epoch}:{cursor.sequence}"
++
++
++def _parse_cursor(value: Any, scope: FleetObserverScope, *, attachment: _Attachment, now: int) -> FleetObserverCursor:
++    if type(value) is not str or len(value) > 256 or value.count(":") != 1:
++        raise ReplayGap("cursor unavailable")
++    epoch, sequence = value.split(":")
++    if not _ref(epoch) or not sequence.isdigit() or not 0 <= int(sequence) <= 10**12:
++        raise ReplayGap("cursor unavailable")
++    if now >= attachment.expires_at:
++        raise ReplayGap("cursor unavailable")
++    return FleetObserverCursor(scope.stream_ref or scope.instance_ref, epoch, int(sequence), scope.key, int(attachment.issued_at), int(attachment.expires_at))
++
++
++def _json_safe(value: Any, *, depth: int = 0, count: list[int] | None = None) -> Any:
++    count = count or [0]
++    count[0] += 1
++    if count[0] > 256 or depth > 8:
++        raise FleetTransportError("metadata unavailable")
++    if value is None or type(value) in (bool, str, int, float):
++        if type(value) is str and len(value.encode("utf-8")) > MAX_BODY_BYTES:
++            raise FleetTransportError("metadata unavailable")
++        if type(value) is float and not isfinite(value):
++            raise FleetTransportError("metadata unavailable")
++        return value
++    if isinstance(value, Mapping):
++        if len(value) > 64:
++            raise FleetTransportError("metadata unavailable")
++        if any(type(k) is not str or len(k.encode("utf-8")) > MAX_BODY_BYTES for k in value):
++            raise FleetTransportError("metadata unavailable")
++        return {k: _json_safe(v, depth=depth + 1, count=count) for k, v in value.items()}
++    if isinstance(value, (list, tuple)):
++        if len(value) > 64:
++            raise FleetTransportError("metadata unavailable")
++        return [_json_safe(v, depth=depth + 1, count=count) for v in value]
++    raise FleetTransportError("metadata unavailable")
++
++
++def _bounded_json(value: Any) -> dict[str, Any]:
++    result = _json_safe(value)
++    if not isinstance(result, dict) or len(result) > 16:
++        raise FleetTransportError("body unavailable")
++    if len(json.dumps(result, separators=(",", ":")).encode("utf-8")) > MAX_BODY_BYTES:
++        raise FleetTransportError("body unavailable")
++    return result
++
++
++class SSEStream:
++    def __init__(self, hub: FleetObserverHub, scope: FleetObserverScope, *, cursor: FleetObserverCursor | None, limit: int, is_valid: Callable[[], bool] | None = None):
++        self._hub, self._scope, self._limit = hub, scope, limit
++        self._is_valid = is_valid or (lambda: True)
++        self._events: deque[Any] = deque()
++        self._closed = False
++        self._lock = RLock()
++        self.overflow = False
++        self._subscriber_ref: str | None = None
++        result = hub.replay(scope, cursor)
++        self.gap = result.gap
++        for event in result.events[-limit:]: self._events.append(event)
++        subscriber_ref = hub.subscribe(scope, self._receive, cursor=result.next_cursor)
++        with self._lock:
++            if not self._closed:
++                self._subscriber_ref = subscriber_ref
++                subscriber_ref = None
++        # A replay callback can expire/close the stream before subscribe returns.
++        # Unsubscribe outside the stream lock, and tolerate publish snapshots that
++        # already contain this subscriber.
++        if subscriber_ref is not None:
++            hub.unsubscribe(subscriber_ref)
++
++    def _receive(self, event: Any) -> None:
++        if not self._is_valid():
++            self.close()
++            return
++        overflow = False
++        with self._lock:
++            if self._closed:
++                return
++            if len(self._events) >= self._limit:
++                self.overflow = True
++                overflow = True
++            else:
++                self._events.append(event)
++        if overflow:
++            self.close()
++
++    @property
++    def headers(self) -> Mapping[str, str]:
++        return {"Content-Type": "text/event-stream", "Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
++
++    def read(self, limit: int | None = None) -> tuple[str, ...]:
++        if not self._is_valid():
++            self.close()
++        with self._lock:
++            if self.overflow:
++                self._events.clear()
++                self.overflow = False
++                return ("event: gap\ndata: {\"reason\":\"overflow\",\"resync\":true}\n\n",)
++            if self._closed: return ()
++            n = self._limit if limit is None else (limit if type(limit) is int and 0 <= limit <= self._limit else 0)
++            result = []
++            while self._events and len(result) < n:
++                event = self._events.popleft()
++                data = {"id": _cursor_text(event.cursor), "type": event.event_type, "metadata": _json_safe(event.payload)}
++                result.append(f"id: {_cursor_text(event.cursor)}\nevent: {event.event_type}\ndata: {json.dumps(data, separators=(',', ':'))}\n\n")
++            return tuple(result) if result else (HEARTBEAT,)
++
++    def close(self) -> None:
++        with self._lock:
++            if self._closed:
++                return
++            self._closed = True
++            self._events.clear()
++            subscriber_ref = self._subscriber_ref
++            self._subscriber_ref = None
++        if subscriber_ref is not None:
++            self._hub.unsubscribe(subscriber_ref)
++
++    def __enter__(self) -> "SSEStream": return self
++    def __exit__(self, *_: Any) -> None: self.close()
++
++
++class FleetObserverHTTPAdapter:
++    routes = ("POST /pd-fleet/v1/observers/register", "POST /pd-fleet/v1/tickets/consume", "GET /pd-fleet/v1/associations/{association_ref}/snapshot", "GET /pd-fleet/v1/associations/{association_ref}/stream", "POST /pd-fleet/v1/associations/{association_ref}/detach")
++
++    def __init__(self, hub: FleetObserverHub, issuer: OpaqueTicketIssuer | InternalFleetTransportCapability, config: FleetTransportConfig | None = None, *, authenticate: Callable[[Any], str | None] | None = None, wired: bool = False):
++        self.hub = hub
++        self.issuer = issuer._issuer if isinstance(issuer, InternalFleetTransportCapability) else issuer
++        self.config = config or self.issuer.config
++        self.wired = type(wired) is bool and wired and self.issuer.wired
++        self.authenticate = authenticate or (lambda request: None)
++        self._attachments: dict[str, _Attachment] = {}
++        self._total_attachments = 0
++        self._streams: dict[str, SSEStream] = {}
++        self._stream_locks: dict[str, RLock] = {}
++        self._lock = RLock()
++
++    def status(self) -> Mapping[str, str | bool]:
++        ready = self.config.enabled and self.wired and self.issuer.ready and self.hub.active and self.hub.config.enabled
++        state = "READY" if ready else "NOT_READY"
++        return {"enabled": self.config.enabled, "transport": state, "issuer": state, "attachment": state}
++
++    def issue_ticket(self, *_: Any, **__: Any) -> None:
++        raise FleetTransportError("ticket issuance is internal-only")
++
++    def handle(self, request: Any) -> TransportResponse | SSEStream:
++        if self.status()["transport"] != "READY": return self._error(404, "NOT_READY")
++        self._sweep_attachments()
++        method = self._field(request, "method")
++        path = self._field(request, "path")
++        if type(method) is not str or type(path) is not str or len(path) > 512: return self._error(404)
++        method = method.upper()
++        if method == "POST" and path == "/pd-fleet/v1/observers/register": return self._error(404, "NOT_READY")
++        principal = self.authenticate(request)
++        if type(principal) is not str or not _ref(principal): return self._error(401)
++        body = self._body(request)
++        if method == "POST" and path == "/pd-fleet/v1/tickets/consume":
++            if not isinstance(body, Mapping) or set(body) != {"ticket"} or type(body["ticket"]) is not str: return self._error(400)
++            try: ticket = self.issuer.consume_for_principal(body["ticket"], principal)
++            except (FleetTransportError, FleetTransportNotReady): return self._error(403)
++            self._sweep_attachments()
++            with self._lock:
++                if self._active_count() >= self.config.max_active_attachments or self._total_attachments >= self.config.max_total_attachments: return self._error(403)
++                issued_at = self._clock()
++                attachment = token_urlsafe(32)
++                ref = token_urlsafe(16)
++                digest = sha256(attachment.encode()).hexdigest()
++                self._attachments[digest] = _Attachment(digest, ref, principal, ticket.binding, issued_at, issued_at + self.config.attachment_ttl)
++                self._total_attachments += 1
++            return TransportResponse(200, {"attachment_token": attachment, "attachment_ref": ref, "association_ref": ticket.binding.association_ref, "expires_in": int(self.config.attachment_ttl)}, {})
++        association, action = self._route(path)
++        if association is None: return self._error(404)
++        if not _ref(association): return self._error(404)
++        if method == "GET" and self._field(request, "body") is not None: return self._error(400)
++        attachment = self._attachment(request, principal, association)
++        if attachment is None: return self._error(401)
++        scope = FleetObserverScope(attachment.binding.profile_ref, attachment.binding.workspace_ref, attachment.binding.session_ref, association)
++        if action == "snapshot" and method == "GET":
++            try:
++                cursor = self._cursor(request, scope, attachment)
++                result = self.hub.replay(scope, cursor)
++            except (FleetObserverError, FleetObserverNotReady, ReplayGap): return self._error(409, "GAP", resync=True)
++            events = result.events[-self.config.replay_limit:]
++            return TransportResponse(200, {"association_ref": association, "events": [self._event(e) for e in events], "next_cursor": _cursor_text(result.next_cursor) if result.next_cursor else None, "gap": result.gap, "resync": result.gap is not None}, {})
++        if action == "stream" and method == "GET":
++            with self._lock:
++                stream_lock = self._stream_locks.setdefault(attachment.attachment_ref, RLock())
++            # Serialize replacement per attachment, but do not hold the adapter
++            # map lock while hub subscription/replay can deliver callbacks.
++            with stream_lock:
++                with self._lock:
++                    old = self._streams.pop(attachment.attachment_ref, None)
++                if old is not None:
++                    old.close()
++                try:
++                    stream = SSEStream(self.hub, scope, cursor=self._cursor(request, scope, attachment), limit=self.config.max_sse_queue, is_valid=lambda attachment=attachment: self._attachment_is_valid(attachment))
++                except (FleetObserverError, FleetObserverNotReady, ReplayGap):
++                    return self._error(409, "GAP", resync=True)
++                with self._lock:
++                    if attachment.status != "active" or not any(item is attachment for item in self._attachments.values()):
++                        stream.close()
++                        return self._error(401)
++                    self._streams[attachment.attachment_ref] = stream
++                return stream
++        if action == "detach" and method == "POST":
++            self._revoke(attachment, attachment.attachment_ref)
++            return TransportResponse(200, {"association_ref": association, "status": "detached"}, {})
++        return self._error(404)
++
++    def _clock(self) -> float:
++        value = self.hub._clock() if self.issuer._clock is monotonic else self.issuer._clock()
++        return value.timestamp() if isinstance(value, datetime) else float(value)
++    def _sweep_attachments(self) -> None:
++        now = self._clock()
++        streams = []
++        with self._lock:
++            for key, attachment in list(self._attachments.items()):
++                if attachment.status == "active" and now >= attachment.expires_at:
++                    attachment.status = "expired"
++                if attachment.status != "active":
++                    stream = self._streams.pop(attachment.attachment_ref, None)
++                    if stream:
++                        streams.append(stream)
++                    del self._attachments[key]
++                    self._total_attachments -= 1
++        for stream in streams:
++            stream.close()
++
++    def _active_count(self) -> int: return sum(a.status == "active" and self._clock() < a.expires_at for a in self._attachments.values())
++    def _field(self, request: Any, name: str) -> Any:
++        if isinstance(request, Mapping): return request.get(name)
++        return getattr(request, name, None)
++    def _body(self, request: Any) -> Any:
++        body = self._field(request, "body")
++        if body is None: return None
++        try:
++            if isinstance(body, (bytes, bytearray)):
++                if len(body) > MAX_BODY_BYTES: return None
++                body = json.loads(bytes(body).decode("utf-8"))
++            elif isinstance(body, str):
++                if len(body.encode("utf-8")) > MAX_BODY_BYTES: return None
++                body = json.loads(body)
++            return _bounded_json(body)
++        except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError, OverflowError, FleetTransportError):
++            return None
++    def _headers(self, request: Any) -> Mapping[str, Any] | None:
++        headers = self._field(request, "headers")
++        return headers if isinstance(headers, Mapping) else None
++    def _attachment_is_valid(self, attachment: _Attachment) -> bool:
++        with self._lock:
++            if attachment.status != "active" or not any(item is attachment for item in self._attachments.values()):
++                return False
++            if self._clock() >= attachment.expires_at:
++                attachment.status = "expired"
++                return False
++            return True
++
++    def _attachment(self, request: Any, principal: str, association: str) -> _Attachment | None:
++        headers = self._headers(request)
++        value = None if headers is None else next((v for k, v in headers.items() if type(k) is str and k.casefold() == "authorization"), None)
++        if type(value) is not str or not value.startswith("Bearer ") or value.count(" ") != 1: return None
++        token = value[7:]
++        if not token or len(token) > MAX_TOKEN_LENGTH: return None
++        with self._lock:
++            attachment = self._attachments.get(sha256(token.encode()).hexdigest())
++            if attachment is None or attachment.status != "active" or attachment.principal != principal or attachment.binding.association_ref != association: return None
++            expired = self._clock() >= attachment.expires_at
++            if expired:
++                attachment.status = "expired"
++        if expired:
++            self._sweep_attachments()
++            return None
++        return attachment
++    def _cursor(self, request: Any, scope: FleetObserverScope, attachment: _Attachment) -> FleetObserverCursor | None:
++        headers = self._headers(request)
++        value = None if headers is None else next((v for k, v in headers.items() if type(k) is str and k.casefold() == "last-event-id"), None)
++        return None if value is None else _parse_cursor(value, scope, attachment=attachment, now=int(self._clock()))
++    @staticmethod
++    def _route(path: str) -> tuple[str | None, str | None]:
++        prefix = "/pd-fleet/v1/associations/"
++        if not path.startswith(prefix): return None, None
++        tail = path[len(prefix):].split("/")
++        return (tail[0], tail[1]) if len(tail) == 2 and tail[0] and tail[1] in {"snapshot", "stream", "detach"} else (None, None)
++    def _revoke(self, attachment: _Attachment, ref: str) -> None:
++        with self._lock:
++            attachment.status = "revoked"
++            stream = self._streams.pop(ref, None)
++        if stream: stream.close()
++    @staticmethod
++    def _event(event: Any) -> Mapping[str, Any]:
++        return {"id": _cursor_text(event.cursor), "type": event.event_type, "occurred_at": event.occurred_at.isoformat(), "metadata": _json_safe(event.payload)}
++    @staticmethod
++    def _error(status: int, code: str = "request unavailable", **extra: Any) -> TransportResponse:
++        body = {"error": code}; body.update(extra)
++        return TransportResponse(status, body, {"Cache-Control": "no-store"})
++
++
++def fleet_transport_status(config: FleetTransportConfig | None = None, *, wired: bool = False) -> Mapping[str, str | bool]:
++    enabled = config.enabled if config is not None else False
++    state = "READY" if enabled and wired else "NOT_READY"
++    return {"enabled": enabled, "transport": state, "issuer": state}
++
++
++__all__ = ["AUDIENCE", "FleetTransportConfig", "FleetTicketBinding", "FleetTicket", "InternalFleetTransportCapability", "create_internal_capability", "issue_internal", "OpaqueTicketIssuer", "FleetObserverHTTPAdapter", "FleetTransportError", "FleetTransportNotReady", "TransportResponse", "SSEStream", "fleet_transport_status"]
+diff --git a/tests/hermes_cli/test_fleet_observer_transport.py b/tests/hermes_cli/test_fleet_observer_transport.py
+new file mode 100644
+index 0000000000..b1ddf80687
+--- /dev/null
++++ b/tests/hermes_cli/test_fleet_observer_transport.py
+@@ -0,0 +1,211 @@
++from concurrent.futures import ThreadPoolExecutor
++
++import pytest
++
++from hermes_cli.fleet_observer import FleetObserverConfig, FleetObserverHub, FleetObserverScope
++from hermes_cli.fleet_observer_transport import (
++    AUDIENCE, FleetObserverHTTPAdapter, FleetTicketBinding, FleetTransportConfig,
++    FleetTransportError, FleetTransportNotReady, SSEStream, create_internal_capability,
++    fleet_transport_status, issue_internal,
++)
++
++BINDING = FleetTicketBinding("observer", "owner", "profile", "workspace", "session", "association", "pd_observation", "user_owned_session")
++
++
++def ready():
++    config = FleetTransportConfig(enabled=True, max_sse_queue=2)
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True, replay_limit=3)); hub.activate()
++    capability = create_internal_capability(config, wired=True)
++    adapter = FleetObserverHTTPAdapter(hub, capability, wired=True, authenticate=lambda _: "observer")
++    return hub, capability, adapter
++
++
++def consume(adapter, token):
++    return adapter.handle({"method": "POST", "path": "/pd-fleet/v1/tickets/consume", "body": {"ticket": token}})
++
++
++def auth(response, token):
++    return {"method": "GET", "path": "/pd-fleet/v1/associations/association/{}/snapshot".format(""), "headers": {"Authorization": "Bearer " + token}}
++
++
++def test_enabled_alone_is_never_ready_and_all_routes_are_uniform_not_ready():
++    config = FleetTransportConfig(enabled=True)
++    assert fleet_transport_status(config) == {"enabled": True, "transport": "NOT_READY", "issuer": "NOT_READY"}
++    capability = create_internal_capability(config)
++    with pytest.raises(FleetTransportNotReady):
++        issue_internal(capability, BINDING)
++    adapter = FleetObserverHTTPAdapter(FleetObserverHub(), capability)
++    assert adapter.status()["transport"] == "NOT_READY"
++    response = adapter.handle({"method": "GET", "path": "/pd-fleet/v1/associations/x/snapshot"})
++    assert response.status == 404 and response.body == {"error": "NOT_READY"}
++
++
++def test_config_rejects_subclasses_nan_and_bad_bounds():
++    for kwargs in ({"enabled": 1}, {"ticket_ttl": True}, {"ticket_ttl": float("nan")}, {"max_active_tickets": 0}, {"max_active_tickets": 3, "max_total_tickets": 2}):
++        with pytest.raises(FleetTransportError): FleetTransportConfig(**kwargs)
++
++
++def test_internal_issue_boundary_opaque_binding_and_one_use():
++    _, capability, _ = ready()
++    token = issue_internal(capability, BINDING)
++    assert token and "observer" not in token and token != capability._issuer._digest(token)
++    consumed = capability._issuer.consume(token)
++    assert consumed.audience == AUDIENCE and consumed.binding == BINDING
++    with pytest.raises(FleetTransportError): capability._issuer.consume(token)
++    with pytest.raises(FleetTransportError): FleetObserverHTTPAdapter(FleetObserverHub(), capability).issue_ticket(BINDING)
++
++
++def test_ticket_active_cap_and_concurrent_consume():
++    config = FleetTransportConfig(enabled=True, max_active_tickets=1, max_total_tickets=2)
++    cap = create_internal_capability(config, wired=True)
++    first = issue_internal(cap, BINDING)
++    with pytest.raises(FleetTransportError): issue_internal(cap, BINDING)
++    results = []
++    with ThreadPoolExecutor(max_workers=16) as pool:
++        results = list(pool.map(lambda _: _consume(cap, first), range(32)))
++    assert sum(results) == 1
++    issue_internal(cap, BINDING)
++
++
++def _consume(cap, token):
++    try: cap._issuer.consume(token); return True
++    except FleetTransportError: return False
++
++
++def test_http_never_accepts_python_binding_claims_and_registration_is_not_ready():
++    hub, cap, adapter = ready()
++    token = issue_internal(cap, BINDING)
++    assert adapter.handle({"method": "POST", "path": "/pd-fleet/v1/tickets/consume", "body": {"ticket": token, "binding": BINDING}}).status == 400
++    assert adapter.handle({"method": "POST", "path": "/pd-fleet/v1/observers/register", "body": {"observer_ref": "observer"}}).body == {"error": "NOT_READY"}
++
++
++def test_wrong_principal_cannot_burn_ticket_before_rightful_consume():
++    hub, cap, _ = ready()
++    principal = ["wrong"]
++    adapter = FleetObserverHTTPAdapter(hub, cap, wired=True, authenticate=lambda _: principal[0])
++    token = issue_internal(cap, BINDING)
++
++    rejected = consume(adapter, token)
++    assert rejected.status == 403 and rejected.body == {"error": "request unavailable"}
++
++    principal[0] = "observer"
++    attached = consume(adapter, token)
++    assert attached.status == 200
++
++
++def test_attachment_required_principal_and_association_scope():
++    hub, cap, adapter = ready(); token = issue_internal(cap, BINDING)
++    assert adapter.handle({"method": "GET", "path": "/pd-fleet/v1/associations/association/snapshot", "headers": {}}).status == 401
++    attached = consume(adapter, token); assert attached.status == 200
++    attachment = attached.body["attachment_token"]
++    req = {"method": "GET", "path": "/pd-fleet/v1/associations/association/snapshot", "headers": {"Authorization": "Bearer " + attachment}}
++    assert adapter.handle(req).status == 200
++    req["path"] = "/pd-fleet/v1/associations/other/snapshot"
++    assert adapter.handle(req).status == 401
++
++
++def test_snapshot_cursor_and_gap_are_explicit():
++    hub, cap, adapter = ready(); token = issue_internal(cap, BINDING); attached = consume(adapter, token)
++    bearer = {"Authorization": "Bearer " + attached.body["attachment_token"]}
++    scope = FleetObserverScope("profile", "workspace", "session", "association")
++    for _ in range(4): hub.publish("session.heartbeat", scope, {"status": "ok"})
++    response = adapter.handle({"method": "GET", "path": "/pd-fleet/v1/associations/association/snapshot", "headers": bearer})
++    assert len(response.body["events"]) <= 3 and response.body["next_cursor"].count(":") == 1
++    bad = dict(bearer); bad["Last-Event-ID"] = "bad"
++    assert adapter.handle({"method": "GET", "path": "/pd-fleet/v1/associations/association/snapshot", "headers": bad}).status == 409
++
++
++def test_sse_complete_serialization_overflow_and_close_unsubscribes():
++    hub, cap, adapter = ready(); token = issue_internal(cap, BINDING); attached = consume(adapter, token)
++    bearer = "Bearer " + attached.body["attachment_token"]
++    stream = adapter.handle({"method": "GET", "path": "/pd-fleet/v1/associations/association/stream", "headers": {"Authorization": bearer}})
++    assert isinstance(stream, SSEStream) and stream.headers["Content-Type"] == "text/event-stream"
++    scope = FleetObserverScope("profile", "workspace", "session", "association")
++    hub.publish("session.heartbeat", scope, {"status": "ok"}); hub.publish("session.heartbeat", scope, {"status": "ok"}); hub.publish("session.heartbeat", scope, {"status": "ok"})
++    assert stream.overflow and '"overflow"' in stream.read()[0]
++    stream.close(); assert not hub._subscribers
++
++
++def test_replacing_sse_closes_old_before_subscribing_with_single_subscriber_capacity():
++    config = FleetTransportConfig(enabled=True, max_sse_queue=2)
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True, max_subscribers_per_stream=1)); hub.activate()
++    cap = create_internal_capability(config, wired=True)
++    adapter = FleetObserverHTTPAdapter(hub, cap, wired=True, authenticate=lambda _: "observer")
++    attached = consume(adapter, issue_internal(cap, BINDING))
++    bearer = {"Authorization": "Bearer " + attached.body["attachment_token"]}
++    request = {"method": "GET", "path": "/pd-fleet/v1/associations/association/stream", "headers": bearer}
++    first = adapter.handle(request)
++    second = adapter.handle(request)
++    assert isinstance(first, SSEStream) and isinstance(second, SSEStream)
++    assert first.read() == ()
++    assert len(hub._subscribers) == 1
++    second.close()
++    assert not hub._subscribers
++
++
++def test_closed_sse_discards_buffered_events():
++    hub, cap, adapter = ready(); attached = consume(adapter, issue_internal(cap, BINDING))
++    bearer = {"Authorization": "Bearer " + attached.body["attachment_token"]}
++    stream = adapter.handle({"method": "GET", "path": "/pd-fleet/v1/associations/association/stream", "headers": bearer})
++    scope = FleetObserverScope("profile", "workspace", "session", "association")
++    hub.publish("session.heartbeat", scope, {"status": "buffered"})
++    stream.close()
++    assert stream.read() == ()
++    assert len(hub._subscribers) == 0
++
++
++def test_revocation_closes_stream_and_discards_buffered_events():
++    hub, cap, adapter = ready(); attached = consume(adapter, issue_internal(cap, BINDING))
++    bearer = {"Authorization": "Bearer " + attached.body["attachment_token"]}
++    stream = adapter.handle({"method": "GET", "path": "/pd-fleet/v1/associations/association/stream", "headers": bearer})
++    scope = FleetObserverScope("profile", "workspace", "session", "association")
++    hub.publish("session.heartbeat", scope, {"status": "buffered"})
++    assert adapter.handle({"method": "POST", "path": "/pd-fleet/v1/associations/association/detach", "headers": bearer}).status == 200
++    assert stream.read() == ()
++    assert not hub._subscribers
++
++
++def test_open_sse_expires_lazily_before_publish_without_handle_request():
++    now = [0.0]
++    config = FleetTransportConfig(enabled=True, attachment_ttl=1, max_sse_queue=2)
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True)); hub.activate()
++    cap = create_internal_capability(config, wired=True, clock=lambda: now[0])
++    adapter = FleetObserverHTTPAdapter(hub, cap, wired=True, authenticate=lambda _: "observer")
++    attached = consume(adapter, issue_internal(cap, BINDING))
++    bearer = {"Authorization": "Bearer " + attached.body["attachment_token"]}
++    stream = adapter.handle({"method": "GET", "path": "/pd-fleet/v1/associations/association/stream", "headers": bearer})
++    scope = FleetObserverScope("profile", "workspace", "session", "association")
++
++    now[0] = 2.0
++    hub.publish("session.heartbeat", scope, {"status": "late"})
++
++    assert stream._closed
++    assert not hub._subscribers
++    assert stream.read() == ()
++
++
++def test_attachment_expiry_and_detach_revoke_access():
++    now = [0.0]
++    config = FleetTransportConfig(enabled=True, attachment_ttl=1)
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True)); hub.activate()
++    cap = create_internal_capability(config, wired=True, clock=lambda: now[0])
++    adapter = FleetObserverHTTPAdapter(hub, cap, wired=True, authenticate=lambda _: "observer")
++    attached = consume(adapter, issue_internal(cap, BINDING))
++    bearer = {"Authorization": "Bearer " + attached.body["attachment_token"]}
++    path = "/pd-fleet/v1/associations/association/snapshot"
++    assert adapter.handle({"method": "GET", "path": path, "headers": bearer}).status == 200
++    now[0] = 2
++    assert adapter.handle({"method": "GET", "path": path, "headers": bearer}).status == 401
++    attached = consume(adapter, issue_internal(cap, BINDING))
++    bearer = {"Authorization": "Bearer " + attached.body["attachment_token"]}
++    assert adapter.handle({"method": "POST", "path": "/pd-fleet/v1/associations/association/detach", "headers": bearer}).status == 200
++    assert adapter.handle({"method": "GET", "path": path, "headers": bearer}).status == 401
++
++
++def test_http_boundary_and_forbidden_routes():
++    _, cap, adapter = ready()
++    assert adapter.handle({"method": "GET", "path": "/pd-fleet/v1/associations/x/snapshot", "body": {}}).status == 400
++    assert adapter.handle({"method": "PUT", "path": "/pd-fleet/v1/associations/x/snapshot"}).status == 401
++    routes = " ".join(adapter.routes)
++    for forbidden in ("/api/events", "/v1/runs/", "credentials", "prompt", "history", "control"):
++        assert forbidden not in routes
+-- 
+2.43.0
+

@@ -40,44 +40,71 @@ def test_identity_decision_digest_and_freshness_are_required():
             approved(**{field: value})
     with pytest.raises(GateError):
         approved(freshness_window=timedelta(0))
-    assert approved().allows(now=NOW)
+    assert approved().allows(now=NOW, expected_run="run-42", expected_scope="release")
 
 
 def test_only_explicit_approved_allows_and_rejected_pending_fail_closed():
     assert approved(decision="APPROVED").decision is HumanDecision.APPROVED
-    assert not approved(decision=HumanDecision.PENDING).allows(now=NOW)
-    assert not approved(decision=HumanDecision.REJECTED).allows(now=NOW)
+    context = {"now": NOW, "expected_run": "run-42", "expected_scope": "release"}
+    assert not approved(decision=HumanDecision.PENDING).allows(**context)
+    assert not approved(decision=HumanDecision.REJECTED).allows(**context)
     with pytest.raises(GateError):
         approved(decision="approve")
 
 
 def test_stale_evidence_and_changed_artifact_reopen_gate():
     gate = approved()
-    assert gate.evaluate(now=NOW + timedelta(hours=1, seconds=1)) is GateStatus.PENDING
-    assert gate.evaluate(now=NOW, artifact_digest="c" * 64) is GateStatus.PENDING
-    assert not gate.allows(now=NOW, artifact_digest="c" * 64)
+    context = {"expected_run": "run-42", "expected_scope": "release"}
+    assert gate.evaluate(now=NOW + timedelta(hours=1, seconds=1), **context) is GateStatus.PENDING
+    assert gate.evaluate(now=NOW, artifact_digest="c" * 64, **context) is GateStatus.PENDING
+    assert not gate.allows(now=NOW, artifact_digest="c" * 64, **context)
 
 
 def test_allows_does_not_replace_explicit_falsey_digests_with_stored_values():
     gate = approved()
-    assert gate.allows(now=NOW)
-    assert not gate.allows(now=NOW, artifact_digest="")
-    assert not gate.allows(now=NOW, evidence_digest="")
+    context = {"now": NOW, "expected_run": "run-42", "expected_scope": "release"}
+    assert gate.allows(**context)
+    assert not gate.allows(artifact_digest="", **context)
+    assert not gate.allows(evidence_digest="", **context)
 
 
 def test_blocker_metadata_is_trimmed_casefolded_and_unknown_fails_closed():
-    assert approved(blockers=({"severity": "  HIGH ", "status": " pending "},)).evaluate(now=NOW) is GateStatus.BLOCKED
-    assert approved(blockers=({"severity": " high ", "status": " RESOLVED "},)).allows(now=NOW)
-    assert approved(blockers=({"severity": "mystery", "status": "open"},)).evaluate(now=NOW) is GateStatus.BLOCKED
-    assert approved(blockers=({"severity": "high", "status": "mystery"},)).evaluate(now=NOW) is GateStatus.BLOCKED
+    context = {"now": NOW, "expected_run": "run-42", "expected_scope": "release"}
+    assert approved(blockers=({"severity": "  HIGH ", "status": " pending "},)).evaluate(**context) is GateStatus.BLOCKED
+    assert approved(blockers=({"severity": " high ", "status": " RESOLVED "},)).allows(**context)
+    assert approved(blockers=({"severity": "mystery", "status": "open"},)).evaluate(**context) is GateStatus.BLOCKED
+    assert approved(blockers=({"severity": "high", "status": "mystery"},)).evaluate(**context) is GateStatus.BLOCKED
 
 
 def test_blocker_or_high_severity_blocks_even_with_approval():
+    context = {"now": NOW, "expected_run": "run-42", "expected_scope": "release"}
     for severity in ("BLOCKER", "HIGH"):
         gate = approved(blockers=({"severity": severity, "status": "OPEN"},))
-        assert gate.evaluate(now=NOW) is GateStatus.BLOCKED
-        assert not gate.allows(now=NOW)
-    assert approved(blockers=({"severity": "HIGH", "status": "RESOLVED"},)).allows(now=NOW)
+        assert gate.evaluate(**context) is GateStatus.BLOCKED
+        assert not gate.allows(**context)
+    assert approved(blockers=({"severity": "HIGH", "status": "RESOLVED"},)).allows(**context)
+
+
+def test_expected_run_and_scope_are_required_and_must_match():
+    gate = approved(scope={"tasks": ["task-a", "task-b"]})
+    assert gate.allows(now=NOW, expected_run="run-42", expected_scope={"tasks": ["task-b", "task-a"]})
+    assert gate.evaluate(now=NOW, expected_run="another-run", expected_scope={"tasks": ["task-a", "task-b"]}) is GateStatus.PENDING
+    assert gate.evaluate(now=NOW, expected_run="run-42", expected_scope={"tasks": ["task-a", "other"]}) is GateStatus.PENDING
+
+
+def test_missing_expected_context_fails_closed_without_auto_approval():
+    gate = approved()
+    assert gate.evaluate(now=NOW) is GateStatus.PENDING
+    assert gate.evaluate(now=NOW, expected_run="run-42") is GateStatus.PENDING
+    assert not gate.allows(now=NOW, expected_scope="release")
+
+
+def test_stale_digest_and_freshness_mismatch_fail_closed_with_matching_context():
+    context = {"now": NOW, "expected_run": "run-42", "expected_scope": "release"}
+    gate = approved()
+    assert gate.evaluate(evidence_digest="c" * 64, **context) is GateStatus.PENDING
+    assert gate.evaluate(artifact_digest="c" * 64, **context) is GateStatus.PENDING
+    assert gate.evaluate(now=NOW + timedelta(hours=1, seconds=1), expected_run="run-42", expected_scope="release") is GateStatus.PENDING
 
 
 def test_gate_is_deeply_immutable_and_serialization_deterministic():
@@ -146,7 +173,7 @@ def test_human_gate_injected_clock_is_used_once_only_when_now_is_omitted():
         return NOW
 
     gate = approved(clock=clock)
-    assert gate.allows()
+    assert gate.allows(expected_run="run-42", expected_scope="release")
     assert calls == [1]
-    assert gate.allows(now=NOW)
+    assert gate.allows(now=NOW, expected_run="run-42", expected_scope="release")
     assert calls == [1]

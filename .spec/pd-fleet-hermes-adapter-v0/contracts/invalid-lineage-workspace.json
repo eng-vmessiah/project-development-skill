@@ -1,0 +1,29 @@
+{
+  "schema_version": "pd-fleet-hermes-adapter:v0",
+  "fixture_id": "invalid-lineage-workspace",
+  "operation": "handoff",
+  "lineage": {
+    "run_id": "run-001",
+    "task_id": "task-001",
+    "attempt_id": "attempt-001",
+    "session_handle_id": "handle-001",
+    "workspace_id": "ws-other"
+  },
+  "stored_lineage": {
+    "run_id": "run-001",
+    "task_id": "task-001",
+    "attempt_id": "attempt-001",
+    "session_handle_id": "handle-001",
+    "workspace_id": "ws-001"
+  },
+  "owner": "owner-team",
+  "expected_generation": 3,
+  "idempotency_key": "idem-lineage-001",
+  "request_fingerprint": "sha256:10e63b7097ecadf85cfa2744ae0358a638b11e9a821359ea820fc980370989ba",
+  "expected": {
+    "status": "rejected",
+    "error_code": "invalid_lineage",
+    "dispatch_count_delta": 0,
+    "state_unchanged": true
+  }
+}

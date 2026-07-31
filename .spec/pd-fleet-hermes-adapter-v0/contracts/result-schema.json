@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pd-fleet-hermes-adapter:v0/result",
+  "title": "PD Fleet Hermes Adapter v0 wire result",
+  "oneOf": [
+    {"$ref": "#/$defs/PrepareResult"},
+    {"$ref": "#/$defs/ExecutionResult"},
+    {"$ref": "#/$defs/HarnessEvent"},
+    {"$ref": "#/$defs/ObserveResult"},
+    {"$ref": "#/$defs/CancellationResult"},
+    {"$ref": "#/$defs/HandoffArtifact"},
+    {"$ref": "#/$defs/CleanupResult"}
+  ],
+  "$defs": {
+    "SafeId": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$", "maxLength": 128},
+    "ErrorCode": {"type": "string", "enum": ["invalid_lineage", "owner_mismatch", "stale_generation", "stale_handle", "invalid_transition", "idempotency_conflict", "replay_in_progress", "input_too_large", "forbidden_field", "invalid_cursor", "cancel_not_confirmed", "cleanup_failed", "dispatch_not_allowed", "unknown_field"]},
+    "EvidenceRef": {"$ref": "#/$defs/SafeId"},
+    "LineageRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["run_id", "task_id", "attempt_id", "session_handle_id", "workspace_id"],
+      "properties": {
+        "run_id": {"$ref": "#/$defs/SafeId"}, "task_id": {"$ref": "#/$defs/SafeId"},
+        "attempt_id": {"$ref": "#/$defs/SafeId"}, "session_handle_id": {"$ref": "#/$defs/SafeId"},
+        "workspace_id": {"$ref": "#/$defs/SafeId"}
+      }
+    },
+    "ResultBase": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "status", "error_code", "lineage_ref", "event_sequence", "evidence_refs"],
+      "properties": {
+        "schema_version": {"const": "pd-fleet-hermes-adapter:v0"},
+        "status": {"type": "string"},
+        "error_code": {"oneOf": [{"$ref": "#/$defs/ErrorCode"}, {"type": "null"}]},
+        "lineage_ref": {"$ref": "#/$defs/LineageRef"},
+        "event_sequence": {"type": "integer", "minimum": 0},
+        "evidence_refs": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/EvidenceRef"}}
+      }
+    },
+    "PrepareResult": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "status", "error_code", "lineage_ref", "event_sequence", "evidence_refs", "dispatch_count"],
+      "properties": {
+        "schema_version": {"const": "pd-fleet-hermes-adapter:v0"}, "status": {"const": "ready"},
+        "error_code": {"type": "null"}, "lineage_ref": {"$ref": "#/$defs/LineageRef"},
+        "event_sequence": {"type": "integer", "minimum": 0}, "evidence_refs": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/EvidenceRef"}},
+        "dispatch_count": {"const": 0}, "attempt_id": {"$ref": "#/$defs/SafeId"}, "session_handle_id": {"$ref": "#/$defs/SafeId"}
+      }
+    },
+    "ExecutionResult": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "status", "error_code", "lineage_ref", "event_sequence", "evidence_refs", "dispatch_count"],
+      "properties": {
+        "schema_version": {"const": "pd-fleet-hermes-adapter:v0"}, "status": {"enum": ["succeeded", "failed", "timed_out", "cancelled", "blocked"]},
+        "error_code": {"oneOf": [{"$ref": "#/$defs/ErrorCode"}, {"type": "null"}]}, "lineage_ref": {"$ref": "#/$defs/LineageRef"},
+        "event_sequence": {"type": "integer", "minimum": 0}, "evidence_refs": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/EvidenceRef"}},
+        "output_ref": {"$ref": "#/$defs/EvidenceRef"}, "output_bytes": {"type": "integer", "minimum": 0, "maximum": 1048576},
+        "dispatch_count": {"type": "integer", "minimum": 0}, "attempt_id": {"$ref": "#/$defs/SafeId"}, "session_handle_id": {"$ref": "#/$defs/SafeId"}
+      }
+    },
+    "HarnessEvent": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "event_id", "sequence", "event_type", "run_id", "task_id", "attempt_id", "status", "payload_ref"],
+      "properties": {
+        "schema_version": {"const": "pd-fleet-hermes-adapter:v0"}, "event_id": {"$ref": "#/$defs/SafeId"}, "sequence": {"type": "integer", "minimum": 0},
+        "event_type": {"$ref": "#/$defs/SafeId"}, "run_id": {"$ref": "#/$defs/SafeId"}, "task_id": {"$ref": "#/$defs/SafeId"},
+        "attempt_id": {"$ref": "#/$defs/SafeId"}, "status": {"type": "string", "maxLength": 64}, "payload_ref": {"$ref": "#/$defs/EvidenceRef"}
+      }
+    },
+    "ObserveResult": {
+      "type": "array", "maxItems": 64,
+      "items": {"$ref": "#/$defs/HarnessEvent"}
+    },
+    "CancellationResult": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "status", "error_code", "lineage_ref", "event_sequence", "evidence_refs", "cancel_confirmed", "termination_ref"],
+      "properties": {
+        "schema_version": {"const": "pd-fleet-hermes-adapter:v0"}, "status": {"enum": ["cancelled", "failed", "timed_out", "blocked"]},
+        "error_code": {"oneOf": [{"$ref": "#/$defs/ErrorCode"}, {"type": "null"}]}, "lineage_ref": {"$ref": "#/$defs/LineageRef"},
+        "event_sequence": {"type": "integer", "minimum": 0}, "evidence_refs": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/EvidenceRef"}},
+        "cancel_confirmed": {"type": "boolean"}, "termination_ref": {"oneOf": [{"$ref": "#/$defs/EvidenceRef"}, {"type": "null"}]}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "cancelled"}}}, "then": {"properties": {"cancel_confirmed": {"const": true}, "termination_ref": {"type": "string"}, "error_code": {"type": "null"}}}},
+        {"if": {"properties": {"status": {"enum": ["failed", "timed_out", "blocked"]}}}, "then": {"properties": {"cancel_confirmed": {"const": false}, "error_code": {"const": "cancel_not_confirmed"}}}}
+      ]
+    },
+    "HandoffArtifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "artifact_id", "artifact_version", "lineage_ref", "status", "next_action", "evidence_refs"],
+      "properties": {
+        "schema_version": {"const": "pd-fleet-hermes-adapter:v0"}, "artifact_id": {"$ref": "#/$defs/SafeId"}, "artifact_version": {"type": "integer", "minimum": 1},
+        "lineage_ref": {"$ref": "#/$defs/LineageRef"}, "status": {"type": "string", "maxLength": 64}, "next_action": {"type": "string", "maxLength": 256},
+        "evidence_refs": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/EvidenceRef"}}
+      }
+    },
+    "CleanupResult": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "status", "error_code", "lineage_ref", "event_sequence", "evidence_refs", "cleanup_marker", "original_terminal_status", "cleanup_confirmed"],
+      "properties": {
+        "schema_version": {"const": "pd-fleet-hermes-adapter:v0"}, "status": {"type": "string", "maxLength": 64},
+        "error_code": {"oneOf": [{"$ref": "#/$defs/ErrorCode"}, {"type": "null"}]}, "lineage_ref": {"$ref": "#/$defs/LineageRef"},
+        "event_sequence": {"type": "integer", "minimum": 0}, "evidence_refs": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/EvidenceRef"}},
+        "cleanup_marker": {"enum": ["not_cleaned", "cleaning", "cleaned"]}, "original_terminal_status": {"enum": ["succeeded", "failed", "timed_out", "cancelled"]},
+        "cleanup_confirmed": {"type": "boolean"}
+      },
+      "allOf": [
+        {"if": {"properties": {"cleanup_marker": {"const": "cleaned"}}}, "then": {"properties": {"cleanup_confirmed": {"const": true}}}},
+        {"if": {"properties": {"cleanup_confirmed": {"const": true}}}, "then": {"properties": {"cleanup_marker": {"const": "cleaned"}}}},
+        {"if": {"properties": {"cleanup_confirmed": {"const": false}}}, "then": {"properties": {"cleanup_marker": {"enum": ["not_cleaned", "cleaning"]}}}}
+      ]
+    }
+  }
+}

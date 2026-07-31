@@ -1,0 +1,24 @@
+{
+  "schema_version": "pd-fleet-hermes-adapter:v0",
+  "fixture_id": "replay-concurrent-reservation",
+  "operation": "execute",
+  "scope": {
+    "run_id": "run-001",
+    "task_id": "task-001",
+    "operation": "execute",
+    "idempotency_key": "idem-execute-003"
+  },
+  "request_fingerprint": "sha256:3a37d496cf3cdc8377df6bfcd68a8e4d91e1cc84fa424a74e59943c0e2fd1fe4",
+  "concurrent_requests": [
+    "request-a",
+    "request-b"
+  ],
+  "expected": {
+    "winner_count": 1,
+    "replay_in_progress_count": 1,
+    "error_code_for_loser": "replay_in_progress",
+    "dispatch_count_delta": 1,
+    "attempts_delta": 1,
+    "same_scope_second_dispatch": false
+  }
+}

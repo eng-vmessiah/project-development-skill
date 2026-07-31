@@ -933,27 +933,32 @@ class FleetOrchestrator:
                     actual_scope != current_scope):
                 return False
             try:
-                return bool(gate.allows())
+                return bool(gate.allows(expected_run=expected_run, expected_scope=expected_scope))
             except Exception:
                 return False
         if isinstance(gate, Mapping):
-            human_keys = {"owner", "identity", "decision", "scope", "evidence_digest",
-                          "artifact_digest", "freshness_window"}
-            has_run = "run" in gate or "run_id" in gate
-            if human_keys.issubset(gate) and has_run:
-                actual_scope = FleetOrchestrator._canonical_gate_scope(gate.get("scope"))
-                current_scope = FleetOrchestrator._canonical_gate_scope(expected_scope)
-                if (type(expected_run) is not str or not expected_run.strip() or
-                        expected_scope is None or current_scope is None or
-                        gate.get("run", gate.get("run_id")) != expected_run or
-                        actual_scope != current_scope):
+            try:
+                human_keys = {"owner", "identity", "decision", "scope", "evidence_digest",
+                              "artifact_digest", "freshness_window"}
+                has_run = "run" in gate or "run_id" in gate
+                if human_keys.issubset(gate) and has_run:
+                    actual_scope = FleetOrchestrator._canonical_gate_scope(gate.get("scope"))
+                    current_scope = FleetOrchestrator._canonical_gate_scope(expected_scope)
+                    if (type(expected_run) is not str or not expected_run.strip() or
+                            expected_scope is None or current_scope is None or
+                            gate.get("run", gate.get("run_id")) != expected_run or
+                            actual_scope != current_scope):
+                        return False
+                    try:
+                        return bool(HumanVerificationGate.from_dict(gate).allows(
+                            expected_run=expected_run, expected_scope=expected_scope
+                        )) if HumanVerificationGate is not None else False
+                    except Exception:
+                        return False
+                gate_type = gate.get("gate_type", gate.get("kind", gate.get("type")))
+                if str(gate_type) in {"review", "grill"}:
                     return False
-                try:
-                    return bool(HumanVerificationGate.from_dict(gate).allows()) if HumanVerificationGate is not None else False
-                except Exception:
-                    return False
-            gate_type = gate.get("gate_type", gate.get("kind", gate.get("type")))
-            if str(gate_type) in {"review", "grill"}:
+            except Exception:
                 return False
         # Automatic contract GateResult (or its mapping form) remains policy
         # evaluated; status alone must never grant access.

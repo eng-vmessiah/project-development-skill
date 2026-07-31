@@ -1,0 +1,10 @@
+{
+  "schema_version": "pd-fleet-hermes-adapter:v0",
+  "status": "cancelled",
+  "error_code": null,
+  "lineage_ref": {"run_id":"run-001","task_id":"task-001","attempt_id":"attempt-001","session_handle_id":"handle-001","workspace_id":"ws-001"},
+  "event_sequence": 4,
+  "evidence_refs": ["evidence-cancel-001"],
+  "cancel_confirmed": true,
+  "termination_ref": "termination-001"
+}
