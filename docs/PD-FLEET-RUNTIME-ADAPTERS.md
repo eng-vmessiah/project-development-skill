@@ -43,6 +43,9 @@ ou `fleet-local`.
   __init__.py
 ```
 
+The repository-side reference package lives under `plugins/pd-fleet-hermes/`;
+it is local contract evidence only and is not installed into `~/.hermes/plugins/`.
+
 Na primeira versão B15a, o plugin pode registrar somente hooks de lifecycle Hermes
 aprovados pelo seam público; não registra tools invocáveis pelo modelo, comandos
 slash/CLI ou RPC fora desse seam. Ele deve ser fino: scheduler, persistência Fleet,

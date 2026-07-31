@@ -1,0 +1,10 @@
+name: pd-fleet-hermes
+version: 0.1.0
+description: Optional lifecycle-only adapter between PD Fleet and Hermes
+kind: standalone
+fleet_contract_version: "1.0"
+default_enabled: false
+provides_hooks:
+  - on_session_start
+  - on_session_end
+provides_tools: []
