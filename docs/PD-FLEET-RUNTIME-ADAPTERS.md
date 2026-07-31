@@ -51,6 +51,12 @@ genéricos continuam no pacote do Fleet e devem funcionar fora do Hermes.
 A descoberta/instalação do plugin é separada e sua ativação exige `plugins.enabled`.
 Isso não autoriza efeitos live por si só; as flags e gates do Fleet continuam obrigatórios.
 
+O contrato inicial do plugin segue o formato público `plugin.yaml` + `register(ctx)`
+e começa com hooks de lifecycle. O plugin não deve auto-instalar dependências, gravar
+estado no próprio diretório, criar shims globais, registrar tools invocáveis pelo modelo
+ou acessar rede/credenciais/provider/subprocessos por padrão. RPC namespaced do TUI
+depende de um seam explícito do Hermes, pois não é oferecido pelo `PluginContext` atual.
+
 ## Modos operacionais
 
 ### `pd-only`

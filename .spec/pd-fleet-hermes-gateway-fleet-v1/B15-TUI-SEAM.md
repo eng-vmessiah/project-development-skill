@@ -40,6 +40,26 @@ de RPCs namespaced e default-off. Esse seam deve:
 Esse item é uma extensão de infraestrutura do Hermes para suportar o plugin; não é
 implementação do Fleet Core nem autorização de live dispatch.
 
+## Padrão de plugin adotado
+
+O audit de `agentiker-scout` confirmou o formato operacional esperado para plugins
+Hermes: `plugin.yaml` + `__init__.py` com `register(ctx)`, usando as APIs públicas do
+`PluginContext`. Adotamos somente o formato e os testes de carregamento, não a
+superfície ampla do plugin externo.
+
+Regras adicionais para `pd-fleet-hermes`:
+
+- a primeira versão registra somente hooks de lifecycle; não registra tools invocáveis pelo modelo;
+- não instala dependências automaticamente durante o carregamento;
+- não escreve estado persistente no diretório do plugin;
+- não cria shims globais em `sys.modules`;
+- não acessa rede, credenciais, provider ou subprocesso por padrão;
+- usa contrato de carregamento versionado e testes para plugin ausente, desabilitado e habilitado;
+- qualquer estado Fleet permanece no Fleet Core e em sua persistência própria.
+
+Essas regras reduzem a superfície de efeitos colaterais observada no plugin de
+referência e preservam a separação entre adapter e Fleet Core.
+
 ## Por que o TUI vem primeiro
 
 - caller local e acionado explicitamente pelo usuário;
