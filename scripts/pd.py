@@ -53,6 +53,14 @@ CONFIG_FILE = "pd.yaml"
 HOME_CONFIG = "~/.pd.yaml"
 TOTAL_PHASES = 7  # 0‑7 inclusive = 8 phases
 
+MAX_V2_INSPECT_SNAPSHOT_BYTES = 512 * 1024
+MAX_V2_INSPECT_TASKS = 256
+MAX_V2_INSPECT_REPORTS = 256
+MAX_V2_INSPECT_EVENTS = 512
+MAX_V2_INSPECT_WAVES = 64
+MAX_V2_INSPECT_TASKS_PER_WAVE = 128
+MAX_V2_INSPECT_ID_BYTES = 128
+
 # Default phases
 DEFAULT_PHASES = [
     {"id": 0, "name": "Setup", "description": "Initialize worktree and project"},
@@ -862,7 +870,7 @@ class PD:
         # V2 is opt-in and isolated from legacy command semantics.
         v2_parser = subparsers.add_parser("v2", parents=[global_parent], help="V2 Fleet adapter")
         v2_commands = v2_parser.add_subparsers(dest="v2_command", required=True)
-        for name, help_text in (("read", "Read a V2 manifest"), ("status", "Read V2 run status")):
+        for name, help_text in (("read", "Read a V2 manifest"), ("status", "Read V2 run status"), ("inspect", "Inspect a persisted V2 run")):
             inspect = v2_commands.add_parser(name, parents=[global_parent], help=help_text)
             inspect.add_argument("--plan", "--manifest", dest="plan_path", default=None)
             inspect.add_argument("--store", dest="store_root", default=".pd-fleet-runs")
@@ -1628,14 +1636,38 @@ class PD:
     @staticmethod
     def _v2_read_snapshot(store_root: str, run_id: str) -> Dict[str, Any]:
         root = Path(store_root).expanduser()
+        try:
+            PD._preflight_readonly_root(root, "v2 store")
+        except EventError:
+            raise RunStoreError("run snapshot unavailable") from None
         if not root.exists() or not root.is_dir() or root.is_symlink():
             raise RunStoreError("run snapshot unavailable")
         run_dir = root / run_id
         if not run_dir.exists() or not run_dir.is_dir() or run_dir.is_symlink():
             raise RunStoreError("run snapshot unavailable")
+        for candidate_name in ("snapshot.json", "snapshot.json.bak"):
+            candidate = run_dir / candidate_name
+            if candidate.is_symlink():
+                raise RunStoreError("run snapshot unavailable")
+            if not candidate.exists():
+                continue
+            if not candidate.is_file():
+                raise RunStoreError("run snapshot unavailable")
+            try:
+                if candidate.stat().st_size > MAX_V2_INSPECT_SNAPSHOT_BYTES:
+                    raise RunStoreError("run snapshot unavailable")
+            except OSError:
+                raise RunStoreError("run snapshot unavailable") from None
+        snapshot_path = run_dir / "snapshot.json"
+        if not snapshot_path.exists() or snapshot_path.is_symlink() or not snapshot_path.is_file():
+            raise RunStoreError("run snapshot unavailable")
         probe = FleetRunStore.__new__(FleetRunStore)
         probe.root = root.resolve()
-        snapshot = probe._valid_snapshot(run_id)
+        probe._max_snapshot_bytes = MAX_V2_INSPECT_SNAPSHOT_BYTES
+        try:
+            snapshot = probe._valid_snapshot(run_id)
+        except (AttributeError, OSError, TypeError, ValueError):
+            raise RunStoreError("run snapshot unavailable") from None
         if snapshot is None:
             raise RunStoreError("run snapshot unavailable")
         return snapshot
@@ -1653,6 +1685,84 @@ class PD:
                    if isinstance(r, Mapping) and isinstance(r.get("report"), Mapping)]
         return Checkpoint.create("v2", 0, tasks=tasks, lifecycle=lifecycle,
                                  reports=reports, created_at="1970-01-01T00:00:00+00:00")
+
+    @staticmethod
+    def _v2_inspection(snapshot: Mapping[str, Any]) -> Dict[str, Any]:
+        if not isinstance(snapshot, Mapping):
+            raise ValueError("snapshot_shape")
+        raw_tasks = snapshot.get("tasks", {})
+        raw_reports = snapshot.get("reports", {})
+        raw_waves = snapshot.get("waves", [])
+        if not isinstance(raw_tasks, Mapping) or not isinstance(raw_reports, Mapping) or not isinstance(raw_waves, list):
+            raise ValueError("snapshot_shape")
+        if len(raw_waves) > MAX_V2_INSPECT_WAVES:
+            raise ValueError("snapshot_bounds")
+        bounded_waves: list[list[str]] = []
+        for wave in raw_waves:
+            if not isinstance(wave, list) or len(wave) > MAX_V2_INSPECT_TASKS_PER_WAVE:
+                raise ValueError("snapshot_shape" if not isinstance(wave, list) else "snapshot_bounds")
+            bounded_wave: list[str] = []
+            for task_id in wave:
+                if type(task_id) is not str or not task_id or len(task_id.encode("utf-8")) > MAX_V2_INSPECT_ID_BYTES:
+                    raise ValueError("snapshot_bounds")
+                bounded_wave.append(task_id)
+            bounded_waves.append(bounded_wave)
+        tasks = raw_tasks
+        reports = raw_reports
+        if len(tasks) > MAX_V2_INSPECT_TASKS or len(reports) > MAX_V2_INSPECT_REPORTS:
+            raise ValueError("snapshot_bounds")
+        for collection, limit, require_report in (
+            (tasks, MAX_V2_INSPECT_TASKS, False),
+            (reports, MAX_V2_INSPECT_REPORTS, True),
+        ):
+            if len(collection) > limit:
+                raise ValueError("snapshot_bounds")
+            for task_id, state in collection.items():
+                if type(task_id) is not str or not task_id or len(task_id.encode("utf-8")) > MAX_V2_INSPECT_ID_BYTES:
+                    raise ValueError("snapshot_bounds")
+                if not isinstance(state, Mapping) or type(state.get("status")) is not str:
+                    raise ValueError("snapshot_shape")
+                if require_report:
+                    report = state.get("report")
+                    if not isinstance(report, Mapping) or type(report.get("status")) is not str:
+                        raise ValueError("snapshot_shape")
+        raw_events = snapshot.get("events", [])
+        if not isinstance(raw_events, list):
+            raise ValueError("snapshot_shape")
+        if len(raw_events) > MAX_V2_INSPECT_EVENTS:
+            raise ValueError("snapshot_bounds")
+        if any(not isinstance(event, Mapping) for event in raw_events):
+            raise ValueError("snapshot_shape")
+        task_statuses = {str(task_id): state.get("status", "unknown")
+                         for task_id, state in sorted(tasks.items())
+                         if isinstance(state, Mapping)}
+        report_statuses = {str(task_id): state.get("report", {}).get("status", "unknown")
+                           for task_id, state in sorted(reports.items())
+                           if isinstance(state, Mapping) and isinstance(state.get("report"), Mapping)}
+        run_status = snapshot.get("status", "unknown")
+        if run_status == "completed" and task_statuses and all(
+                status == "completed" for status in task_statuses.values()
+        ) and set(report_statuses) == set(task_statuses) and all(
+                status == "completed" for status in report_statuses.values()
+        ):
+            readiness = "ready"
+        elif run_status in {"failed", "blocked", "cancelled"}:
+            readiness = run_status
+        elif run_status in {"created", "running"}:
+            readiness = "in_progress"
+        else:
+            readiness = "unknown"
+        return {
+            "status": "ok",
+            "run_id": snapshot.get("run_id"),
+            "run_status": run_status,
+            "readiness": readiness,
+            "task_statuses": task_statuses,
+            "report_statuses": report_statuses,
+            "waves": bounded_waves,
+            "event_sequence": snapshot.get("event_sequence", 0),
+            "event_count": len(snapshot.get("events", [])) if isinstance(snapshot.get("events", []), list) else 0,
+        }
 
     @staticmethod
     def _v2_persisted_result(snapshot: Mapping[str, Any]) -> Dict[str, Any]:
@@ -1678,6 +1788,19 @@ class PD:
             else:
                 plan = self._v2_load_plan(args.plan_path)
                 print(self._v2_json({"status": "read", "plan": plan}) + "\n", end="")
+            return 0
+        if args.v2_command == "inspect":
+            if not args.run_id:
+                raise PDError("V2 inspect requires --run-id")
+            try:
+                snapshot = self._v2_read_snapshot(args.store_root, args.run_id)
+            except RunStoreError as exc:
+                raise PDError(f"V2 run unavailable: {type(exc).__name__}") from exc
+            try:
+                inspection = self._v2_inspection(snapshot)
+            except (TypeError, ValueError) as exc:
+                raise PDError(f"V2 inspection invalid: {type(exc).__name__}") from exc
+            print(self._v2_json(inspection) + "\n", end="")
             return 0
         if args.provider != "local":
             raise PDError("V2 external providers are disabled")

@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 from pd import PD
-from pd_fleet.run_store import FleetRunStore
+from pd_fleet.run_store import FleetRunStore, RunStoreError
 
 
 def task(task_id="a"):
@@ -148,3 +148,57 @@ def test_v2_status_projection_omits_volatile_nested_fields(tmp_path, capsys):
     output = run_cli(tmp_path, ["v2", "status", "--store", str(store_root), "--run-id", "r"], capsys)
     assert "updated_at" not in output
     assert "expires_at" not in output
+
+
+def test_v2_inspect_projects_persisted_run_readiness_and_events(tmp_path, capsys):
+    path = write_plan(tmp_path)
+    store_root = tmp_path / "store"
+    run_cli(tmp_path, ["v2", "run-local", "--plan", str(path),
+                       "--store", str(store_root), "--run-id", "r"], capsys)
+
+    output = run_cli(tmp_path, ["v2", "inspect", "--store", str(store_root),
+                                "--run-id", "r"], capsys)
+    parsed = json.loads(output)
+    assert parsed["status"] == "ok"
+    assert parsed["run_id"] == "r"
+    assert parsed["readiness"] == "ready"
+    assert parsed["task_statuses"] == {"a": "completed"}
+    assert parsed["report_statuses"] == {"a": "completed"}
+    assert parsed["event_sequence"] == 1
+    assert parsed["event_count"] == 1
+    assert "updated_at" not in output
+    assert "expires_at" not in output
+
+
+def test_v2_inspection_rejects_invalid_or_unbounded_projection_shape():
+    with pytest.raises(ValueError, match="snapshot_shape"):
+        PD._v2_inspection({"tasks": [], "reports": {}})
+    with pytest.raises(ValueError, match="snapshot_bounds"):
+        PD._v2_inspection({"tasks": {}, "reports": {}, "waves": [["x" * 129]]})
+    with pytest.raises(ValueError, match="snapshot_bounds"):
+        PD._v2_inspection({"tasks": {str(i): {"status": "completed"} for i in range(257)}, "reports": {}})
+    with pytest.raises(ValueError, match="snapshot_shape"):
+        PD._v2_inspection({"tasks": {"a": []}, "reports": {}})
+    with pytest.raises(ValueError, match="snapshot_shape"):
+        PD._v2_inspection({"tasks": {}, "reports": {"a": {"status": "completed", "report": {"status": []}}}})
+
+
+def test_v2_inspect_rejects_oversized_backup_candidate(tmp_path):
+    store_root = tmp_path / "store"
+    with FleetRunStore(store_root) as store:
+        store.create("r", plan(), "cli")
+    run_dir = store_root / "r"
+    (run_dir / "snapshot.json").write_text("{", encoding="utf-8")
+    (run_dir / "snapshot.json.bak").write_bytes(b"x" * (512 * 1024 + 1))
+    with pytest.raises(RunStoreError):
+        PD._v2_read_snapshot(str(store_root), "r")
+
+
+def test_v2_inspect_rejects_broken_backup_symlink(tmp_path):
+    store_root = tmp_path / "store"
+    with FleetRunStore(store_root) as store:
+        store.create("r", plan(), "cli")
+    run_dir = store_root / "r"
+    (run_dir / "snapshot.json.bak").symlink_to(run_dir / "missing.json")
+    with pytest.raises(RunStoreError):
+        PD._v2_read_snapshot(str(store_root), "r")

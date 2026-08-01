@@ -294,6 +294,9 @@ class FleetRunStore:
         try:
             st = os.fstat(fd)
             if not stat.S_ISREG(st.st_mode): raise OSError(errno.ELOOP, "snapshot is not regular")
+            max_bytes = getattr(self, "_max_snapshot_bytes", None)
+            if type(max_bytes) is int and max_bytes >= 0 and st.st_size > max_bytes:
+                raise OSError(errno.EFBIG, "snapshot exceeds bounded read limit")
             chunks=[]
             while True:
                 chunk=os.read(fd, 1024*1024)

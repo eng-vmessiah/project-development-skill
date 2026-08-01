@@ -132,7 +132,15 @@ python3 scripts/pd.py v2 run-local --plan ./fleet-plan.json \
 
 It uses the internal deterministic `simulated` adapter, persists a bounded report,
 validation/evidence and lifecycle state, and returns the persisted completed run
-on idempotent re-invocation. External execution is deferred and, if proposed later,
+on idempotent re-invocation. A persisted run can be inspected read-only:
+
+```bash
+python3 scripts/pd.py --json v2 inspect \
+  --store ./.pd-fleet-runs --run-id demo
+```
+
+This projects task/report statuses, readiness, waves and event counts without
+exposing volatile timestamps or raw run-store internals. External execution is deferred and, if proposed later,
 requires exact argv allowlisting, containment/sandbox, timeout, redacted bounded
 output, and a separate explicit release decision.
 
