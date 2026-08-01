@@ -123,7 +123,16 @@ an operational production release, has no provider or live-network readiness
 claim, and has no human G1–G6 approval recorded here.
 The safe default is local simulation with an explicit plan and output directory;
 no shell, network, external provider, credentials, or undeclared validation
-command is invoked. External execution is deferred and, if proposed later,
+command is invoked. The executable V2 local path is:
+
+```bash
+python3 scripts/pd.py v2 run-local --plan ./fleet-plan.json \
+  --store ./.pd-fleet-runs --run-id demo --owner local --provider local
+```
+
+It uses the internal deterministic `simulated` adapter, persists a bounded report,
+validation/evidence and lifecycle state, and returns the persisted completed run
+on idempotent re-invocation. External execution is deferred and, if proposed later,
 requires exact argv allowlisting, containment/sandbox, timeout, redacted bounded
 output, and a separate explicit release decision.
 

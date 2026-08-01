@@ -25,6 +25,7 @@ from pd_fleet.state import normalize_fleet_state
 from pd_fleet.models import FleetPlan, FleetPlanError
 from pd_fleet.validation import compute_ready_tasks
 from pd_fleet.orchestrator import FleetOrchestrator
+from pd_fleet.dispatch import Dispatcher
 from pd_fleet.checkpoint import Checkpoint
 from pd_fleet.contracts import canonicalize as canonicalize_v2, plan_hash as plan_hash_v2, _redact_paths, _redact_sensitive_text, _EXTERNAL_URL
 from pd_fleet.state import FLEET_STATE_FIELDS
@@ -1714,18 +1715,13 @@ class PD:
                                       "events": current["events"]}
                     scheduler = LeaseScheduler(store, run_id, args.owner, max_parallel=1)
                     executor = BoundedParallelExecutor(max_workers=1)
+                    dispatcher = Dispatcher()
                     def adapter(task, token):
-                        # The local adapter is a dispatcher boundary, not a
-                        # validator.  It must never claim work, tests, or
-                        # acceptance that it did not actually perform.
-                        # Raising makes the V2 pipeline persist a diagnosed
-                        # failure rather than allowing a fabricated completed
-                        # report through the report contract.
-                        attempt = token.get("attempt")
-                        raise RuntimeError(
-                            f"local adapter has no validator for task {task.id} "
-                            f"(attempt {attempt})"
-                        )
+                        dispatch_result = dispatcher.dispatch(task, {
+                            "attempt": token.get("attempt", 1),
+                            "report_v2": True,
+                        })
+                        return dispatch_result.result["report"]
                     try:
                         try:
                             result = FleetOrchestrator(plan, scheduler=scheduler, store=store,

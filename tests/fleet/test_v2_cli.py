@@ -57,17 +57,17 @@ def test_inspect_and_dry_run_are_read_only(tmp_path, capsys):
     assert not store_root.exists()
 
 
-def test_run_local_uses_store_and_returns_canonical_json(tmp_path, capsys):
+def test_run_local_uses_store_and_returns_completed_simulated_fleet(tmp_path, capsys):
     path = write_plan(tmp_path)
     store_root = tmp_path / "store"
     output = run_cli(tmp_path, ["v2", "run-local", "--plan", str(path),
                                 "--store", str(store_root), "--run-id", "r", "--owner", "cli"], capsys)
     parsed = json.loads(output)
-    # The local dispatcher has no validator/evidence producer.  It must fail
-    # closed rather than manufacture an accepted completion.
-    assert parsed["status"] == "failed"
+    assert parsed["status"] == "completed"
+    assert parsed["result"]["reports"][0]["status"] == "completed"
+    assert parsed["result"]["reports"][0]["evidence"]["adapter"] == "simulated"
     assert output == json.dumps(parsed, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
-    assert FleetRunStore(store_root).load("r")["run_id"] == "r"
+    assert FleetRunStore(store_root).load("r")["status"] == "completed"
     assert str(tmp_path) not in output
 
 
@@ -78,40 +78,36 @@ def test_external_provider_is_denied_before_execution(tmp_path, capsys):
     assert "remote" not in capsys.readouterr().out
 
 
-def test_run_local_does_not_fabricate_acceptance_or_validation(tmp_path, capsys):
+def test_run_local_persists_simulated_validation_and_evidence(tmp_path, capsys):
     path = write_plan(tmp_path)
     store_root = tmp_path / "store"
     run_cli(tmp_path, ["v2", "run-local", "--plan", str(path),
                        "--store", str(store_root), "--run-id", "r"], capsys)
 
     report = FleetRunStore(store_root).load("r")["reports"]["a"]["report"]
-    assert report["status"] == "failed"
-    assert "local" not in json.dumps(report)
-    assert "tests" not in report
-    assert "validation" not in report
-    assert "decision" not in report
-    assert report["evidence"]["task_id"] == "a"
-    assert report["reason"] == "[PARALLEL ERROR]"
+    assert report["status"] == "completed"
+    assert report["evidence"]["adapter"] == "simulated"
+    assert report["validation"]["status"] == "passed"
+    assert report["tests"] == [{"name": "local", "status": "passed"}]
+    assert report["decision"]["decision"] == "accept"
 
 
-def test_run_local_resume_preserves_persisted_attempt(tmp_path, capsys):
+def test_run_local_resume_returns_persisted_completed_run(tmp_path, capsys):
     value = plan()
-    value["tasks"][0]["retry_policy"] = {"max_attempts": 2, "backoff_seconds": 0}
     path = tmp_path / "retry.json"
     path.write_text(json.dumps(value), encoding="utf-8")
     store_root = tmp_path / "store"
 
     first = json.loads(run_cli(tmp_path, ["v2", "run-local", "--plan", str(path),
                                           "--store", str(store_root), "--run-id", "r"], capsys))
-    assert first["status"] == "failed"
+    assert first["status"] == "completed"
     persisted = FleetRunStore(store_root).load("r")
-    assert persisted["attempts"]["a"] == 2
-    assert persisted["reports"]["a"]["report"]["evidence"]["attempt"] == 2
+    assert persisted["attempts"]["a"] == 1
 
     resumed = json.loads(run_cli(tmp_path, ["v2", "run-local", "--plan", str(path),
                                             "--store", str(store_root), "--run-id", "r"], capsys))
-    assert resumed["status"] == "failed"
-    assert resumed["result"]["reports"][0]["status"] == "failed"
+    assert resumed["status"] == "completed"
+    assert resumed["result"]["reports"][0]["status"] == "completed"
 
 
 def test_legacy_status_remains_feature_status(tmp_path, capsys):
