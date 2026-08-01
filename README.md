@@ -139,8 +139,14 @@ python3 scripts/pd.py --json v2 inspect \
   --store ./.pd-fleet-runs --run-id demo
 ```
 
-This projects task/report statuses, readiness, waves and event counts without
-exposing volatile timestamps or raw run-store internals. External execution is deferred and, if proposed later,
+A readiness gate read-only is available for automation:
+
+```bash
+python3 scripts/pd.py --json v2 readiness \
+  --store ./.pd-fleet-runs --run-id demo
+```
+
+It returns `ready=true` only when the persisted run and every report are completed; incomplete, failed, blocked, cancelled or unknown states return `ready=false` with a bounded reason. External execution is deferred and, if proposed later,
 requires exact argv allowlisting, containment/sandbox, timeout, redacted bounded
 output, and a separate explicit release decision.
 

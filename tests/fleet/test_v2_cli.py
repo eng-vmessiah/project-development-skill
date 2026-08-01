@@ -170,7 +170,21 @@ def test_v2_inspect_projects_persisted_run_readiness_and_events(tmp_path, capsys
     assert "expires_at" not in output
 
 
-def test_v2_inspection_rejects_invalid_or_unbounded_projection_shape():
+def test_v2_readiness_reports_ready_and_not_ready_states(tmp_path, capsys):
+    path = write_plan(tmp_path)
+    store_root = tmp_path / "store"
+    run_cli(tmp_path, ["v2", "run-local", "--plan", str(path), "--store", str(store_root), "--run-id", "r"], capsys)
+    ready = json.loads(run_cli(tmp_path, ["v2", "readiness", "--store", str(store_root), "--run-id", "r"], capsys))
+    assert ready == {"ready": True, "readiness": "ready", "reason": "completed", "run_id": "r", "status": "ok"}
+    assert PD._v2_readiness({"run_id": "r", "readiness": "in_progress"})["reason"] == "run_in_progress"
+    assert PD._v2_readiness({"run_id": "r", "readiness": "failed"})["reason"] == "run_failed"
+
+
+def test_v2_readiness_requires_existing_run(tmp_path, capsys):
+    with pytest.raises(SystemExit):
+        run_cli(tmp_path, ["v2", "readiness", "--store", str(tmp_path / "store"), "--run-id", "missing"], capsys)
+    assert "V2 run unavailable" in capsys.readouterr().out
+
     with pytest.raises(ValueError, match="snapshot_shape"):
         PD._v2_inspection({"tasks": [], "reports": {}})
     with pytest.raises(ValueError, match="snapshot_bounds"):

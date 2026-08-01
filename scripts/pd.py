@@ -870,7 +870,7 @@ class PD:
         # V2 is opt-in and isolated from legacy command semantics.
         v2_parser = subparsers.add_parser("v2", parents=[global_parent], help="V2 Fleet adapter")
         v2_commands = v2_parser.add_subparsers(dest="v2_command", required=True)
-        for name, help_text in (("read", "Read a V2 manifest"), ("status", "Read V2 run status"), ("inspect", "Inspect a persisted V2 run")):
+        for name, help_text in (("read", "Read a V2 manifest"), ("status", "Read V2 run status"), ("inspect", "Inspect a persisted V2 run"), ("readiness", "Check V2 run readiness")):
             inspect = v2_commands.add_parser(name, parents=[global_parent], help=help_text)
             inspect.add_argument("--plan", "--manifest", dest="plan_path", default=None)
             inspect.add_argument("--store", dest="store_root", default=".pd-fleet-runs")
@@ -1765,6 +1765,16 @@ class PD:
         }
 
     @staticmethod
+    def _v2_readiness(inspection: Mapping[str, Any]) -> Dict[str, Any]:
+        readiness = inspection.get("readiness")
+        if readiness == "ready":
+            return {"status": "ok", "run_id": inspection.get("run_id"), "readiness": "ready", "ready": True, "reason": "completed"}
+        reason_key = readiness if isinstance(readiness, str) else ""
+        reasons = {"in_progress": "run_in_progress", "failed": "run_failed", "blocked": "run_blocked", "cancelled": "run_cancelled"}
+        return {"status": "ok", "run_id": inspection.get("run_id"), "readiness": "not_ready", "ready": False,
+                "reason": reasons.get(reason_key, "run_state_unknown")}
+
+    @staticmethod
     def _v2_persisted_result(snapshot: Mapping[str, Any]) -> Dict[str, Any]:
         statuses = {tid: s.get("status", "pending") for tid, s in snapshot.get("tasks", {}).items()
                     if isinstance(s, Mapping)}
@@ -1801,6 +1811,18 @@ class PD:
             except (TypeError, ValueError) as exc:
                 raise PDError(f"V2 inspection invalid: {type(exc).__name__}") from exc
             print(self._v2_json(inspection) + "\n", end="")
+            return 0
+        if args.v2_command == "readiness":
+            if not args.run_id:
+                raise PDError("V2 readiness requires --run-id")
+            try:
+                snapshot = self._v2_read_snapshot(args.store_root, args.run_id)
+                inspection = self._v2_inspection(snapshot)
+            except RunStoreError as exc:
+                raise PDError(f"V2 run unavailable: {type(exc).__name__}") from exc
+            except (TypeError, ValueError) as exc:
+                raise PDError(f"V2 inspection invalid: {type(exc).__name__}") from exc
+            print(self._v2_json(self._v2_readiness(inspection)) + "\n", end="")
             return 0
         if args.provider != "local":
             raise PDError("V2 external providers are disabled")

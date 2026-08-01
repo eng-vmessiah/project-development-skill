@@ -35,7 +35,7 @@
 - `git diff --check`
 - `python3 scripts/pd_fleet/v2_doc_paths.py .`
 
-**Acceptance:** local run completes and resumes idempotently; `v2 inspect` projects bounded readiness/status/event evidence read-only; external provider remains denied; output names are bounded allowlisted report keys; no Hermes/live claim is introduced.
+**Acceptance:** local run completes and resumes idempotently; `v2 inspect` projects bounded readiness/status/event evidence read-only; `v2 readiness` returns `ready=true` only for a completed consistent run; external provider remains denied; output names are bounded allowlisted report keys; no Hermes/live claim is introduced.
 
 ### Task 4: Independent review and checkpoint
 
