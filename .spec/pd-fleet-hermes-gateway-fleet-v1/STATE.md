@@ -9,7 +9,7 @@
 - **External effects:** disabled
 - **Runtime/provider authorization:** none
 - **Live Hermes status:** `NOT_READY_HERMES_SEAM`
-- **Hermes implementation WIP:** `/home/vitor/project/hermes-agent-b15a-rpc-seam` on `feat/b15a-rpc-seam` at `ec55552a80`; isolated, clean, and unintegrated
+- **Hermes implementation WIP:** `/home/vitor/.hermes/hermes-agent` on `main` at `f66d3d4b06`; local host-side seam commit, unpushed and not installed/activated
 
 ## Gate statuses
 
@@ -45,7 +45,9 @@ Hermes owns concrete session/runtime state. Fleet owns coordination state. PD Co
 - Hermes transport foundation commit: `b676501577` (disabled/unwired attachment HTTP/SSE foundation)
 - Hermes API-server composition commit: `2dcde7be81` (flag-gated route/SSE bridge, still `NOT_READY` without activation/auth)
 - Hermes B15a.0 local seam checkpoint: `ec55552a80`, `tui_gateway/plugin_rpc.py`, dispatcher registration/error boundary and focused tests; local-only, not activated
+- Hermes B15a.2 host-side seam checkpoint: `f66d3d4b06`, lazy namespaced plugin RPC staging/publication with focused tests; unpushed, uninstalled, and not activated
 - PD/Fleet B15a.1 local plugin checkpoint: `824f000`, `plugins/pd-fleet-hermes/` lifecycle-only package and tests; independent review `PASS`; not installed or discovered by Hermes runtime
+- Replayable Hermes host patch: `patches/0010-hermes-lazy-namespaced-tui-rpc-seam.patch`
 - Hermes B9 authority commit: `d3b761a99b` (typed principal, owner epoch, binding validation, lifecycle publisher)
 - Hermes B10 fail-closed seam commit: `41c17d9bc0` (typed resolver and lifecycle hook; global API key is not Fleet identity)
 - Hermes B11 identity adapter commit: `92f068bbff` (verified dashboard Session → FleetPrincipal; TokenPrincipal rejected as human identity)
@@ -56,6 +58,6 @@ Hermes owns concrete session/runtime state. Fleet owns coordination state. PD Co
 
 ## Next blocker
 
-The next planned blocker is **B15a.2 — session-scoped TUI protocol**, followed by **B15a — TUI Gateway local session seam**, documented in `B15-TUI-SEAM.md`. B15a.0 has an isolated Hermes seam checkpoint and B15a.1 has a local/injected lifecycle-only plugin package with default-off metadata and no external effects; neither is integrated into the canonical Hermes runtime or evidence of live readiness. The current Hermes plugin API still requires owner review for wiring trusted loading, RPC registration and identity binding. B15a.2 then requires backend-owned activation caller, session-scoped attach, bounded event delivery over the TUI RPC path, replay/reconnect, detach/end cleanup, and crash invalidation. It remains `NOT_READY_HERMES_SEAM`.
+The next blocker is **B15a.2 integration of a read-only PD Fleet RPC through the host seam**, documented in `B15-TUI-SEAM.md` and `docs/PD-FLEET-B15A2-TUI-SEAM.md`. A local Hermes host-side extension checkpoint now exists, but it is unpushed, uninstalled, and not activated; the PD/Fleet package still registers no RPC. B15a.2 therefore remains local-seam-only until Hermes owner/security review approves the host patch and the identity, authorization, bounded redacted schema, session association, replay/restart, and operational gates are closed. Live readiness remains `NOT_READY_HERMES_SEAM`.
 
 After B15a, B15b must separately solve the messaging/API Gateway seam: authenticated registration, global or multi-session subscription, opaque ticket issuance/consume/revoke and issuer verification, durable cursor/replay/association semantics, and operational rollback. Until those waves are implemented, reviewed, and separately authorized, do not start live activation, access credentials, connect to a live Gateway, or treat the local fake as a runtime fallback.

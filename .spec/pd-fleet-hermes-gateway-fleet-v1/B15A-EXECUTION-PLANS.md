@@ -199,7 +199,17 @@ The independent reviews converged on `PASS_WITH_BLOCKERS` / `HOLD`. These are bl
 5. **Delivery/recovery:** G3/G4 must define snapshot-before-stream, atomic boundary, cursor issuer/binding, epoch restart rules, retention/tombstones, outbox/ack ordering, heartbeat/TTL/grace, and crash points before B15a.2.
 6. **Naming:** the TUI operations `activate/status/deactivate` are the local control-plane vocabulary; G1's `fleet.connect/subscribe/disconnect` is the bridge transport vocabulary. They are not interchangeable APIs. A mapping and one authoritative wire vocabulary must be approved before implementation.
 
-Until all six items are resolved in reviewed documentation, B15a.1/B15a.2 remain `blocked_pending_plan_approval`; no code or Hermes checkout change is authorized by this document.
+Until all six items are resolved in reviewed documentation, the **Fleet capability and live integration** remain `blocked_pending_plan_approval`; the separately authorized local Hermes host-seam checkpoint does not authorize a PD RPC, runtime installation, TUI restart, or live behavior.
+
+### Authorization reconciliation — local host seam only
+
+The later local authorization permits a replayable host-side extension patch in the
+Hermes source checkout, without installation or runtime activation. That slice is
+recorded by commit `f66d3d4b06` and `patches/0010-hermes-lazy-namespaced-tui-rpc-seam.patch`.
+It establishes only staged/lazy registration mechanics and tests; it does not
+resolve identity, authorization, Fleet schemas, redaction, replay, restart, or
+live readiness. The PD package remains default-off, lifecycle-only, and registers
+zero TUI RPCs until those gates receive separate approval.
 
 ### Minimum evidence packet for a future local gate
 
