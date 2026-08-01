@@ -149,15 +149,24 @@ fields. Missing or ambiguous host-side facts fail closed. This local contract
 models the binding shape but does not implement real Hermes authentication or
 identity resolution.
 
+The local registry lifecycle is also bounded and injected-only: at most 128
+records, TTL greater than zero and at most 300 seconds, monotonic per-session
+epoch, explicit `revoke()`, and lazy expiry. Issue/resolve/revoke are serialized
+by an internal lock; the injected clock must be finite, non-negative, and never
+move backward, and clock failures fail closed. Resolution requires exact session,
+observer, and epoch. Revoked, expired, stale, unknown, clock-failure, or
+over-capacity states fail closed; the registry never silently evicts a record. This proves only the
+local lifecycle shape, not durable Hermes revocation or reconnect semantics.
+
 The bounded response is limited to `method`, `schema_version`, `redacted`,
 `capability`, and a session object containing only `session_ref`,
 `association_ref`, `ownership_mode`, `status`, `stream_epoch`, `sequence`, and
 `metadata_version`. Prompts, history, tools, providers, credentials, paths,
 owner/profile/workspace identity, and arbitrary metadata are excluded.
 
-Focused local evidence: `tests/fleet/test_tui_readonly_contract.py` — `10
-passed`, including bounded capability collection and complete host-binding checks. This proves only pure
-request/binding/response validation. It does not
+Focused local evidence: `tests/fleet/test_tui_readonly_contract.py` — `18
+passed`, including bounded capability collection, complete host-binding checks, registry lifecycle checks, clock rollback handling, lease validation, and concurrent issue serialization. This proves only pure
+request/binding/response validation and injected lifecycle semantics. It does not
 prove Hermes host authentication, session resolution, transport registration,
 TUI compatibility, replay, restart, or live readiness.
 

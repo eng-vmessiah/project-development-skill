@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import threading
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 
@@ -13,6 +15,8 @@ from pd_fleet.tui_readonly_contract import (
     TUI_SNAPSHOT_METHOD,
     TUI_SCHEMA_VERSION,
     TuiContractError,
+    TuiBindingLease,
+    TuiBindingRegistry,
     TuiHostBinding,
     TuiSnapshotRequest,
     build_snapshot_response,
@@ -133,3 +137,99 @@ def test_response_is_closed_bounded_and_redacted():
     assert "profile_ref" not in response
     assert "workspace_ref" not in response
     assert "prompt" not in response
+
+
+def test_binding_registry_issues_and_resolves_exact_epoch():
+    registry = TuiBindingRegistry(clock=lambda: 100.0)
+    lease = registry.issue(_binding(), ttl=30)
+
+    assert lease.epoch == 1
+    assert registry.resolve("session-1", "observer-1", 1).binding == _binding()
+
+    with pytest.raises(TuiContractError, match="BINDING_MISMATCH"):
+        registry.resolve("session-1", "observer-2", 1)
+    with pytest.raises(TuiContractError, match="STALE_EPOCH"):
+        registry.resolve("session-1", "observer-1", 2)
+
+
+def test_binding_registry_expiry_is_fail_closed():
+    now = [100.0]
+    registry = TuiBindingRegistry(clock=lambda: now[0])
+    lease = registry.issue(_binding(), ttl=5)
+    now[0] = 105.0
+
+    with pytest.raises(TuiContractError, match="BINDING_EXPIRED"):
+        registry.resolve("session-1", "observer-1", lease.epoch)
+
+
+def test_binding_registry_revoke_and_reissue_advance_epoch():
+    registry = TuiBindingRegistry(clock=lambda: 100.0)
+    first = registry.issue(_binding(), ttl=30)
+    assert registry.revoke("session-1") is True
+
+    with pytest.raises(TuiContractError, match="BINDING_REVOKED"):
+        registry.resolve("session-1", "observer-1", first.epoch)
+
+    second = registry.issue(_binding(), ttl=30)
+    assert second.epoch == 2
+    with pytest.raises(TuiContractError, match="STALE_EPOCH"):
+        registry.resolve("session-1", "observer-1", first.epoch)
+
+
+def test_binding_registry_rejects_oversized_ttl_and_silent_eviction():
+    registry = TuiBindingRegistry(clock=lambda: 100.0, max_bindings=1)
+    registry.issue(_binding(), ttl=30)
+
+    with pytest.raises(TuiContractError, match="INVALID_TTL"):
+        TuiBindingRegistry(clock=lambda: 100.0).issue(_binding(), ttl=301)
+    with pytest.raises(TuiContractError, match="REGISTRY_FULL"):
+        registry.issue(_binding(session_ref="session-2", association_ref="association-2"), ttl=30)
+
+
+def test_binding_registry_rejects_clock_failure_and_rollback():
+    registry = TuiBindingRegistry(clock=lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+    with pytest.raises(TuiContractError, match="INVALID_CLOCK"):
+        registry.issue(_binding(), ttl=30)
+
+    now = [100.0]
+    registry = TuiBindingRegistry(clock=lambda: now[0])
+    registry.issue(_binding(), ttl=30)
+    now[0] = 99.0
+    with pytest.raises(TuiContractError, match="CLOCK_ROLLBACK"):
+        registry.resolve("session-1", "observer-1", 1)
+
+
+def test_binding_lease_rejects_malformed_public_construction():
+    with pytest.raises(TuiContractError, match="INVALID_LEASE"):
+        TuiBindingLease(_binding(), 0, 1.0, 2.0)
+    with pytest.raises(TuiContractError, match="INVALID_LEASE"):
+        TuiBindingLease(_binding(), 1, True, 2.0)
+    with pytest.raises(TuiContractError, match="INVALID_LEASE"):
+        TuiBindingLease(_binding(), 1, "1", 2.0)
+    with pytest.raises(TuiContractError, match="INVALID_LEASE"):
+        TuiBindingLease(_binding(), 1, 1.0, 302.0)
+    with pytest.raises(TuiContractError, match="INVALID_LEASE"):
+        TuiBindingLease(_binding(), 1, 1.0, 2.0, status=[])
+
+
+def test_binding_registry_rejects_clock_precision_collapse():
+    clock = lambda: float.fromhex("0x1.fffffffffffffp1023")
+    with pytest.raises(TuiContractError, match="INVALID_LEASE"):
+        TuiBindingRegistry(clock=clock).issue(_binding(), ttl=1)
+    with pytest.raises(TuiContractError, match="INVALID_TIME"):
+        TuiBindingRegistry(clock=lambda: 10**1000).issue(_binding(), ttl=1)
+    with pytest.raises(TuiContractError, match="INVALID_TTL"):
+        TuiBindingRegistry(clock=lambda: 100.0).issue(_binding(), ttl=10**1000)
+
+
+def test_binding_registry_serializes_same_session_issues():
+    registry = TuiBindingRegistry(clock=lambda: 100.0)
+    barrier = threading.Barrier(8)
+
+    def issue_once():
+        barrier.wait()
+        return registry.issue(_binding(), ttl=30).epoch
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        epochs = list(pool.map(lambda _: issue_once(), range(8)))
+    assert sorted(epochs) == list(range(1, 9))

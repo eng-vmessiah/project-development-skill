@@ -5,9 +5,11 @@ Hermes state, authenticate transports, or perform any external effect.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+import math
 import re
-from typing import Any, Mapping
+import threading
+from typing import Any, Callable, Mapping
 
 from .gateway_bridge_contracts import (
     MAX_ENVELOPE_BYTES,
@@ -21,6 +23,8 @@ TUI_SCHEMA_VERSION = "pd-fleet-tui-session:v1"
 _OBSERVE_CAPABILITY = "observe_session_metadata"
 MAX_CAPABILITIES = 16
 MAX_CAPABILITY_BYTES = 64
+MAX_BINDING_TTL = 300.0
+MAX_BINDINGS = 128
 _REF = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 _CAPABILITY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z")
 _SENSITIVE = re.compile(
@@ -114,6 +118,141 @@ class TuiHostBinding:
         object.__setattr__(self, "ownership_mode", mode)
 
 
+@dataclass(frozen=True)
+class TuiBindingLease:
+    binding: TuiHostBinding
+    epoch: int
+    issued_at: float
+    expires_at: float
+    status: str = "active"
+
+    def __post_init__(self) -> None:
+        try:
+            issued_at = float(self.issued_at)
+            expires_at = float(self.expires_at)
+            valid_numbers = (
+                type(self.issued_at) in (int, float)
+                and type(self.expires_at) in (int, float)
+                and math.isfinite(issued_at)
+                and math.isfinite(expires_at)
+                and issued_at >= 0
+                and expires_at >= 0
+            )
+        except (TypeError, ValueError, OverflowError):
+            valid_numbers = False
+            issued_at = expires_at = -1.0
+        duration = expires_at - issued_at if valid_numbers else -1.0
+        if (
+            not isinstance(self.binding, TuiHostBinding)
+            or type(self.epoch) is not int
+            or self.epoch <= 0
+            or not valid_numbers
+            or duration <= 0
+            or duration > MAX_BINDING_TTL
+            or type(self.status) is not str
+            or self.status not in {"active", "expired", "revoked"}
+        ):
+            raise TuiContractError("INVALID_LEASE")
+
+
+class TuiBindingRegistry:
+    """Bounded in-memory lifecycle registry for injected host bindings."""
+
+    def __init__(self, *, clock: Callable[[], float], max_bindings: int = MAX_BINDINGS):
+        if not callable(clock) or type(max_bindings) is not int or not 0 < max_bindings <= MAX_BINDINGS:
+            raise TuiContractError("INVALID_REGISTRY")
+        self._clock = clock
+        self._max_bindings = max_bindings
+        self._lock = threading.RLock()
+        self._last_now: float | None = None
+        self._records: dict[str, TuiBindingLease] = {}
+
+    @staticmethod
+    def _time(value: Any) -> float:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise TuiContractError("INVALID_TIME")
+        try:
+            value = float(value)
+        except (TypeError, ValueError, OverflowError):
+            raise TuiContractError("INVALID_TIME") from None
+        if not math.isfinite(value) or value < 0:
+            raise TuiContractError("INVALID_TIME")
+        return value
+
+    def _now(self) -> float:
+        try:
+            raw = self._clock()
+        except Exception:
+            raise TuiContractError("INVALID_CLOCK") from None
+        now = self._time(raw)
+        if self._last_now is not None and now < self._last_now:
+            raise TuiContractError("CLOCK_ROLLBACK")
+        self._last_now = now
+        return now
+
+    def issue(self, binding: TuiHostBinding, *, ttl: float) -> TuiBindingLease:
+        with self._lock:
+            return self._issue(binding, ttl=ttl)
+
+    def _issue(self, binding: TuiHostBinding, *, ttl: float) -> TuiBindingLease:
+        if not isinstance(binding, TuiHostBinding):
+            raise TuiContractError("INVALID_BINDING")
+        if isinstance(ttl, bool) or not isinstance(ttl, (int, float)):
+            raise TuiContractError("INVALID_TTL")
+        try:
+            ttl = float(ttl)
+        except (TypeError, ValueError, OverflowError):
+            raise TuiContractError("INVALID_TTL") from None
+        if not math.isfinite(ttl) or not 0 < ttl <= MAX_BINDING_TTL:
+            raise TuiContractError("INVALID_TTL")
+        if binding.session_ref not in self._records and len(self._records) >= self._max_bindings:
+            raise TuiContractError("REGISTRY_FULL")
+        now = self._now()
+        prior = self._records.get(binding.session_ref)
+        epoch = 1 if prior is None else prior.epoch + 1
+        lease = TuiBindingLease(binding, epoch, now, now + ttl)
+        self._records[binding.session_ref] = lease
+        return lease
+
+    def resolve(self, session_ref: str, observer_ref: str, epoch: int) -> TuiBindingLease:
+        with self._lock:
+            return self._resolve(session_ref, observer_ref, epoch)
+
+    def _resolve(self, session_ref: str, observer_ref: str, epoch: int) -> TuiBindingLease:
+        session_ref = _ref(session_ref)
+        observer_ref = _ref(observer_ref)
+        if type(epoch) is not int or epoch <= 0:
+            raise TuiContractError("STALE_EPOCH")
+        lease = self._records.get(session_ref)
+        if lease is None:
+            raise TuiContractError("BINDING_NOT_FOUND")
+        if lease.epoch != epoch:
+            raise TuiContractError("STALE_EPOCH")
+        if lease.binding.observer_ref != observer_ref:
+            raise TuiContractError("BINDING_MISMATCH")
+        if lease.status == "revoked":
+            raise TuiContractError("BINDING_REVOKED")
+        if lease.status == "expired":
+            raise TuiContractError("BINDING_EXPIRED")
+        if self._now() >= lease.expires_at:
+            self._records[session_ref] = replace(lease, status="expired")
+            raise TuiContractError("BINDING_EXPIRED")
+        return lease
+
+    def revoke(self, session_ref: str) -> bool:
+        with self._lock:
+            return self._revoke(session_ref)
+
+    def _revoke(self, session_ref: str) -> bool:
+        session_ref = _ref(session_ref)
+        lease = self._records.get(session_ref)
+        if lease is None:
+            return False
+        if lease.status != "revoked":
+            self._records[session_ref] = replace(lease, status="revoked")
+        return True
+
+
 def build_snapshot_response(
     request: TuiSnapshotRequest,
     binding: TuiHostBinding,
@@ -160,6 +299,8 @@ def build_snapshot_response(
 __all__ = [
     "TUI_SCHEMA_VERSION",
     "TUI_SNAPSHOT_METHOD",
+    "TuiBindingLease",
+    "TuiBindingRegistry",
     "TuiContractError",
     "TuiHostBinding",
     "TuiSnapshotRequest",
