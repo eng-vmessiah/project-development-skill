@@ -34,6 +34,11 @@ def _snapshot() -> SessionSnapshot:
 
 def _binding(**overrides) -> TuiHostBinding:
     values = {
+        "observer_ref": "observer-1",
+        "owner_ref": "owner-1",
+        "profile_ref": "profile-1",
+        "workspace_ref": "workspace-1",
+        "association_ref": "association-1",
         "session_ref": "session-1",
         "authenticated": True,
         "capabilities": frozenset({"observe_session_metadata"}),
@@ -89,11 +94,22 @@ def test_binding_rejects_oversized_or_unbounded_capabilities():
     with pytest.raises(TuiContractError, match="INVALID_BINDING"):
         _binding(capabilities=frozenset({"x" * 65}))
 
+    with pytest.raises(TuiContractError, match="INVALID_BINDING"):
+        _binding(capabilities=frozenset({"bad/value"}))
+
 
 def test_response_requires_server_resolved_session_binding():
     request = TuiSnapshotRequest("session-1")
     with pytest.raises(TuiContractError, match="SESSION_BINDING_MISMATCH"):
         build_snapshot_response(request, _binding(session_ref="other"), _snapshot())
+
+    with pytest.raises(TuiContractError, match="SESSION_BINDING_MISMATCH"):
+        build_snapshot_response(request, _binding(association_ref="other"), _snapshot())
+
+
+def test_binding_rejects_missing_identity_reference():
+    with pytest.raises(TuiContractError, match="INVALID_BINDING"):
+        _binding(owner_ref="")
 
 
 def test_response_is_closed_bounded_and_redacted():

@@ -141,10 +141,13 @@ The request is closed and contains only:
 ```
 
 The host resolves authentication, ownership, capability, profile/workspace,
-association, and authoritative session binding. None of those fields may be
-provided by the TUI client. The injected binding must be authenticated,
-`user_owned_session`, and carry `observe_session_metadata`; otherwise the
-contract fails closed.
+observer identity, association, and authoritative session binding. The injected
+binding must contain bounded opaque refs for observer, owner, profile, workspace,
+association, and session; it must be authenticated, `user_owned_session`, and
+carry `observe_session_metadata`. The request cannot provide any of these
+fields. Missing or ambiguous host-side facts fail closed. This local contract
+models the binding shape but does not implement real Hermes authentication or
+identity resolution.
 
 The bounded response is limited to `method`, `schema_version`, `redacted`,
 `capability`, and a session object containing only `session_ref`,
@@ -152,8 +155,8 @@ The bounded response is limited to `method`, `schema_version`, `redacted`,
 `metadata_version`. Prompts, history, tools, providers, credentials, paths,
 owner/profile/workspace identity, and arbitrary metadata are excluded.
 
-Focused local evidence: `tests/fleet/test_tui_readonly_contract.py` — `9
-passed`, including bounded capability collection checks. This proves only pure
+Focused local evidence: `tests/fleet/test_tui_readonly_contract.py` — `10
+passed`, including bounded capability collection and complete host-binding checks. This proves only pure
 request/binding/response validation. It does not
 prove Hermes host authentication, session resolution, transport registration,
 TUI compatibility, replay, restart, or live readiness.

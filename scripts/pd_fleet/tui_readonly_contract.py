@@ -22,6 +22,7 @@ _OBSERVE_CAPABILITY = "observe_session_metadata"
 MAX_CAPABILITIES = 16
 MAX_CAPABILITY_BYTES = 64
 _REF = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
+_CAPABILITY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z")
 _SENSITIVE = re.compile(
     r"(?:prompt|history|message|tool|provider|credential|secret|token|password|terminal|path|url|uri|authorization|cookie|api.?key)",
     re.IGNORECASE,
@@ -70,17 +71,34 @@ class TuiSnapshotRequest:
 class TuiHostBinding:
     """Host-resolved identity/capability facts; never client-supplied."""
 
+    observer_ref: str
+    owner_ref: str
+    profile_ref: str
+    workspace_ref: str
+    association_ref: str
     session_ref: str
     authenticated: bool
     capabilities: frozenset[str]
     ownership_mode: OwnershipMode = OwnershipMode.USER_OWNED_SESSION
 
     def __post_init__(self) -> None:
-        _ref(self.session_ref)
+        for value in (
+            self.observer_ref,
+            self.owner_ref,
+            self.profile_ref,
+            self.workspace_ref,
+            self.association_ref,
+            self.session_ref,
+        ):
+            try:
+                _ref(value)
+            except TuiContractError:
+                raise TuiContractError("INVALID_BINDING") from None
         if type(self.authenticated) is not bool:
             raise TuiContractError("INVALID_BINDING")
         if not isinstance(self.capabilities, frozenset) or len(self.capabilities) > MAX_CAPABILITIES or any(
             type(value) is not str
+            or not _CAPABILITY.fullmatch(value)
             or not value
             or len(value.encode("utf-8")) > MAX_CAPABILITY_BYTES
             or _SENSITIVE.search(value)
@@ -109,6 +127,8 @@ def build_snapshot_response(
     if not binding.authenticated or _OBSERVE_CAPABILITY not in binding.capabilities:
         raise TuiContractError("CAPABILITY_DENIED")
     if request.session_id != binding.session_ref or snapshot.session_ref != binding.session_ref:
+        raise TuiContractError("SESSION_BINDING_MISMATCH")
+    if snapshot.association_ref != binding.association_ref:
         raise TuiContractError("SESSION_BINDING_MISMATCH")
     if snapshot.ownership_mode is not OwnershipMode.USER_OWNED_SESSION:
         raise TuiContractError("CAPABILITY_DENIED")
