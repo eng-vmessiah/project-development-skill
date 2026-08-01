@@ -121,6 +121,43 @@ The following are required design gates, not assumptions to be filled in by the 
 
 Candidate values from G4 remain candidates only: 5-minute activation TTL, 90-second association idle TTL, 30-second heartbeat, 15-minute cursor TTL, 60-second reconnect grace, 4 KiB payload, 8 KiB envelope, and 100-event replay batch. They require owner/security approval before becoming normative.
 
+## Local/injected B15a.2 first RPC contract
+
+A contract-only slice now exists in `scripts/pd_fleet/tui_readonly_contract.py`. It
+is intentionally not a live Hermes RPC and does not change the plugin package.
+The local method candidate is:
+
+```text
+pd-fleet.session.snapshot
+```
+
+The request is closed and contains only:
+
+```json
+{
+  "session_id": "server-compatible-opaque-ref",
+  "schema_version": "pd-fleet-tui-session:v1"
+}
+```
+
+The host resolves authentication, ownership, capability, profile/workspace,
+association, and authoritative session binding. None of those fields may be
+provided by the TUI client. The injected binding must be authenticated,
+`user_owned_session`, and carry `observe_session_metadata`; otherwise the
+contract fails closed.
+
+The bounded response is limited to `method`, `schema_version`, `redacted`,
+`capability`, and a session object containing only `session_ref`,
+`association_ref`, `ownership_mode`, `status`, `stream_epoch`, `sequence`, and
+`metadata_version`. Prompts, history, tools, providers, credentials, paths,
+owner/profile/workspace identity, and arbitrary metadata are excluded.
+
+Focused local evidence: `tests/fleet/test_tui_readonly_contract.py` — `9
+passed`, including bounded capability collection checks. This proves only pure
+request/binding/response validation. It does not
+prove Hermes host authentication, session resolution, transport registration,
+TUI compatibility, replay, restart, or live readiness.
+
 ## B15b — Gateway de mensagens/API
 
 Somente depois de B15a aprovado localmente, avaliar o caminho do `api_server`/Gateway principal:
