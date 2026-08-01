@@ -4,6 +4,8 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 from pd_fleet.provider import CommandMetadata, RuntimePolicy, RuntimeProviderProfile  # noqa: E402
 from pd_fleet.provider_routing import ProviderRoutePolicy  # noqa: E402
@@ -21,11 +23,15 @@ def _profile(name: str) -> RuntimeProviderProfile:
 
 
 class _Adapter:
-    def __init__(self, profile, result):
+    def __init__(self, profile, result, capabilities=("read",)):
         self.name = profile_id = f"{profile.provider_name}/{profile.runtime_name}"
         self.profile = profile
         self.result = result
+        self._capabilities = tuple(capabilities)
         self.calls = 0
+
+    def capabilities(self):
+        return frozenset(self._capabilities)
 
     def build_argv(self, envelope):
         return ("trusted", envelope.task_id)
@@ -116,3 +122,72 @@ def test_runner_exception_metadata_uses_fixed_marker_without_reading_type_name()
     assert result.status is DispatchStatus.FAILED
     assert result.runtime.metadata["exception"] == "[PROVIDER ERROR]"
     assert HostileError.accesses == 0
+
+
+def test_effective_adapter_capability_blocks_before_runner_or_execution():
+    profile = _profile("one")
+    adapter = _Adapter(profile, RuntimeResult(RuntimeStatus.OK, output="must-not-run"), capabilities=())
+    result = ProviderDispatchBoundary(
+        catalog=(profile,), adapters={"one/runtime": adapter}, runners={"one/runtime": object()},
+    ).dispatch_request(
+        ProviderDispatchRequest("task", "prompt", ("workspace",), ("read",)),
+        ProviderRoutePolicy(preferred_ids=("one/runtime",), required_capabilities=("read",)),
+        run_id="run",
+    )
+    assert result.status is DispatchStatus.BLOCKED
+    assert result.runtime is None
+    assert result.audit.as_dict()["reason"] == "unsupported_runtime_capability"
+    assert adapter.calls == 0
+
+
+def test_legacy_adapter_without_capability_declaration_is_blocked_not_executed():
+    profile = _profile("one")
+
+    class LegacyAdapter:
+        name = "one/runtime"
+        def __init__(self): self.profile = profile; self.calls = 0
+        def build_argv(self, envelope): return ("trusted", envelope.task_id)
+        def execute(self, envelope, *, runner): self.calls += 1; return RuntimeResult(RuntimeStatus.OK)
+
+    adapter = LegacyAdapter()
+    result = ProviderDispatchBoundary(
+        catalog=(profile,), adapters={"one/runtime": adapter}, runners={"one/runtime": object()},
+    ).dispatch_request(
+        ProviderDispatchRequest("task", "prompt", ("workspace",), ("read",)),
+        ProviderRoutePolicy(preferred_ids=("one/runtime",), required_capabilities=("read",)),
+        run_id="run",
+    )
+    assert result.status is DispatchStatus.BLOCKED
+    assert result.audit.as_dict()["reason"] == "unsupported_runtime_capability"
+    assert adapter.calls == 0
+
+
+def test_adapter_overclaim_is_blocked_by_effective_profile_policy_before_runner():
+    profile = _profile("one")
+    adapter = _Adapter(profile, RuntimeResult(RuntimeStatus.OK, output="must-not-run"), capabilities=("read", "write"))
+    result = ProviderDispatchBoundary(
+        catalog=(profile,), adapters={"one/runtime": adapter}, runners={"one/runtime": object()},
+    ).dispatch_request(
+        ProviderDispatchRequest("task", "prompt", ("workspace",), ("write",)),
+        ProviderRoutePolicy(preferred_ids=("one/runtime",), required_capabilities=("read",)),
+        run_id="run",
+    )
+    assert result.status is DispatchStatus.BLOCKED
+    assert result.audit.as_dict()["reason"] == "unsupported_runtime_capability"
+    assert adapter.calls == 0
+
+
+def test_malformed_adapter_capabilities_fail_closed_before_runner_or_execution():
+    profile = _profile("one")
+    adapter = _Adapter(profile, RuntimeResult(RuntimeStatus.OK, output="must-not-run"))
+    adapter.capabilities = lambda: ("read",)  # type: ignore[method-assign]
+    boundary = ProviderDispatchBoundary(
+        catalog=(profile,), adapters={"one/runtime": adapter}, runners={"one/runtime": object()},
+    )
+    with pytest.raises(ValueError, match="adapter_capabilities_invalid"):
+        boundary.dispatch_request(
+            ProviderDispatchRequest("task", "prompt", ("workspace",), ("read",)),
+            ProviderRoutePolicy(preferred_ids=("one/runtime",), required_capabilities=("read",)),
+            run_id="run",
+        )
+    assert adapter.calls == 0

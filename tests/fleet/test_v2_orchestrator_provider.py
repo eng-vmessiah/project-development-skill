@@ -34,6 +34,9 @@ class _Adapter:
         self.calls = 0
         self.envelope = None
 
+    def capabilities(self):
+        return frozenset(self.profile.capabilities)
+
     def build_argv(self, envelope):
         return ("trusted", envelope.task_id)
 
