@@ -18,6 +18,9 @@ from .safe_rendering import UNSUPPORTED_TYPE, safe_text
 
 
 
+_OUTPUT_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
+
+
 class DispatchError(ValueError):
     """Erro acionável ao selecionar ou executar um dispatch."""
 
@@ -100,11 +103,17 @@ class SimulatedAdapter:
         evidence = {"adapter": self.name, "deterministic": True, "fingerprint": digest}
         # Opt-in V2 report keeps the legacy result shape unchanged by default.
         if context.get("report_v2") is True:
+            output_specs = _value(task, "outputs", []) or []
+            first_output = output_specs[0] if isinstance(output_specs, (list, tuple)) and output_specs else "output"
+            output_name = _value(first_output, "name", first_output)
+            if type(output_name) is not str or not _OUTPUT_NAME_RE.fullmatch(output_name.strip()):
+                raise AdapterDeniedError("output name rejected: bounded safe name required")
+            output_name = output_name.strip()
             result["report"] = {
                 "schema_version": "pd-fleet-report:v2", "task_id": task_id,
                 "attempt": attempt, "agent_id": safe_text(_value(task, "owner", None) or _value(task, "role", "local"), UNSUPPORTED_TYPE),
                 "role": safe_text(_value(task, "role", "worker"), UNSUPPORTED_TYPE), "capabilities": list(_value(task, "capabilities", []) or []),
-                "status": "completed", "outputs": {safe_text((_value(task, "outputs", ["output"]) or ["output"])[0], UNSUPPORTED_TYPE): result["output"]}, "evidence": evidence,
+                "status": "completed", "outputs": {output_name.strip(): result["output"]}, "evidence": evidence,
                 "tests": [{"name": "local", "status": "passed"}], "validation": {"status": "passed", "fingerprint": digest},
                 "decision": {"decision": "accept"}, "started_at": "1970-01-01T00:00:00Z", "completed_at": "1970-01-01T00:00:00Z",
             }
