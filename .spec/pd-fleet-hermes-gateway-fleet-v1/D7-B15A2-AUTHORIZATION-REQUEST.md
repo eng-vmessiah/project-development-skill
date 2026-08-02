@@ -1,7 +1,7 @@
 # D7 — B15a.2 Limited Implementation Authorization Request
 
-**Status:** `PENDING_VITOR_APPROVAL`  
-**Preconditions:** D1–D6 approved in `B15A-DECISION-MATRIX.md`.
+**Status:** `APPROVED`  
+**Approved by:** Vitor, local Hermes/TUI owner, 2026-08-02 03:25 -03
 
 ## Requested authorization
 

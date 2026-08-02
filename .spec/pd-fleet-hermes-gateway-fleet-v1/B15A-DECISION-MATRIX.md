@@ -25,7 +25,7 @@ This document closes ambiguity; it does not approve runtime integration.
 | D4 | Closed TUI wire, redaction and bounded payload contract | `APPROVED` | Vitor, local Hermes/TUI owner | 2026-08-02 02:24 -03 | Read-only metadata projection only |
 | D5 | Atomic snapshot boundary, issuer-bound cursor and persist-before-advance recovery | `APPROVED` | Vitor, local Hermes/TUI owner | 2026-08-02 02:24 -03 | Local/injected semantics; not live delivery proof |
 | D6 | Bounded lifecycle, revocation, retention and fresh reassociation | `APPROVED` | Vitor, local Hermes/TUI owner | 2026-08-02 02:24 -03 | No runtime activation or session mutation |
-| D7 | Scoped B15a.2 implementation authorization | `PENDING` | — | — | Requires explicit authorization below; D1–D6 approved |
+| D7 | Scoped B15a.2 implementation authorization | `APPROVED` | Vitor, local Hermes/TUI owner | 2026-08-02 03:25 -03 | Exactly `D7-B15A2-AUTHORIZATION-REQUEST.md`: isolated/default-off/read-only; no runtime activation or external effect |
 
 ## Non-negotiable exclusions
 
