@@ -57,7 +57,9 @@ Rules:
 - Each adapter must independently satisfy identity, capability, bounded schema/redaction, lifecycle, replay/provenance and cleanup contracts.
 - Runtime-specific capability claims must remain explicit; no inferred parity.
 
-## Reject / defer
+## Adoption boundary
+
+Buzz is reference-only: use it to evaluate architectural choices, naming, threat models, lifecycle matrices and test ideas. Do not copy or port its source code, import it as a depe...[truncated]
 
 - Do not install or depend on Buzz, Nostr relay, `buzz-acp`, Kubernetes providers or remote-agent components.
 - Do not create a parallel control plane or identity system.
