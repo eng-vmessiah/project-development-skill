@@ -1,10 +1,12 @@
 # B15a — Execution Plans
 
-**Status:** `blocked_pending_plan_approval`
+**Status:** `pass_with_external_decisions`
 **Readiness:** `NOT_READY_HERMES_SEAM`
 **Mode:** local/injected planning first; no live Hermes activation, provider calls, credentials, subprocess control, push, merge, release or deploy.
 **Depends on:** G8 local closeout already recorded in `VERIFICATION.md`.
 **Blocks:** B15b messaging/API Gateway integration.
+
+**Planning closure:** Internal contract review passed with external owner/security decisions still required. The authoritative unresolved D1–D7 list is `B15A-DECISION-MATRIX.md`; review evidence is `B15A-REVIEW-PACKET.md`. This status does not authorize B15a.2 implementation.
 
 ## Goal
 
