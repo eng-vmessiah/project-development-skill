@@ -1,12 +1,13 @@
 """Local, injected, default-off registration bridge for Fleet session RPCs.
 
 This Fleet-side seam neither imports nor discovers Hermes, resolves host sessions,
-activates a runtime, persists data, nor dispatches work.  Host authority and the
+activates a runtime, persists data, nor dispatches work. Host authority and the
 one optional local bridge association are injected and deliberately opaque.
 """
 from __future__ import annotations
 
 from collections.abc import Mapping
+from math import isfinite
 from typing import Any, Callable, cast
 
 FLEET_RPC_NAMESPACE = "fleet"
@@ -21,6 +22,8 @@ FLEET_SESSION_DEACTIVATE_SCHEMA_VERSION = "pd-fleet-session-deactivate:v1"
 FLEET_SESSION_REPLAY_SCHEMA_VERSION = "pd-fleet-session-replay:v1"
 
 _MAX_OPAQUE_CURSOR_LENGTH = 256
+_INVALID_REQUEST_ID_ERROR_CODE = -32600
+_INVALID_REQUEST_ID_ERROR_MESSAGE = "Invalid Request"
 
 
 class FleetD1RegistrationError(ValueError):
@@ -30,6 +33,35 @@ class FleetD1RegistrationError(ValueError):
 def _result(status: str, code: str) -> dict[str, str]:
     """Return a fresh, bounded response without reflecting request data."""
     return {"status": status, "code": code}
+
+
+def _response(request_id: Any, status: str, code: str) -> dict[str, Any]:
+    """Return the JSON-RPC result envelope expected from a D1 raw handler."""
+    if not _is_jsonrpc_request_id(request_id):
+        return _invalid_request_id_error()
+    return {"jsonrpc": "2.0", "id": request_id, "result": _result(status, code)}
+
+
+def _is_jsonrpc_request_id(request_id: Any) -> bool:
+    """Accept only JSON-RPC scalar identifiers and a finite numeric value."""
+    return (
+        request_id is None
+        or isinstance(request_id, str)
+        or (isinstance(request_id, int) and not isinstance(request_id, bool))
+        or (isinstance(request_id, float) and isfinite(request_id))
+    )
+
+
+def _invalid_request_id_error() -> dict[str, Any]:
+    """Return a static JSON-RPC error without reflecting invalid request data."""
+    return {
+        "jsonrpc": "2.0",
+        "id": None,
+        "error": {
+            "code": _INVALID_REQUEST_ID_ERROR_CODE,
+            "message": _INVALID_REQUEST_ID_ERROR_MESSAGE,
+        },
+    }
 
 
 def _not_ready(operation: str) -> dict[str, str]:
@@ -43,11 +75,11 @@ def _denied(operation: str) -> dict[str, str]:
 class FleetD1RegistrationBridge:
     """Register approved Fleet session names through an injected, default-off port.
 
-    Every handler has a closed request envelope.  In particular, no client-provided
+    Every handler has a closed request envelope. In particular, no client-provided
     session, owner, principal, or capability field is accepted as identity or
-    authority.  ``local_association`` is an optional *injected* bridge-only object;
+    authority. ``local_association`` is an optional *injected* bridge-only object;
     deactivate can call only its zero-argument ``detach`` method and never a host
-    session API.  Status and replay are read-only not-ready seams.
+    session API. Status and replay are read-only not-ready seams.
     """
 
     def __init__(
@@ -64,18 +96,14 @@ class FleetD1RegistrationBridge:
         self._local_association = local_association
 
     def register(self) -> str | dict[str, str]:
-        """Register the approved names, or remain locally not-ready when disabled.
-
-        The activate method string remains the return value for compatibility with
-        the original D1 seam; every registration is still independently injected.
-        """
+        """Register approved names, or remain locally not-ready when disabled."""
         if not self._enabled:
             return _not_ready("ACTIVATE")
         register = getattr(self._registrar, "register", None)
         if not callable(register):
             raise FleetD1RegistrationError("invalid injected registrar")
 
-        registrations: tuple[tuple[str, Callable[[Any, Any], dict[str, str]]], ...] = (
+        registrations: tuple[tuple[str, Callable[[Any, Any], dict[str, Any]]], ...] = (
             (FLEET_SESSION_ACTIVATE_NAME, self.handle_session_activate),
             (FLEET_SESSION_STATUS_NAME, self.handle_session_status),
             (FLEET_SESSION_DEACTIVATE_NAME, self.handle_session_deactivate),
@@ -95,45 +123,53 @@ class FleetD1RegistrationBridge:
             raise FleetD1RegistrationError("injected registrar rejected registration") from None
         return registered_names[0]
 
-    def handle_session_activate(self, _request_id: Any, params: Any) -> dict[str, str]:
+    def handle_session_activate(self, request_id: Any, params: Any) -> dict[str, Any]:
         """Fail closed pending future host-side authority and activation semantics."""
+        if not _is_jsonrpc_request_id(request_id):
+            return _invalid_request_id_error()
         if not self._is_closed_request(params, FLEET_SESSION_ACTIVATE_SCHEMA_VERSION):
-            return _denied("ACTIVATE")
+            return _response(request_id, "denied", "FLEET_SESSION_ACTIVATE_DENIED")
         if self._host_authority is None:
-            return _denied("ACTIVATE")
-        return _not_ready("ACTIVATE")
+            return _response(request_id, "denied", "FLEET_SESSION_ACTIVATE_DENIED")
+        return _response(request_id, "not_ready", "FLEET_SESSION_ACTIVATE_NOT_READY")
 
-    def handle_session_status(self, _request_id: Any, params: Any) -> dict[str, str]:
+    def handle_session_status(self, request_id: Any, params: Any) -> dict[str, Any]:
         """Expose no session data until a host-authorized read-only contract exists."""
+        if not _is_jsonrpc_request_id(request_id):
+            return _invalid_request_id_error()
         if not self._is_closed_request(params, FLEET_SESSION_STATUS_SCHEMA_VERSION):
-            return _denied("STATUS")
+            return _response(request_id, "denied", "FLEET_SESSION_STATUS_DENIED")
         if self._host_authority is None:
-            return _denied("STATUS")
-        return _not_ready("STATUS")
+            return _response(request_id, "denied", "FLEET_SESSION_STATUS_DENIED")
+        return _response(request_id, "not_ready", "FLEET_SESSION_STATUS_NOT_READY")
 
-    def handle_session_deactivate(self, _request_id: Any, params: Any) -> dict[str, str]:
+    def handle_session_deactivate(self, request_id: Any, params: Any) -> dict[str, Any]:
         """Detach only an injected bridge association; never mutate a host session."""
+        if not _is_jsonrpc_request_id(request_id):
+            return _invalid_request_id_error()
         if not self._is_closed_request(params, FLEET_SESSION_DEACTIVATE_SCHEMA_VERSION):
-            return _denied("DEACTIVATE")
+            return _response(request_id, "denied", "FLEET_SESSION_DEACTIVATE_DENIED")
         if self._host_authority is None:
-            return _denied("DEACTIVATE")
+            return _response(request_id, "denied", "FLEET_SESSION_DEACTIVATE_DENIED")
         detach = getattr(self._local_association, "detach", None)
         if not callable(detach):
-            return _not_ready("DEACTIVATE")
+            return _response(request_id, "not_ready", "FLEET_SESSION_DEACTIVATE_NOT_READY")
         try:
             detach()
         except Exception:
-            return _not_ready("DEACTIVATE")
+            return _response(request_id, "not_ready", "FLEET_SESSION_DEACTIVATE_NOT_READY")
         self._local_association = None
-        return _result("deactivated", "FLEET_SESSION_DEACTIVATE_DETACHED")
+        return _response(request_id, "deactivated", "FLEET_SESSION_DEACTIVATE_DETACHED")
 
-    def handle_session_replay(self, _request_id: Any, params: Any) -> dict[str, str]:
+    def handle_session_replay(self, request_id: Any, params: Any) -> dict[str, Any]:
         """Validate only an opaque cursor; replay is intentionally not implemented."""
+        if not _is_jsonrpc_request_id(request_id):
+            return _invalid_request_id_error()
         if not self._is_closed_replay_request(params):
-            return _denied("REPLAY")
+            return _response(request_id, "denied", "FLEET_SESSION_REPLAY_DENIED")
         if self._host_authority is None:
-            return _denied("REPLAY")
-        return _not_ready("REPLAY")
+            return _response(request_id, "denied", "FLEET_SESSION_REPLAY_DENIED")
+        return _response(request_id, "not_ready", "FLEET_SESSION_REPLAY_NOT_READY")
 
     @staticmethod
     def _is_closed_request(params: Any, schema_version: str) -> bool:
