@@ -71,6 +71,37 @@ def test_run_local_uses_store_and_returns_completed_simulated_fleet(tmp_path, ca
     assert str(tmp_path) not in output
 
 
+def test_run_local_max_parallel_bounds_fail_before_store_mutation(tmp_path, capsys):
+    path = write_plan(tmp_path)
+    store_root = tmp_path / "store"
+    for value in ("0", "9"):
+        with pytest.raises(SystemExit):
+            run_cli(tmp_path, ["v2", "run-local", "--plan", str(path), "--store", str(store_root),
+                               "--max-parallel", value], capsys)
+        assert not store_root.exists()
+
+
+def test_run_local_accepts_bounded_max_parallel(tmp_path, capsys):
+    output = run_cli(tmp_path, ["v2", "run-local", "--plan", str(write_plan(tmp_path)),
+                                "--store", str(tmp_path / "store"), "--max-parallel", "2"], capsys)
+    assert json.loads(output)["status"] == "completed"
+
+
+def test_run_local_recovers_expired_lease_with_injected_wall_clock(tmp_path, capsys, monkeypatch):
+    path = write_plan(tmp_path)
+    store_root = tmp_path / "store"
+    now = ["2026-01-01T00:00:00Z"]
+    clock = lambda: now[0]
+    with FleetRunStore(store_root, clock=clock) as store:
+        store.create("r", plan(), "cli")
+        store.claim("r", "a", "cli", lease_seconds=1)
+    now[0] = "2026-01-01T00:00:02Z"
+    monkeypatch.setattr(PD, "_v2_wall_clock", staticmethod(clock))
+    output = run_cli(tmp_path, ["v2", "run-local", "--plan", str(path), "--store", str(store_root), "--run-id", "r"], capsys)
+    assert json.loads(output)["status"] == "completed"
+    assert FleetRunStore(store_root, clock=clock).load("r")["attempts"]["a"] == 2
+
+
 def test_external_provider_is_denied_before_execution(tmp_path, capsys):
     with pytest.raises(SystemExit):
         run_cli(tmp_path, ["v2", "run-local", "--plan", str(write_plan(tmp_path)),

@@ -83,6 +83,9 @@ class LeaseScheduler:
                 # particular, terminal tasks must not hide malformed dependencies
                 # from a read or claim of an otherwise runnable sibling.
                 cls._validate_task_dependencies(task)
+                wave = task.get("wave", 0)
+                if type(wave) is not int or wave < 0:
+                    raise SchedulerError("task wave must be a non-negative integer")
                 if isinstance(task.get("id"), str):
                     result[task["id"]] = task
         return result
@@ -101,6 +104,16 @@ class LeaseScheduler:
                      if isinstance(value, Mapping) and value.get("status") == "completed"}
         completed.update(tid for tid, value in reports.items()
                         if isinstance(value, Mapping) and value.get("status") == "completed")
+        terminal = {"completed", "failed", "blocked", "orphaned", "cancelled", "skipped"}
+        nonterminal_waves = []
+        for task_id, task in tasks.items():
+            value = task_state.get(task_id, {})
+            status = value.get("status", task.get("status", "pending")) if isinstance(value, Mapping) else task.get("status", "pending")
+            if status not in terminal:
+                nonterminal_waves.append(task.get("wave", 0))
+        if not nonterminal_waves:
+            return []
+        minimum_wave = min(nonterminal_waves)
         result = []
         for task_id in sorted(tasks):
             task = tasks[task_id]
@@ -112,7 +125,7 @@ class LeaseScheduler:
             # Keep the no-clock behavior for static callers: any persisted
             # lease remains a barrier when its age cannot be established.
             active = lease is not None and (now is None or lease.get("expires_at", "") > now)
-            if status in {"completed", "failed", "blocked", "orphaned"} or active:
+            if status in terminal or active or task.get("wave", 0) != minimum_wave:
                 continue
             deps = task.get("depends_on", task.get("dependencies", ()))
             if all(dep in completed for dep in deps):

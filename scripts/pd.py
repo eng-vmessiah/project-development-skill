@@ -17,7 +17,7 @@ import sys
 import tempfile
 from contextlib import nullcontext
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple, Mapping
 
@@ -881,6 +881,8 @@ class PD:
         local.add_argument("--run-id", dest="run_id", default=None)
         local.add_argument("--owner", default="cli")
         local.add_argument("--provider", choices=("local", "disabled"), default="local")
+        local.add_argument("--max-parallel", type=int, choices=range(1, 9), default=1,
+                           help="Bounded local concurrency (1-8)")
 
         # validate
         validate_parser = subparsers.add_parser("validate", parents=[global_parent], help="Validate progress")
@@ -1634,6 +1636,10 @@ class PD:
                 os.close(fd)
 
     @staticmethod
+    def _v2_wall_clock() -> str:
+        return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+    @staticmethod
     def _v2_read_snapshot(store_root: str, run_id: str) -> Dict[str, Any]:
         root = Path(store_root).expanduser()
         try:
@@ -1833,7 +1839,8 @@ class PD:
             payload = {"status": "dry_run", "run_id": run_id, "result": result.to_dict()}
         else:
             try:
-                with FleetRunStore(args.store_root) as store:
+                clock = self._v2_wall_clock
+                with FleetRunStore(args.store_root, clock=clock) as store:
                     try:
                         current = store.load(run_id)
                         if current["plan_hash"] != plan_hash_v2(plan):
@@ -1852,17 +1859,19 @@ class PD:
                         store.create(run_id, plan, args.owner)
                         current = store.load(run_id)
                         checkpoint = Checkpoint.create("v2", 0, created_at="1970-01-01T00:00:00+00:00")
+                    scheduler = LeaseScheduler(store, run_id, args.owner,
+                                               max_parallel=args.max_parallel, clock=clock)
+                    scheduler.recover_stale()
+                    current = store.load(run_id)
                     store.transition(run_id, "running", args.owner, expected_generation=current["generation"])
                     current = store.load(run_id)
                     reconciliation = {"plan_hash": current["plan_hash"], "run_id": run_id,
                                       "generation": current["generation"], "owner": args.owner,
                                       "checkpoint": checkpoint.to_dict(), "leases": current["leases"],
                                       "events": current["events"]}
-                    scheduler = LeaseScheduler(store, run_id, args.owner, max_parallel=1)
-                    executor = BoundedParallelExecutor(max_workers=1)
-                    dispatcher = Dispatcher()
+                    executor = BoundedParallelExecutor(max_workers=args.max_parallel)
                     def adapter(task, token):
-                        dispatch_result = dispatcher.dispatch(task, {
+                        dispatch_result = Dispatcher().dispatch(task, {
                             "attempt": token.get("attempt", 1),
                             "report_v2": True,
                         })

@@ -389,6 +389,31 @@ class FleetRunStore:
 
         state = self._mutate(run_id, owner, expected_generation, change)
         return self._seal(state)
+    def append_terminal_event_if_absent(self, run_id, task_id, owner, *, expected_generation=None):
+        _safe_id(task_id)
+        with self._guard():
+            state = self._valid_snapshot(run_id)
+            if state is None: raise RunNotFoundError("run snapshot unavailable")
+            if state["owner"] != owner: raise OwnerMismatchError("run owner mismatch")
+            if expected_generation is not None and (type(expected_generation) is not int or state["generation"] != expected_generation):
+                raise GenerationConflictError("generation mismatch")
+            record = state["reports"].get(task_id)
+            if not isinstance(record, Mapping) or record.get("status") not in _REPORT_STATUSES:
+                raise RunStoreError("terminal report required")
+            status = record["status"]
+            canonical = [event for event in state["events"] if isinstance(event, Mapping)
+                         and event.get("event_id") == task_id and event.get("ordering_key") == task_id]
+            if canonical:
+                if any(event.get("task_id") == task_id and event.get("status") == status for event in canonical):
+                    return {"appended": False, "generation": state["generation"], "event": deepcopy(canonical[0])}
+                raise RunStoreError("conflicting terminal event")
+            candidate = deepcopy(state)
+            event = {"event_id": task_id, "ordering_key": task_id, "task_id": task_id,
+                     "status": status, "sequence": candidate["event_sequence"] + 1}
+            candidate["events"].append(event); candidate["event_sequence"] += 1; candidate["generation"] += 1
+            candidate["updated_at"] = _clock_value(self._clock); self._write(run_id, candidate)
+            return {"appended": True, "generation": candidate["generation"], "event": deepcopy(event)}
+
     def append_event(self, run_id,event,owner,*,expected_generation=None):
         if not isinstance(event,Mapping): raise RunStoreError("event must be an object")
         def add(s):

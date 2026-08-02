@@ -13,6 +13,22 @@ from pd_fleet.run_store import FleetRunStore, LeaseError
 from pd_fleet.run_store import RunStoreError
 
 
+
+
+def test_append_terminal_event_if_absent_is_idempotent_and_does_not_rewrite(tmp_path: Path):
+    store = FleetRunStore(tmp_path)
+    store.create("run", PLAN, "owner")
+    token = store.claim("run", "a", "owner")
+    store.commit("run", "a", token, "owner", _complete_report())
+    first = store.append_terminal_event_if_absent("run", "a", "owner")
+    before = store.load("run")
+    bytes_before = (tmp_path / "run" / "snapshot.json").read_bytes()
+    second = store.append_terminal_event_if_absent("run", "a", "owner")
+    assert first["appended"] is True and second["appended"] is False
+    assert store.load("run") == before
+    assert (tmp_path / "run" / "snapshot.json").read_bytes() == bytes_before
+
+
 def test_task_status_invalidation_fences_active_lease_before_stale_commit(tmp_path: Path):
     store = FleetRunStore(tmp_path)
     store.create("run", PLAN, "owner")

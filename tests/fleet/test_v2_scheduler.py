@@ -167,6 +167,20 @@ def test_claim_rejects_dependency_invalidated_after_readiness_observation(
     assert state == invalidated["state"]
 
 
+def test_declarative_wave_is_atomic_barrier_before_later_independent_tasks(tmp_path: Path):
+    plan = {"schema_version": "pd-fleet-plan:v2", "tasks": [
+        {"id": "z", "wave": 1, "depends_on": [], "allowed_paths": ["src/z.py"]},
+        {"id": "a", "wave": 2, "depends_on": [], "allowed_paths": ["src/a.py"]},
+    ]}
+    store = FleetRunStore(tmp_path)
+    store.create("run", plan, "owner")
+    scheduler = LeaseScheduler(store, "run", "owner", max_parallel=2)
+    assert scheduler.ready_ids() == ["z"]
+    assert [token["task_id"] for token in scheduler.claim("worker", limit=2)] == ["z"]
+    assert scheduler.ready_ids() == []
+    assert scheduler.claim("other", limit=1) == []
+
+
 def test_claims_are_bounded_and_release_allows_reuse(tmp_path: Path):
     store = FleetRunStore(tmp_path)
     store.create("run", PLAN, "owner")
