@@ -47,6 +47,7 @@ Hermes owns concrete session/runtime state. Fleet owns coordination state. PD Co
 - Hermes B15a.0 local seam checkpoint: `ec55552a80`, `tui_gateway/plugin_rpc.py`, dispatcher registration/error boundary and focused tests; local-only, not activated
 - Hermes B15a.2 host-side seam checkpoint: `f66d3d4b06`, lazy namespaced plugin RPC staging/publication with focused tests; unpushed, uninstalled, and not activated
 - PD/Fleet B15a.2 local read-only contract checkpoint: `scripts/pd_fleet/tui_readonly_contract.py` and `tests/fleet/test_tui_readonly_contract.py`; request/binding/redacted response only; no Hermes transport registration
+- PD/Fleet D1 registration bridge checkpoint: `1084efc`, `scripts/pd_fleet/fleet_d1_registration_bridge.py` and focused tests; all four approved RPC names are injectable/default-off/local-only, with closed requests, no client identity authority and no Hermes import/transport registration.
 - PD/Fleet B15a.1 local plugin checkpoint: `824f000`, `plugins/pd-fleet-hermes/` lifecycle-only package and tests; independent review `PASS`; not installed or discovered by Hermes runtime
 - Replayable Hermes host patch: `patches/0010-hermes-lazy-namespaced-tui-rpc-seam.patch`
 - Hermes B9 authority commit: `d3b761a99b` (typed principal, owner epoch, binding validation, lifecycle publisher)
