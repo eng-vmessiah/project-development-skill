@@ -20,8 +20,12 @@ This document closes ambiguity; it does not approve runtime integration.
 | ID | Decision | Status | Approved by | Recorded at | Scope |
 |---|---|---|---|---|---|
 | D1 | Public versioned/default-off `fleet.*` TUI RPC seam with collision rejection, bounded handler isolation, absent/disabled denial and non-Fleet compatibility | `APPROVED` | Vitor, local Hermes/TUI owner | 2026-08-02 00:32 -03 | Contract approval only; no installation, activation, runtime restart, provider, network, credential, dispatch, push, merge, release or deploy |
-| D2–D6 | Identity, capability, wire/redaction, delivery/recovery, lifecycle | `PENDING` | — | — | Required before B15a.2 authorization |
-| D7 | Scoped B15a.2 implementation authorization | `PENDING` | — | — | Requires D2–D6 named approval first |
+| D2 | Server-derived trusted identity binding; client authority fields denied | `APPROVED` | Vitor, local Hermes/TUI owner | 2026-08-02 02:24 -03 | Read-only/session-scoped contract only |
+| D3 | Composite default-deny effective capability | `APPROVED` | Vitor, local Hermes/TUI owner | 2026-08-02 02:24 -03 | No capability widens through config/flag ambiguity |
+| D4 | Closed TUI wire, redaction and bounded payload contract | `APPROVED` | Vitor, local Hermes/TUI owner | 2026-08-02 02:24 -03 | Read-only metadata projection only |
+| D5 | Atomic snapshot boundary, issuer-bound cursor and persist-before-advance recovery | `APPROVED` | Vitor, local Hermes/TUI owner | 2026-08-02 02:24 -03 | Local/injected semantics; not live delivery proof |
+| D6 | Bounded lifecycle, revocation, retention and fresh reassociation | `APPROVED` | Vitor, local Hermes/TUI owner | 2026-08-02 02:24 -03 | No runtime activation or session mutation |
+| D7 | Scoped B15a.2 implementation authorization | `PENDING` | — | — | Requires explicit authorization below; D1–D6 approved |
 
 ## Non-negotiable exclusions
 
