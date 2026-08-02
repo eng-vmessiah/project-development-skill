@@ -1,7 +1,7 @@
 # B15a.5 — Runtime Readiness Packet
 
-**Status:** `PLANNED_READ_ONLY`  
-**Current evidence:** `LOCAL_SEAM_COMPOSED`, `LOCAL_PLUGIN_DISCOVERY_VERIFIED`  
+**Status:** `CANARY_LIFECYCLE_ONLY_VERIFIED`
+**Current evidence:** `LOCAL_SEAM_COMPOSED`, `LOCAL_PLUGIN_DISCOVERY_VERIFIED`, `CANARY_ENABLE_ROLLBACK_VERIFIED`
 **Runtime state:** `LIVE_NOT_READY`
 
 ## Purpose
@@ -36,6 +36,7 @@ Abort immediately for manifest/source mismatch or shadowing, failed contract val
 
 Stop the isolated canary process/session. Use `hermes plugins disable pd-fleet-hermes` only if explicitly authorized, then start a fresh isolated process and verify it is not loaded. Restore only the pre-captured canary configuration after a diff review. `HERMES_SAFE_MODE=1` is emergency containment for all plugins, not selective rollback.
 
-## Non-claims
+## Canary evidence (2026-08-02)
 
+A temporary isolated `HERMES_HOME` used the bundled artifact from Hermes worktree commit `058c3fa620`. Baseline discovery reported `pd-fleet-hermes` as `not enabled`. A...[truncated]
 This packet does not authorize or demonstrate real Fleet RPC, session observation, Gateway transport, provider execution, messaging, durable cursor/outbox, live health, deployment, or release.
