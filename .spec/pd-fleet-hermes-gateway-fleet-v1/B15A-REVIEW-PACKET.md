@@ -19,7 +19,7 @@ The first independent review found four internal blockers: operation/snapshot sc
 
 ## Remaining external decisions
 
-D1–D7 still require named Hermes/TUI owner, security and scope approvals. This packet does not authorize B15a.2 code, checkout changes, installation, activation, runtime control, provider use, credentials, network, subprocess dispatch, push, merge, release or deploy.
+D1 was approved by Vitor as local Hermes/TUI owner on 2026-08-02 00:32 -03 for the seam contract only. D2–D7 still require named approval; this packet does not authorize B15a.2 code, checkout changes, installation, activation, runtime control, provider use, credentials, network, subprocess dispatch, push, merge, release or deploy.
 
 ## Exit condition
 

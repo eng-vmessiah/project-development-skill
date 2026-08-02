@@ -15,6 +15,14 @@ This document closes ambiguity; it does not approve runtime integration.
 | D6 lifecycle | `pending_activation → observing → reconnecting → stale|orphaned|ended → detached`; revoke/session end/TUI exit/crash deny replay and clean association. | Hermes TUI owner + security | Transition table, race/recovery tests |
 | D7 implementation | B15a.2 requires a separate scoped authorization naming worktree, base, files, tests, rollback and forbidden live effects. | Vitor + Hermes owner | Signed/recorded authorization after D1–D6 approval |
 
+## Approval record
+
+| ID | Decision | Status | Approved by | Recorded at | Scope |
+|---|---|---|---|---|---|
+| D1 | Public versioned/default-off `fleet.*` TUI RPC seam with collision rejection, bounded handler isolation, absent/disabled denial and non-Fleet compatibility | `APPROVED` | Vitor, local Hermes/TUI owner | 2026-08-02 00:32 -03 | Contract approval only; no installation, activation, runtime restart, provider, network, credential, dispatch, push, merge, release or deploy |
+| D2–D6 | Identity, capability, wire/redaction, delivery/recovery, lifecycle | `PENDING` | — | — | Required before B15a.2 authorization |
+| D7 | Scoped B15a.2 implementation authorization | `PENDING` | — | — | Requires D2–D6 named approval first |
+
 ## Non-negotiable exclusions
 
 No runtime activation, installation, restart/reload, provider, credentials, network, subprocess dispatch, session mutation, push, merge, release or deploy. `fleet_owned_task` remains denied.
