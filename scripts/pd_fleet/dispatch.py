@@ -85,7 +85,12 @@ class DispatchRecord:
 class SimulatedAdapter:
     """Adapter puro: produz sempre o mesmo output para o mesmo input."""
 
-    __slots__ = ()
+    __slots__ = ("_fixture",)
+
+    def __init__(self, fixture: str = "success"):
+        if fixture not in {"success", "retry-once", "fail-always"}:
+            raise AdapterDeniedError("simulated fixture rejected")
+        self._fixture = fixture
 
     @property
     def name(self) -> str:
@@ -99,8 +104,11 @@ class SimulatedAdapter:
         attempt = context.get("attempt", 1)
         if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
             attempt = 1
+        should_fail = self._fixture == "fail-always" or (self._fixture == "retry-once" and attempt == 1)
         result: dict[str, Any] = {"output": f"simulated:{task_id}:{digest[:16]}", "fingerprint": digest}
-        evidence = {"adapter": self.name, "deterministic": True, "fingerprint": digest}
+        evidence = {"adapter": self.name, "deterministic": True, "fixture": self._fixture, "attempt": attempt, "fingerprint": digest}
+        if should_fail:
+            result["error"] = "simulated_transient"
         # Opt-in V2 report keeps the legacy result shape unchanged by default.
         if context.get("report_v2") is True:
             output_specs = _value(task, "outputs", []) or []
@@ -113,11 +121,11 @@ class SimulatedAdapter:
                 "schema_version": "pd-fleet-report:v2", "task_id": task_id,
                 "attempt": attempt, "agent_id": safe_text(_value(task, "owner", None) or _value(task, "role", "local"), UNSUPPORTED_TYPE),
                 "role": safe_text(_value(task, "role", "worker"), UNSUPPORTED_TYPE), "capabilities": list(_value(task, "capabilities", []) or []),
-                "status": "completed", "outputs": {output_name.strip(): result["output"]}, "evidence": evidence,
-                "tests": [{"name": "local", "status": "passed"}], "validation": {"status": "passed", "fingerprint": digest},
-                "decision": {"decision": "accept"}, "started_at": "1970-01-01T00:00:00Z", "completed_at": "1970-01-01T00:00:00Z",
+                "status": "failed" if should_fail else "completed", "outputs": {} if should_fail else {output_name.strip(): result["output"]}, "evidence": evidence,
+                "tests": [{"name": "local", "status": "failed" if should_fail else "passed"}], "validation": {"status": "failed" if should_fail else "passed", "fingerprint": digest},
+                "decision": {"decision": "reject" if should_fail else "accept"}, "reason": "simulated transient failure" if should_fail else None, "error": "simulated_transient" if should_fail else None, "started_at": "1970-01-01T00:00:00Z", "completed_at": "1970-01-01T00:00:00Z",
             }
-        return DispatchResult(task_id, self.name, "completed", attempt, result, evidence)
+        return DispatchResult(task_id, self.name, "failed" if should_fail else "completed", attempt, result, evidence)
 
 
 # Friendly aliases for consumers that use the plan terminology.

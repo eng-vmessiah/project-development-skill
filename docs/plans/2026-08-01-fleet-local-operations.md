@@ -32,6 +32,8 @@ Advance `fleet-local` from a serial simulated vertical slice to a bounded, capab
 
 **Acceptance:** no task from a later declarative wave runs early; invalid bounds fail before store mutation; terminal tasks are never re-dispatched; local-only semantics are explicit.
 
+**Status (verified):** completed in `568e6bd` (`feat(pd-fleet): add bounded parallel local execution`); fresh closeout evidence after Wave C: `1203 passed`, compileall, `git diff --check` and `v2_doc_paths.py` valid.
+
 ## Wave C — Retry/recovery evidence (after Wave B)
 
 **Goal:** make the existing retry policy demonstrable and auditable through `v2 run-local` without creating a second fake runtime.
@@ -40,6 +42,12 @@ Advance `fleet-local` from a serial simulated vertical slice to a bounded, capab
 2. Persist a bounded retry decision event before release/reclaim.
 3. Apply injected backoff without real sleep.
 4. Test retry allowlist/exhaustion, reload after persisted retry and no replay of completed work.
+5. **Boundary:** this local slice is at-least-once for any future external effect; it must not claim exactly-once without a durable idempotency key/outbox or cooperative lease renewal. The SimulatedAdapter remains pure and side-effect-free.
+6. **Audit proof:** retry decision is persisted before release; a recovery fixture may stop only after that durable decision and must resume deterministically.
+
+**Known live follow-ups (not Wave C acceptance):** lease heartbeat, external-effect idempotency key/outbox, commit-pending recovery, and lease-token reconciliation independent of global generation.
+
+**Status (verified):** completed locally in this commit (`feat(pd-fleet): add deterministic retry recovery fixtures`). Fixtures are closed (`success|retry-once|fail-always`); retry decisions are persisted before release; backoff is injected/no-op; allowlist, exhaustion/readiness and completed-run no-replay were verified with `1203 passed`. This remains local/simulated and does not change `NOT_READY_HERMES_SEAM`.
 
 ## Cross-wave gates
 

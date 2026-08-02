@@ -102,6 +102,53 @@ def test_run_local_recovers_expired_lease_with_injected_wall_clock(tmp_path, cap
     assert FleetRunStore(store_root, clock=clock).load("r")["attempts"]["a"] == 2
 
 
+
+
+def test_run_local_retry_once_persists_audit_event_and_completes(tmp_path, capsys):
+    data = plan()
+    data["tasks"][0]["retry_policy"] = {"max_attempts": 2, "backoff_seconds": 3, "retryable_errors": ["simulated_transient"]}
+    path = tmp_path / "retry.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    root = tmp_path / "store"
+    payload = json.loads(run_cli(tmp_path, ["v2", "run-local", "--plan", str(path), "--store", str(root), "--simulated-fixture", "retry-once"], capsys))
+    snapshot = FleetRunStore(root).load("r")
+    assert payload["status"] == "completed"
+    assert snapshot["attempts"]["a"] == 2
+    assert [event["event_id"] for event in snapshot["events"]] == ["retry-a-1", "a"]
+
+
+
+
+def test_run_local_fail_always_exhausts_retry_and_is_not_ready(tmp_path, capsys):
+    data = plan(); data["tasks"][0]["retry_policy"] = {"max_attempts": 2, "retryable_errors": ["simulated_transient"]}
+    path = tmp_path / "fail.json"; path.write_text(json.dumps(data)); root = tmp_path / "store"
+    payload = json.loads(run_cli(tmp_path, ["v2", "run-local", "--plan", str(path), "--store", str(root), "--simulated-fixture", "fail-always"], capsys))
+    snapshot = FleetRunStore(root).load("r")
+    readiness = json.loads(run_cli(tmp_path, ["v2", "readiness", "--store", str(root), "--run-id", "r"], capsys))
+    assert payload["status"] == "failed" and snapshot["attempts"]["a"] == 2
+    assert [event["event_id"] for event in snapshot["events"]] == ["retry-a-1", "a"]
+    assert readiness["ready"] is False and readiness["reason"] == "run_failed"
+
+
+def test_run_local_retry_allowlist_rejects_nonmatching_failure(tmp_path, capsys):
+    data = plan(); data["tasks"][0]["retry_policy"] = {"max_attempts": 2, "retryable_errors": ["other"]}
+    path = tmp_path / "deny.json"; path.write_text(json.dumps(data)); root = tmp_path / "store"
+    payload = json.loads(run_cli(tmp_path, ["v2", "run-local", "--plan", str(path), "--store", str(root), "--simulated-fixture", "fail-always"], capsys))
+    snapshot = FleetRunStore(root).load("r")
+    assert payload["status"] == "failed" and snapshot["attempts"]["a"] == 1
+    assert [event["event_id"] for event in snapshot["events"]] == ["a"]
+
+
+def test_run_local_resume_after_retry_success_does_not_replay_completed_task(tmp_path, capsys):
+    data = plan(); data["tasks"][0]["retry_policy"] = {"max_attempts": 2, "retryable_errors": ["simulated_transient"]}
+    path = tmp_path / "resume.json"; path.write_text(json.dumps(data)); root = tmp_path / "store"
+    first = json.loads(run_cli(tmp_path, ["v2", "run-local", "--plan", str(path), "--store", str(root), "--simulated-fixture", "retry-once"], capsys))
+    before = FleetRunStore(root).load("r")
+    resumed = json.loads(run_cli(tmp_path, ["v2", "run-local", "--plan", str(path), "--store", str(root), "--simulated-fixture", "fail-always"], capsys))
+    assert first["status"] == resumed["status"] == "completed"
+    assert FleetRunStore(root).load("r") == before
+
+
 def test_external_provider_is_denied_before_execution(tmp_path, capsys):
     with pytest.raises(SystemExit):
         run_cli(tmp_path, ["v2", "run-local", "--plan", str(write_plan(tmp_path)),

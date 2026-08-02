@@ -25,7 +25,7 @@ from pd_fleet.state import normalize_fleet_state
 from pd_fleet.models import FleetPlan, FleetPlanError
 from pd_fleet.validation import compute_ready_tasks
 from pd_fleet.orchestrator import FleetOrchestrator
-from pd_fleet.dispatch import Dispatcher
+from pd_fleet.dispatch import Dispatcher, SimulatedAdapter
 from pd_fleet.checkpoint import Checkpoint
 from pd_fleet.contracts import canonicalize as canonicalize_v2, plan_hash as plan_hash_v2, _redact_paths, _redact_sensitive_text, _EXTERNAL_URL
 from pd_fleet.state import FLEET_STATE_FIELDS
@@ -883,6 +883,8 @@ class PD:
         local.add_argument("--provider", choices=("local", "disabled"), default="local")
         local.add_argument("--max-parallel", type=int, choices=range(1, 9), default=1,
                            help="Bounded local concurrency (1-8)")
+        local.add_argument("--simulated-fixture", choices=("success", "retry-once", "fail-always"), default="success",
+                           help="Closed local deterministic fixture")
 
         # validate
         validate_parser = subparsers.add_parser("validate", parents=[global_parent], help="Validate progress")
@@ -1870,8 +1872,9 @@ class PD:
                                       "checkpoint": checkpoint.to_dict(), "leases": current["leases"],
                                       "events": current["events"]}
                     executor = BoundedParallelExecutor(max_workers=args.max_parallel)
+                    simulated_adapter = SimulatedAdapter(args.simulated_fixture)
                     def adapter(task, token):
-                        dispatch_result = Dispatcher().dispatch(task, {
+                        dispatch_result = simulated_adapter.dispatch(task, {
                             "attempt": token.get("attempt", 1),
                             "report_v2": True,
                         })

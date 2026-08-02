@@ -849,6 +849,14 @@ class FleetOrchestrator:
                                 except Exception:
                                     pass
                         terminal_ids.add(task_id)
+                    if can_retry:
+                        retry_event = {"event_id": f"retry-{task_id}-{attempt}",
+                            "ordering_key": f"retry-{task_id}-{attempt}", "task_id": task_id,
+                            "status": "retry_scheduled", "attempt": attempt,
+                            "next_attempt": attempt + 1, "error": safe_text(error or status, RUNTIME_ERROR),
+                            "backoff_seconds": policy.backoff_seconds}
+                        self.store.append_event(self.run_id, retry_event, self.run_owner)
+                        self.sleeper(policy.backoff_seconds)
                     release = getattr(self.scheduler, "release", None)
                     if callable(release):
                         try: release(token)
