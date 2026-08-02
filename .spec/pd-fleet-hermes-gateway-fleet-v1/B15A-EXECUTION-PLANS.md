@@ -8,6 +8,10 @@
 
 **Planning closure:** Internal contract review passed with external owner/security decisions still required. The authoritative unresolved D1–D7 list is `B15A-DECISION-MATRIX.md`; review evidence is `B15A-REVIEW-PACKET.md`. This status does not authorize B15a.2 implementation.
 
+## External architecture reference
+
+`B15A-EXTERNAL-REFERENCE-BUZZ.md` records the Block Buzz audit (snapshot `28ae6cd`). Its patterns strengthen D2–D6: identity is independent of launcher/harness/substrate; presence is not runtime health; protocols are bounded/hostile-by-default; lifecycle is explicit. It creates no B15a dependency. A future `B15c Harness Adapter Contract` is deferred until `LOCAL_SEAM_VERIFIED`; Hermes remains policy/capability/identity authority and any ACP adapter is read-only/default-off first.
+
 ## Goal
 
 Decompor B15a em ondas pequenas e verificáveis para conectar o Fleet ao backend TUI do Hermes por uma única sessão ativa, começando pelo seam de RPC namespaced que hoje não existe no `PluginContext` público.
