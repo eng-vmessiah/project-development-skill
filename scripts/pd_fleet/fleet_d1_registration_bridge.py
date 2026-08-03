@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from math import isfinite
-from typing import Any, Callable, cast
+from typing import Any, Callable
 
 FLEET_RPC_NAMESPACE = "fleet"
 FLEET_SESSION_ACTIVATE_NAME = "session.activate"
@@ -96,11 +96,16 @@ class FleetD1RegistrationBridge:
         self._local_association = local_association
 
     def register(self) -> str | dict[str, str]:
-        """Register approved names, or remain locally not-ready when disabled."""
+        """Atomically publish approved names, or remain locally not-ready when disabled.
+
+        An enabled bridge requires an injected ``register_batch`` port.  The port
+        owns atomicity: it must publish all candidates together or none of them.
+        This bridge intentionally never degrades to individual ``register`` calls.
+        """
         if not self._enabled:
             return _not_ready("ACTIVATE")
-        register = getattr(self._registrar, "register", None)
-        if not callable(register):
+        register_batch = getattr(self._registrar, "register_batch", None)
+        if not callable(register_batch):
             raise FleetD1RegistrationError("invalid injected registrar")
 
         registrations: tuple[tuple[str, Callable[[Any, Any], dict[str, Any]]], ...] = (
@@ -109,19 +114,16 @@ class FleetD1RegistrationBridge:
             (FLEET_SESSION_DEACTIVATE_NAME, self.handle_session_deactivate),
             (FLEET_SESSION_REPLAY_NAME, self.handle_session_replay),
         )
-        registered_names: list[str] = []
+        expected = tuple(f"{FLEET_RPC_NAMESPACE}.{name}" for name, _handler in registrations)
         try:
-            for name, handler in registrations:
-                registered = register(FLEET_RPC_NAMESPACE, name, handler, enabled=True)
-                expected = f"{FLEET_RPC_NAMESPACE}.{name}"
-                if registered != expected:
-                    raise FleetD1RegistrationError("injected registrar returned invalid method")
-                registered_names.append(cast(str, registered))
+            registered = register_batch(FLEET_RPC_NAMESPACE, registrations, enabled=True)
+            if registered != expected:
+                raise FleetD1RegistrationError("injected registrar returned invalid methods")
         except FleetD1RegistrationError:
             raise
         except Exception:
             raise FleetD1RegistrationError("injected registrar rejected registration") from None
-        return registered_names[0]
+        return expected[0]
 
     def handle_session_activate(self, request_id: Any, params: Any) -> dict[str, Any]:
         """Fail closed pending future host-side authority and activation semantics."""

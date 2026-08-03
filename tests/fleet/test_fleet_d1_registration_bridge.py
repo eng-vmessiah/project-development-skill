@@ -20,16 +20,24 @@ from scripts.pd_fleet.fleet_d1_registration_bridge import (  # noqa: E402
     FLEET_SESSION_STATUS_NAME,
     FLEET_SESSION_STATUS_SCHEMA_VERSION,
     FleetD1RegistrationBridge,
+    FleetD1RegistrationError,
 )
 
 
 class RecordingRegistrar:
     def __init__(self) -> None:
-        self.calls: list[tuple[str, str, object, bool]] = []
+        self.batch_calls: list[tuple[str, tuple[tuple[str, object], ...], bool]] = []
+        self.single_register_calls: list[tuple[object, ...]] = []
 
-    def register(self, namespace: str, name: str, handler: object, *, enabled: bool = False) -> str:
-        self.calls.append((namespace, name, handler, enabled))
-        return f"{namespace}.{name}"
+    def register(self, *args: object, **kwargs: object) -> str:
+        self.single_register_calls.append((*args, kwargs))
+        return "unexpected.single.register"
+
+    def register_batch(
+        self, namespace: str, registrations: tuple[tuple[str, object], ...], *, enabled: bool = False
+    ) -> tuple[str, ...]:
+        self.batch_calls.append((namespace, registrations, enabled))
+        return tuple(f"{namespace}.{name}" for name, _handler in registrations)
 
 
 def envelope(request_id: Any, status: str, code: str) -> dict[str, object]:
@@ -46,9 +54,10 @@ def invalid_request_id_error() -> dict[str, object]:
 
 def registered_handlers(bridge: FleetD1RegistrationBridge, registrar: RecordingRegistrar) -> dict[str, Callable[[Any, Any], dict[str, object]]]:
     bridge.register()
+    _namespace, registrations, _enabled = registrar.batch_calls[-1]
     return {
         name: cast(Callable[[Any, Any], dict[str, object]], handler)
-        for _namespace, name, handler, _enabled in registrar.calls
+        for name, handler in registrations
     }
 
 
@@ -58,7 +67,26 @@ def test_disabled_bridge_does_not_call_injected_registrar() -> None:
     assert FleetD1RegistrationBridge(registrar).register() == {
         "status": "not_ready", "code": "FLEET_SESSION_ACTIVATE_NOT_READY"
     }
-    assert registrar.calls == []
+    assert registrar.batch_calls == []
+    assert registrar.single_register_calls == []
+
+
+def test_enabled_bridge_without_batch_port_fails_closed_without_single_register_calls() -> None:
+    class SingleRegisterOnlyPort:
+        def __init__(self) -> None:
+            self.single_register_calls = 0
+
+        def register(self, *args: object, **kwargs: object) -> str:
+            self.single_register_calls += 1
+            return "fleet.unexpected"
+
+    port = SingleRegisterOnlyPort()
+
+    with pytest.raises(FleetD1RegistrationError) as raised:
+        FleetD1RegistrationBridge(port, enabled=True).register()
+
+    assert str(raised.value) == "invalid injected registrar"
+    assert port.single_register_calls == 0
 
 
 @pytest.mark.parametrize(
@@ -115,16 +143,26 @@ def test_invalid_request_id_prevents_deactivation_side_effect() -> None:
     assert association.detach_calls == 0
 
 
-def test_enabled_bridge_registers_only_the_four_approved_names() -> None:
+def test_enabled_bridge_submits_one_ordered_atomic_batch_without_single_register_fallback() -> None:
     registrar = RecordingRegistrar()
 
     assert FleetD1RegistrationBridge(registrar, enabled=True).register() == "fleet.session.activate"
-    assert [(namespace, name, enabled) for namespace, name, _handler, enabled in registrar.calls] == [
-        ("fleet", FLEET_SESSION_ACTIVATE_NAME, True),
-        ("fleet", FLEET_SESSION_STATUS_NAME, True),
-        ("fleet", FLEET_SESSION_DEACTIVATE_NAME, True),
-        ("fleet", FLEET_SESSION_REPLAY_NAME, True),
+    assert [
+        (namespace, tuple(name for name, _handler in registrations), enabled)
+        for namespace, registrations, enabled in registrar.batch_calls
+    ] == [
+        (
+            "fleet",
+            (
+                FLEET_SESSION_ACTIVATE_NAME,
+                FLEET_SESSION_STATUS_NAME,
+                FLEET_SESSION_DEACTIVATE_NAME,
+                FLEET_SESSION_REPLAY_NAME,
+            ),
+            True,
+        )
     ]
+    assert registrar.single_register_calls == []
 
 
 @pytest.mark.parametrize(
