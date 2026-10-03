@@ -50,6 +50,18 @@ chmod +x install.sh
 
 For a custom platform, reproduce the contracts in `skills/pd/references/multi-platform-skill-development.md`; do not copy `skills/*.md` because each skill lives in its own directory and may contain references/templates.
 
+## Hermes Fleet adapter status
+
+`HermesExistingReadOnlyAdapter` (in `scripts/pd_fleet/hermes_existing_adapter.py`)
+wraps only an explicitly injected, existing Hermes read-only client. It can delegate
+explicit session snapshot/replay/heartbeat surfaces when that client declares them,
+and validates returned data through the Fleet bridge contracts. It does **not** add
+network discovery, subprocess execution, credentials, state databases, control
+methods, Fleet observer activation, global subscriptions, opaque activation tickets,
+or issuer verification. The Fleet-owned seam and production capability therefore
+remain explicitly `NOT_READY` (`NOT_READY_HERMES_SEAM`). The separate fake adapter
+is test-only and is not a fallback for this adapter.
+
 ## Usage
 
 ### Hermes / OpenCode
@@ -104,16 +116,52 @@ resolved against validated records; unresolved references fail closed. Output
 paths are contained beneath `--output`, symlink roots are rejected, and task IDs
 must be safe path segments.
 
-### Fleet V2: local-first and fail-closed
+### Fleet V2: local-first, runtime-agnostic, and fail-closed
 
 Fleet V2 is currently **merged as a local/experimental capability**. It is not
 an operational production release, has no provider or live-network readiness
 claim, and has no human G1–G6 approval recorded here.
 The safe default is local simulation with an explicit plan and output directory;
 no shell, network, external provider, credentials, or undeclared validation
-command is invoked. External execution is deferred and, if proposed later,
+command is invoked. The executable V2 local path is:
+
+```bash
+python3 scripts/pd.py v2 run-local --plan ./fleet-plan.json \
+  --store ./.pd-fleet-runs --run-id demo --owner local --provider local
+```
+
+It uses the internal deterministic `simulated` adapter, persists a bounded report,
+validation/evidence and lifecycle state, and returns the persisted completed run
+on idempotent re-invocation. A persisted run can be inspected read-only:
+
+```bash
+python3 scripts/pd.py --json v2 inspect \
+  --store ./.pd-fleet-runs --run-id demo
+```
+
+A readiness gate read-only is available for automation:
+
+```bash
+python3 scripts/pd.py --json v2 readiness \
+  --store ./.pd-fleet-runs --run-id demo
+```
+
+It returns `ready=true` only when the persisted run and every report are completed; incomplete, failed, blocked, cancelled or unknown states return `ready=false` with a bounded reason. External execution is deferred and, if proposed later,
 requires exact argv allowlisting, containment/sandbox, timeout, redacted bounded
 output, and a separate explicit release decision.
+
+The architecture is runtime-agnostic:
+
+- `pd-only`: PD Core without Fleet or Hermes;
+- `fleet-local`: local/simulated Fleet without Hermes, credentials, network, or providers;
+- `fleet-hermes`: optional Hermes adapter/plugin (`pd-fleet-hermes`) selected by capabilities and separate gates.
+
+The Hermes plugin is a thin integration layer for tools, commands, lifecycle hooks,
+and session translation. The Fleet scheduler, persistence, checkpoints, DAG, gates,
+and reports remain outside the plugin.
+
+See [`docs/PD-FLEET-RUNTIME-ADAPTERS.md`](docs/PD-FLEET-RUNTIME-ADAPTERS.md). Hermes
+integration is not required to use the PD skill or local Fleet.
 
 Migration preserves V1 state and uses a separate V2 namespace/output; rollback
 stops dispatch, invalidates leases, and restores the last valid snapshot without

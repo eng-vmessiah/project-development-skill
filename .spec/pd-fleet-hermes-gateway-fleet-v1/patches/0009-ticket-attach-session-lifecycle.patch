@@ -1,0 +1,490 @@
+From 25880126f4ec1f825f351492141f9b911dda6298 Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Thu, 30 Jul 2026 17:17:45 -0300
+Subject: [PATCH] feat(fleet): wire ticket attach to session lifecycle
+
+---
+ gateway/platforms/api_server.py           |  50 ++++-
+ hermes_cli/fleet_activation.py            |   7 +-
+ hermes_cli/fleet_session_lifecycle.py     | 245 ++++++++++++++++++++++
+ tests/hermes_cli/test_fleet_activation.py |  85 ++++++++
+ 4 files changed, 384 insertions(+), 3 deletions(-)
+ create mode 100644 hermes_cli/fleet_session_lifecycle.py
+
+diff --git a/gateway/platforms/api_server.py b/gateway/platforms/api_server.py
+index cceb4e9ff4..0405e0cb96 100644
+--- a/gateway/platforms/api_server.py
++++ b/gateway/platforms/api_server.py
+@@ -71,6 +71,7 @@ from hermes_cli.fleet_activation import (
+     FleetPrincipalResolver,
+ )
+ from hermes_cli.fleet_session_bridge import DashboardSessionRequestBridge
++from hermes_cli.fleet_session_lifecycle import FleetSessionLifecycleIntegration
+ from hermes_cli.fleet_observer_transport import (
+     FleetObserverHTTPAdapter,
+     FleetTransportConfig,
+@@ -861,7 +862,8 @@ class APIServerAdapter(BasePlatformAdapter):
+                  fleet_principal_resolver: Optional[FleetPrincipalResolver] = None,
+                  fleet_activation_owner: Optional[FleetActivationOwner] = None,
+                  fleet_lifecycle_publisher: Optional[FleetLifecyclePublisher] = None,
+-                 fleet_activation_binding: Optional[FleetActivationBinding] = None):
++                 fleet_activation_binding: Optional[FleetActivationBinding] = None,
++                 fleet_session_lifecycle_integration: Optional[FleetSessionLifecycleIntegration] = None):
+         super().__init__(config, Platform.API_SERVER)
+         extra = config.extra or {}
+         self._host: str = extra.get("host", os.getenv("API_SERVER_HOST", DEFAULT_HOST))
+@@ -932,8 +934,11 @@ class APIServerAdapter(BasePlatformAdapter):
+         self._fleet_lifecycle_publisher = fleet_lifecycle_publisher
+         self._fleet_activation_binding = fleet_activation_binding
+         self._fleet_session_bridge: Optional[DashboardSessionRequestBridge] = None
++        self._fleet_session_lifecycle_integration: Optional[FleetSessionLifecycleIntegration] = None
+         if fleet_activation_owner is not None:
+             self.configure_fleet_activation_owner(fleet_activation_owner)
++        if fleet_session_lifecycle_integration is not None:
++            self.configure_fleet_session_lifecycle_integration(fleet_session_lifecycle_integration)
+ 
+     def configure_fleet_activation_owner(self, owner: FleetActivationOwner) -> None:
+         """Inject the server's exact activation owner before connecting."""
+@@ -955,6 +960,39 @@ class APIServerAdapter(BasePlatformAdapter):
+             raise RuntimeError("fleet session bridge must be configured before connect")
+         self._fleet_session_bridge = bridge
+ 
++    def configure_fleet_session_lifecycle_integration(self, integration: FleetSessionLifecycleIntegration) -> None:
++        """Inject the explicit lifecycle seam without enabling Fleet."""
++        if type(integration) is not FleetSessionLifecycleIntegration:
++            raise TypeError("fleet lifecycle integration must be an exact FleetSessionLifecycleIntegration")
++        if type(self._fleet_activation_owner) is not FleetActivationOwner:
++            raise RuntimeError("fleet lifecycle integration requires a configured fleet activation owner")
++        if integration.owner is not self._fleet_activation_owner:
++            raise ValueError("fleet lifecycle integration owner does not match the configured owner")
++        if self._app is not None or self._runner is not None or self._site is not None:
++            raise RuntimeError("fleet lifecycle integration must be configured before connect")
++        self._fleet_session_lifecycle_integration = integration
++
++    def _fleet_status_value(self, session: Any, fallback: str = "active") -> str:
++        value = session.get("status") if isinstance(session, dict) else None
++        if type(value) is str and value and len(value) <= 256 and all(ord(c) >= 32 and ord(c) != 127 for c in value):
++            return value
++        return fallback
++
++    def _fleet_lifecycle_principal(self, request: Any) -> Optional[FleetPrincipal]:
++        return self._resolve_fleet_principal(request)
++
++    def _fleet_lifecycle_call(self, method: str, request: Any, session_ref: str, *args: Any) -> None:
++        if self._pd_fleet_enabled is not True:
++            return
++        integration = self._fleet_session_lifecycle_integration
++        principal = self._fleet_lifecycle_principal(request)
++        if integration is None or principal is None:
++            return
++        try:
++            getattr(integration, method)(principal, session_ref, *args)
++        except Exception as exc:
++            logger.warning("Fleet session lifecycle hook %s failed: %s", method, type(exc).__name__)
++
+     def _resolve_fleet_principal(self, request_or_context: Any) -> Optional[FleetPrincipal]:
+         """Return only an exact, owner-validated principal; otherwise None."""
+         if self._pd_fleet_enabled is not True:
+@@ -1912,6 +1950,14 @@ class APIServerAdapter(BasePlatformAdapter):
+                 db.delete_session(session_id)
+                 return web.json_response(_openai_error(str(exc), code="invalid_title"), status=400)
+         session = db.get_session(session_id) or {"id": session_id, "source": "api_server", "model": model, "title": title}
++        if self._pd_fleet_enabled is True and self._fleet_session_lifecycle_integration is not None:
++            principal = self._fleet_lifecycle_principal(request)
++            if principal is not None:
++                try:
++                    self._fleet_session_lifecycle_integration.registered_if_attached(
++                        principal, session_id, self._fleet_status_value(session), {})
++                except Exception as exc:
++                    logger.warning("Fleet session lifecycle hook registered_if_attached failed: %s", type(exc).__name__)
+         return web.json_response({"object": "hermes.session", "session": self._session_response(session)}, status=201)
+ 
+     async def _handle_get_session(self, request: "web.Request") -> "web.Response":
+@@ -1949,6 +1995,7 @@ class APIServerAdapter(BasePlatformAdapter):
+                 return web.json_response(_openai_error(str(exc), code="invalid_title"), status=400)
+         if body.get("end_reason"):
+             db.end_session(session_id, str(body["end_reason"]))
++            self._fleet_lifecycle_call("ended", request, session_id, str(body["end_reason"]))
+         session = db.get_session(session_id) or session
+         return web.json_response({"object": "hermes.session", "session": self._session_response(session)})
+ 
+@@ -1963,6 +2010,7 @@ class APIServerAdapter(BasePlatformAdapter):
+             return err
+         db = self._ensure_session_db()
+         deleted = db.delete_session(session_id)
++        self._fleet_lifecycle_call("ended", request, session_id, "deleted")
+         return web.json_response({"object": "hermes.session.deleted", "id": session_id, "deleted": bool(deleted)})
+ 
+     async def _handle_session_messages(self, request: "web.Request") -> "web.Response":
+diff --git a/hermes_cli/fleet_activation.py b/hermes_cli/fleet_activation.py
+index 6fa66a3d3a..3da9760183 100644
+--- a/hermes_cli/fleet_activation.py
++++ b/hermes_cli/fleet_activation.py
+@@ -377,8 +377,11 @@ class FleetLifecyclePublisher:
+                 raise FleetActivationNotReady("fleet lifecycle publisher is not ready")
+             if type(binding) is not FleetActivationBinding:
+                 raise FleetActivationError("binding must be a FleetActivationBinding")
+-            if binding != self._binding:
+-                raise FleetActivationError("binding is not this publisher's binding")
++            if (binding.observer_ref != self._binding.observer_ref
++                    or binding.owner_ref != self._binding.owner_ref
++                    or binding.purpose != self._binding.purpose
++                    or binding.ownership_mode != self._binding.ownership_mode):
++                raise FleetActivationError("binding is not authorized for this publisher")
+             self._owner._validate_binding_locked(principal, binding)
+             if type(scope) is not FleetObserverScope:
+                 raise FleetActivationError("scope must be a FleetObserverScope")
+diff --git a/hermes_cli/fleet_session_lifecycle.py b/hermes_cli/fleet_session_lifecycle.py
+new file mode 100644
+index 0000000000..7aca6ee1ab
+--- /dev/null
++++ b/hermes_cli/fleet_session_lifecycle.py
+@@ -0,0 +1,245 @@
++"""Explicit, owner-authenticated session lifecycle integration seam.
++
++This module is intentionally inert until an already-ready owner, activation
++registry, and lifecycle publisher are injected by an explicit caller.
++"""
++from __future__ import annotations
++
++from threading import RLock
++from typing import Any, Mapping
++
++from .fleet_activation import (
++    OWNERSHIP_MODE,
++    FleetActivationBinding,
++    FleetActivationError,
++    FleetActivationNotReady,
++    FleetActivationOwner,
++    FleetLifecyclePublisher,
++    FleetPrincipal,
++)
++from .fleet_observer import FleetObserverScope
++from .fleet_session_activation import FleetActivationTicket, FleetSessionActivationRegistry
++
++MAX_VALUE_LENGTH = 256
++MAX_METADATA_FIELDS = 16
++MAX_METADATA_DEPTH = 2
++_FORBIDDEN = frozenset({
++    "password", "pass", "authorization", "auth", "cookie", "secret", "token",
++    "api_key", "apikey", "private_key", "privatekey", "credential", "credentials",
++    "prompt", "history", "message", "messages", "tool", "tools", "provider",
++    "terminal", "filesystem", "path", "file", "files", "content", "issuer",
++    "subject", "owner", "principal", "identity",
++})
++
++
++def _bounded_string(value: Any, name: str) -> str:
++    if type(value) is not str or not value or len(value) > MAX_VALUE_LENGTH:
++        raise FleetActivationError(f"{name} must be a bounded string")
++    if any(ord(c) < 32 or ord(c) == 127 for c in value):
++        raise FleetActivationError(f"{name} must be a bounded string")
++    return value
++
++
++def _safe_metadata(value: Any) -> dict[str, Any]:
++    if value is None:
++        return {}
++    if not isinstance(value, Mapping) or len(value) > MAX_METADATA_FIELDS:
++        raise FleetActivationError("metadata must be a bounded mapping")
++
++    def clean(item: Any, depth: int) -> Any:
++        if depth > MAX_METADATA_DEPTH:
++            raise FleetActivationError("metadata is too deep")
++        if isinstance(item, str):
++            return _bounded_string(item, "metadata value")
++        if item is None or type(item) is bool or type(item) is int or type(item) is float:
++            return item
++        if isinstance(item, Mapping) and len(item) <= MAX_METADATA_FIELDS:
++            if any(type(k) is not str or k.casefold() in _FORBIDDEN for k in item):
++                raise FleetActivationError("metadata contains unavailable values")
++            return {k: clean(v, depth + 1) for k, v in item.items()}
++        raise FleetActivationError("metadata contains unavailable values")
++
++    if any(type(key) is not str or key.casefold() in _FORBIDDEN for key in value):
++        raise FleetActivationError("metadata contains unavailable values")
++    return {key: clean(item, 0) for key, item in value.items()}
++
++
++class FleetSessionLifecycleIntegration:
++    """Map one-shot activation tickets to authoritative session lifecycle."""
++
++    OWNERSHIP_MODE = OWNERSHIP_MODE
++
++    def __init__(self, owner: FleetActivationOwner,
++                 registry: FleetSessionActivationRegistry,
++                 publisher: FleetLifecyclePublisher, *, max_sessions: int = 1024) -> None:
++        if type(owner) is not FleetActivationOwner:
++            raise TypeError("owner must be an exact FleetActivationOwner")
++        if not owner.ready:
++            raise FleetActivationNotReady("fleet activation owner is not ready")
++        if type(registry) is not FleetSessionActivationRegistry or registry.owner is not owner:
++            raise TypeError("registry must be owned by the exact owner")
++        if type(publisher) is not FleetLifecyclePublisher:
++            raise TypeError("publisher must be an exact FleetLifecyclePublisher")
++        if getattr(publisher, "_owner", None) is not owner:
++            raise TypeError("publisher must be owned by the exact owner")
++        if type(max_sessions) is not int or isinstance(max_sessions, bool) or not 1 <= max_sessions <= 1024:
++            raise ValueError("max_sessions must be between 1 and 1024")
++        self._owner = owner
++        self._registry = registry
++        self._publisher = publisher
++        self._max_sessions = max_sessions
++        # The attached record is the authoritative lifecycle state.  Keep the
++        # last successfully published status alongside the authenticated
++        # principal and binding; callers must not infer state from the hub.
++        self._attached: dict[str, tuple[FleetPrincipal, FleetActivationBinding, str]] = {}
++        self._lock = RLock()
++
++    @property
++    def owner(self) -> FleetActivationOwner:
++        return self._owner
++
++    def _scope(self, binding: FleetActivationBinding, session_ref: str) -> FleetObserverScope:
++        return FleetObserverScope(self._owner.owner_ref, binding.observer_ref, session_ref=session_ref)
++
++    def _publish(self, principal: FleetPrincipal, event: str,
++                 binding: FleetActivationBinding, session_ref: str, payload: Mapping[str, Any]) -> Any:
++        return self._publisher.publish(principal, event, binding, self._scope(binding, session_ref), dict(payload))
++
++    def attach(self, ticket: FleetActivationTicket, principal: FleetPrincipal, session_ref: str,
++               *, status: str = "active", metadata: Mapping[str, Any] | None = None) -> FleetActivationBinding:
++        if type(ticket) is not FleetActivationTicket or type(principal) is not FleetPrincipal:
++            raise FleetActivationError("ticket and principal are malformed")
++        if type(session_ref) is not str or not session_ref:
++            raise FleetActivationError("session_ref is malformed")
++        clean_status = _bounded_string(status, "status")
++        clean_metadata = _safe_metadata(metadata)
++        with self._lock:
++            if session_ref in self._attached:
++                raise FleetActivationError("session is already attached")
++            if len(self._attached) >= self._max_sessions:
++                raise FleetActivationError("lifecycle session capacity is exhausted")
++            binding = self._registry.consume(ticket, principal, session_ref)
++            try:
++                self._publish(principal, "session.registered", binding, session_ref,
++                              {"status": clean_status, "metadata": clean_metadata})
++            except Exception as exc:
++                try:
++                    self._registry.revoke(principal, session_ref)
++                except Exception:
++                    pass
++                raise FleetActivationError("session lifecycle registration failed") from exc
++            self._attached[session_ref] = (principal, binding, clean_status)
++            return binding
++
++    def _attached_binding(self, principal: FleetPrincipal, session_ref: str) -> FleetActivationBinding:
++        if type(principal) is not FleetPrincipal or type(session_ref) is not str:
++            raise FleetActivationError("session lifecycle identity is malformed")
++        try:
++            self._owner.validate_principal(principal)
++        except Exception:
++            raise FleetActivationError("session lifecycle identity is not owner-issued") from None
++
++        item = self._attached.get(session_ref)
++        if item is None:
++            raise FleetActivationError("session is not attached to this principal")
++
++        attached_principal = item[0]
++        try:
++            same_issued_identity = (
++                attached_principal._authority is principal._authority
++                and attached_principal._activation_epoch == principal._activation_epoch
++                and (
++                    attached_principal.issuer_ref,
++                    attached_principal.subject_ref,
++                    attached_principal.owner_ref,
++                    attached_principal.provider,
++                    attached_principal.scopes,
++                ) == (
++                    principal.issuer_ref,
++                    principal.subject_ref,
++                    principal.owner_ref,
++                    principal.provider,
++                    principal.scopes,
++                )
++                and attached_principal.issuer_ref == self._owner.issuer_ref
++                and attached_principal.owner_ref == self._owner.owner_ref
++            )
++        except (AttributeError, TypeError):
++            same_issued_identity = False
++        if not same_issued_identity:
++            raise FleetActivationError("session is not attached to this principal")
++        return item[1]
++
++    def status_changed(self, principal: FleetPrincipal, session_ref: str, status: str) -> None:
++        clean_status = _bounded_string(status, "status")
++        with self._lock:
++            binding = self._attached_binding(principal, session_ref)
++            try:
++                self._publish(principal, "session.status_changed", binding, session_ref,
++                              {"status": clean_status})
++            except Exception as exc:
++                raise FleetActivationError("session lifecycle status update failed") from exc
++            current = self._attached.get(session_ref)
++            if current is None or current[0] != principal or current[1] != binding:
++                raise FleetActivationError("session lifecycle status update failed")
++            self._attached[session_ref] = (current[0], current[1], clean_status)
++
++    def ended(self, principal: FleetPrincipal, session_ref: str, reason: str) -> None:
++        clean_reason = _bounded_string(reason, "reason")
++        with self._lock:
++            binding = self._attached_binding(principal, session_ref)
++            failed = False
++            try:
++                self._publish(principal, "session.ended", binding, session_ref, {"reason": clean_reason})
++            except Exception:
++                failed = True
++            finally:
++                try:
++                    self._registry.revoke(principal, session_ref)
++                except Exception:
++                    failed = True
++                self._attached.pop(session_ref, None)
++            if failed:
++                raise FleetActivationError("session lifecycle termination failed")
++
++    def detach(self, principal: FleetPrincipal, session_ref: str, reason: str = "detached") -> None:
++        clean_reason = _bounded_string(reason, "reason")
++        with self._lock:
++            binding = self._attached_binding(principal, session_ref)
++            failed = False
++            try:
++                self._publish(principal, "session.detached", binding, session_ref, {"reason": clean_reason})
++            except Exception:
++                failed = True
++            finally:
++                try:
++                    self._registry.revoke(principal, session_ref)
++                except Exception:
++                    failed = True
++                self._attached.pop(session_ref, None)
++            if failed:
++                raise FleetActivationError("session lifecycle termination failed")
++
++    def active(self, session_ref: str) -> bool:
++        with self._lock:
++            return type(session_ref) is str and session_ref in self._attached
++
++    def registered_if_attached(self, principal: FleetPrincipal, session_ref: str,
++                               status: str = "active", metadata: Mapping[str, Any] | None = None) -> bool:
++        """Validate an idempotent registration callback without republishing.
++
++        ``attach`` is authoritative and has already emitted
++        ``session.registered``.  This compatibility seam validates supplied
++        event data but never creates a duplicate event or mutates state.
++        """
++        clean_status = _bounded_string(status, "status")
++        clean_metadata = _safe_metadata(metadata)
++        with self._lock:
++            if (type(principal) is not FleetPrincipal or type(session_ref) is not str
++                    or not session_ref):
++                return False
++            item = self._attached.get(session_ref)
++            if item is None or item[0] != principal:
++                return False
++            _ = clean_status, clean_metadata
++            return True
+diff --git a/tests/hermes_cli/test_fleet_activation.py b/tests/hermes_cli/test_fleet_activation.py
+index a097eb7db3..63d2ecab7b 100644
+--- a/tests/hermes_cli/test_fleet_activation.py
++++ b/tests/hermes_cli/test_fleet_activation.py
+@@ -11,6 +11,7 @@ from hermes_cli.fleet_activation import (
+ from hermes_cli.dashboard_auth.base import Session, TokenPrincipal
+ from hermes_cli.fleet_observer import FleetObserverConfig, FleetObserverHub, FleetObserverScope
+ from hermes_cli.fleet_session_activation import FleetActivationTicket, FleetSessionActivationRegistry
++from hermes_cli.fleet_session_lifecycle import FleetSessionLifecycleIntegration
+ 
+ 
+ def owner(**changes):
+@@ -265,3 +266,87 @@ def test_session_activation_consumed_entry_remains_revocable_until_expiry():
+     now[0] = 105.0
+     registry.active("other")
+     assert "session" not in registry._entries
++
++
++def lifecycle():
++    o = active_owner()
++    p = o.issue_principal("observer")
++    h = hub()
++    b = o.issue_binding("observer")
++    publisher = FleetLifecyclePublisher(h, o, b)
++    registry = FleetSessionActivationRegistry(o)
++    return o, p, registry, FleetSessionLifecycleIntegration(o, registry, publisher)
++
++
++def test_lifecycle_status_is_authoritative_and_failed_publish_preserves_it(monkeypatch):
++    _, p, registry, integration = lifecycle()
++    ticket = registry.activate(p, "session")
++    integration.attach(ticket, p, "session", status="starting")
++    assert integration._attached["session"][2] == "starting"
++
++    integration.status_changed(p, "session", "ready")
++    assert integration._attached["session"][2] == "ready"
++
++    def fail(*args, **kwargs):
++        raise RuntimeError("opaque publisher failure")
++
++    monkeypatch.setattr(FleetLifecyclePublisher, "publish", fail)
++    with pytest.raises(FleetActivationError, match="status update failed") as error:
++        integration.status_changed(p, "session", "broken")
++    assert "opaque publisher failure" not in str(error.value)
++    assert integration._attached["session"][2] == "ready"
++    assert integration.active("session")
++
++
++def test_lifecycle_ended_failed_publish_still_revokes_and_detaches(monkeypatch):
++    _, p, registry, integration = lifecycle()
++    ticket = registry.activate(p, "session")
++    integration.attach(ticket, p, "session")
++
++    def fail(*args, **kwargs):
++        raise RuntimeError("secret")
++
++    monkeypatch.setattr(FleetLifecyclePublisher, "publish", fail)
++    with pytest.raises(FleetActivationError, match="termination failed") as error:
++        integration.ended(p, "session", "closed")
++    assert "secret" not in str(error.value)
++    assert not integration.active("session")
++    assert not registry.active("session")
++    assert "session" in registry._revoked
++
++
++def test_lifecycle_forged_principal_cannot_teardown_attached_session():
++    _, p, registry, integration = lifecycle()
++    ticket = registry.activate(p, "session")
++    integration.attach(ticket, p, "session")
++    forged = FleetPrincipal(p.issuer_ref, p.subject_ref, p.owner_ref, p.provider, p.scopes)
++
++    for teardown in (
++        lambda: integration.ended(forged, "session", "closed"),
++        lambda: integration.detach(forged, "session"),
++    ):
++        with pytest.raises(FleetActivationError, match="not owner-issued"):
++            teardown()
++        assert integration.active("session")
++
++    integration.ended(p, "session", "closed")
++    assert not integration.active("session")
++
++
++def test_registered_if_attached_is_idempotent_but_validates_event_data(monkeypatch):
++    _, p, registry, integration = lifecycle()
++    ticket = registry.activate(p, "session")
++    calls = []
++    original = FleetLifecyclePublisher.publish
++
++    def record(self, *args, **kwargs):
++        calls.append(args[1] if len(args) > 1 else None)
++        return original(self, *args, **kwargs)
++
++    monkeypatch.setattr(FleetLifecyclePublisher, "publish", record)
++    integration.attach(ticket, p, "session")
++    assert calls == ["session.registered"]
++    assert integration.registered_if_attached(p, "session", status="later", metadata={"ui": "test"})
++    assert calls == ["session.registered"]
++    with pytest.raises(FleetActivationError):
++        integration.registered_if_attached(p, "session", metadata={"token": "must reject"})
+-- 
+2.43.0
+

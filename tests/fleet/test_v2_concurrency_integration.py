@@ -1,8 +1,11 @@
 """T2-14 integration contract: workers are pure, commits are canonical."""
 from pathlib import Path
 import sys
+import threading
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
+
+from pd_fleet.parallel import BoundedParallelExecutor
 
 from pd_fleet.orchestrator import FleetOrchestrator
 from pd_fleet.checkpoint import Checkpoint
@@ -39,10 +42,21 @@ class Executor:
 
 
 class Store:
-    def __init__(self, *, fail_events=False): self.commits = []; self.events = []; self.fail_events = fail_events
-    def load(self, run_id): return {"attempts": {"a": 1, "b": 1}}
+    def __init__(self, *, fail_events=False, reports=None, events=None):
+        self.commits = []; self.events = list(events or []); self.fail_events = fail_events
+        self.reports = dict(reports or {})
+    def load(self, run_id): return {"attempts": {"a": 1, "b": 1}, "reports": self.reports, "events": self.events}
     def commit(self, run_id, task_id, token, owner, value, *, status):
         self.commits.append((task_id, value, status))
+        self.reports[task_id] = {"status": status, "report": value}
+    def append_terminal_event_if_absent(self, run_id, task_id, owner):
+        if self.fail_events: raise RuntimeError("event token=super-secret /home/private")
+        existing = [event for event in self.events if event.get("event_id") == task_id and event.get("ordering_key") == task_id]
+        if existing: return {"appended": False, "generation": 0, "event": existing[0]}
+        event = {"event_id": task_id, "ordering_key": task_id, "task_id": task_id,
+                 "status": self.reports[task_id]["status"], "sequence": len(self.events) + 1}
+        self.events.append(event)
+        return {"appended": True, "generation": 0, "event": event}
     def append_event(self, run_id, event, owner):
         if self.fail_events: raise RuntimeError("event token=super-secret /home/private")
         self.events.append(event)
@@ -105,3 +119,50 @@ def test_run_v2_requires_context_before_claim():
     result = orchestrator.run_v2()
     assert set(result.blocked) == {"a", "b"}
     assert scheduler.claimed is False
+
+
+def test_v2_orchestration_has_real_two_worker_overlap_with_canonical_persistence():
+    entered = [0]
+    peak = [0]
+    lock = threading.Lock()
+    barrier = threading.Barrier(2)
+    store = Store()
+
+    def adapter(task, _token):
+        with lock:
+            entered[0] += 1
+            peak[0] = max(peak[0], entered[0])
+        barrier.wait(timeout=2)
+        with lock:
+            entered[0] -= 1
+        return report(task.id)
+
+    executor = BoundedParallelExecutor(max_workers=2)
+    try:
+        result = FleetOrchestrator(PLAN, max_parallel=2, scheduler=Scheduler(), store=store,
+            executor=executor, adapter=adapter, run_id="run", run_owner="owner",
+            reconciliation_context=reconciliation_context()).run_v2()
+    finally:
+        executor.close()
+    assert peak[0] == 2
+    assert result.statuses == {"a": "completed", "b": "completed"}
+    assert [task_id for task_id, _, _ in store.commits] == ["a", "b"]
+    assert [event["task_id"] for event in store.events] == ["a", "b"]
+
+
+def test_v2_resume_hydrates_committed_task_and_repairs_missing_event_without_replay():
+    class ResumeScheduler(Scheduler):
+        def ready_ids(self): return [] if self.claimed else ["b"]
+        def claim(self, owner, *, limit):
+            self.claimed = True
+            return [{"task_id": "b", "lease_id": "b", "generation": 1}]
+
+    seen = []
+    store = Store(reports={"a": {"status": "completed", "report": report("a")}})
+    result = FleetOrchestrator(PLAN, max_parallel=1, scheduler=ResumeScheduler(), store=store,
+        executor=Executor(), adapter=lambda task, token: (seen.append(task.id) or report(task.id)),
+        run_id="run", run_owner="owner", reconciliation_context=reconciliation_context()).run_v2()
+    assert seen == ["b"]
+    assert result.statuses == {"a": "completed", "b": "completed"}
+    assert [entry["task_id"] for entry in store.events] == ["a", "b"]
+    assert [task_id for task_id, _, _ in store.commits] == ["b"]

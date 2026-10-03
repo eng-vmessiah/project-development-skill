@@ -1,0 +1,27 @@
+{
+  "schema_version": "pd-fleet-hermes-adapter:v0",
+  "fixture_id": "forbidden-input",
+  "operation": "execute",
+  "lineage": {
+    "run_id": "run-001",
+    "task_id": "task-001",
+    "attempt_id": "attempt-001",
+    "session_handle_id": "handle-001",
+    "workspace_id": "ws-001"
+  },
+  "owner": "owner-team",
+  "expected_generation": 3,
+  "idempotency_key": "idem-execute-002",
+  "request_fingerprint": "sha256:ad29df7070e458e365fc1d3a3512f90fd30da5c2b7031d12e3f922a30b7f7b54",
+  "input": {
+    "prompt": "token=do-not-store /absolute/private/path",
+    "credentials": "forbidden",
+    "root_ref": "/absolute/path",
+    "oversized_field_bytes": 8193
+  },
+  "expected": {
+    "status": "rejected",
+    "dispatch_count_delta": 0,
+    "error_code": "forbidden_field"
+  }
+}

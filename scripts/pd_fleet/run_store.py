@@ -37,7 +37,7 @@ Clock = Callable[[], str]
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 _STATUSES = frozenset(("created", "running", "completed", "failed", "cancelled", "blocked"))
 _TASK_STATUSES = _STATUSES | frozenset(("pending", "ready", "blocked", "orphaned", "skipped"))
-_TERMINAL_TASK_STATUSES = frozenset(("completed", "skipped", "failed", "blocked"))
+_TERMINAL_TASK_STATUSES = frozenset(("completed", "failed", "blocked", "cancelled", "orphaned", "skipped"))
 _REPORT_STATUSES = frozenset(("completed", "failed", "blocked"))
 _REPORT_FIELDS = frozenset(("status", "outputs", "evidence", "tests", "validation", "decision", "started_at", "completed_at", "reason", "error", "blocker"))
 _SENSITIVE = re.compile(r"(?i)(token|secret|password|credential|api[_ -]?key|authorization|private[_ -]?key)")
@@ -294,6 +294,9 @@ class FleetRunStore:
         try:
             st = os.fstat(fd)
             if not stat.S_ISREG(st.st_mode): raise OSError(errno.ELOOP, "snapshot is not regular")
+            max_bytes = getattr(self, "_max_snapshot_bytes", None)
+            if type(max_bytes) is int and max_bytes >= 0 and st.st_size > max_bytes:
+                raise OSError(errno.EFBIG, "snapshot exceeds bounded read limit")
             chunks=[]
             while True:
                 chunk=os.read(fd, 1024*1024)
@@ -363,6 +366,54 @@ class FleetRunStore:
             if type(status) is not str or status not in _STATUSES: raise RunStoreError("invalid status")
             s["status"] = status
         return self._mutate(run_id,owner,expected_generation,change)
+    def update_task_status(self, run_id, task_id, status, owner, *, expected_generation=None):
+        """Atomically update one known task's lifecycle status.
+
+        This is an invalidation/status-observation seam: it changes only the
+        task status and fences any active lease for that task, without creating
+        or changing attempt counts. It uses the same guarded, sealed mutation
+        path as other run-store mutations.
+        """
+        _safe_id(task_id)
+        if type(status) is not str or status not in _TASK_STATUSES:
+            raise RunStoreError("invalid task status")
+
+        def change(s):
+            known = {item.get("id") for item in s["plan"].get("tasks", []) if isinstance(item, Mapping)}
+            if task_id not in known:
+                raise RunStoreError("unknown task id")
+            if task_id in s["reports"]:
+                raise RunStoreError("cannot invalidate committed task")
+            s["tasks"].setdefault(task_id, {})["status"] = status
+            s["leases"].pop(task_id, None)
+
+        state = self._mutate(run_id, owner, expected_generation, change)
+        return self._seal(state)
+    def append_terminal_event_if_absent(self, run_id, task_id, owner, *, expected_generation=None):
+        _safe_id(task_id)
+        with self._guard():
+            state = self._valid_snapshot(run_id)
+            if state is None: raise RunNotFoundError("run snapshot unavailable")
+            if state["owner"] != owner: raise OwnerMismatchError("run owner mismatch")
+            if expected_generation is not None and (type(expected_generation) is not int or state["generation"] != expected_generation):
+                raise GenerationConflictError("generation mismatch")
+            record = state["reports"].get(task_id)
+            if not isinstance(record, Mapping) or record.get("status") not in _REPORT_STATUSES:
+                raise RunStoreError("terminal report required")
+            status = record["status"]
+            canonical = [event for event in state["events"] if isinstance(event, Mapping)
+                         and event.get("event_id") == task_id and event.get("ordering_key") == task_id]
+            if canonical:
+                if any(event.get("task_id") == task_id and event.get("status") == status for event in canonical):
+                    return {"appended": False, "generation": state["generation"], "event": deepcopy(canonical[0])}
+                raise RunStoreError("conflicting terminal event")
+            candidate = deepcopy(state)
+            event = {"event_id": task_id, "ordering_key": task_id, "task_id": task_id,
+                     "status": status, "sequence": candidate["event_sequence"] + 1}
+            candidate["events"].append(event); candidate["event_sequence"] += 1; candidate["generation"] += 1
+            candidate["updated_at"] = _clock_value(self._clock); self._write(run_id, candidate)
+            return {"appended": True, "generation": candidate["generation"], "event": deepcopy(event)}
+
     def append_event(self, run_id,event,owner,*,expected_generation=None):
         if not isinstance(event,Mapping): raise RunStoreError("event must be an object")
         def add(s):
@@ -385,6 +436,11 @@ class FleetRunStore:
             plan_tasks = s["plan"].get("tasks", [])
             known = {item.get("id") for item in plan_tasks if isinstance(item, Mapping)}
             if task_id not in known: raise RunStoreError("unknown task id")
+            task_state = s["tasks"].get(task_id)
+            report_state = s["reports"].get(task_id)
+            if ((isinstance(task_state, Mapping) and task_state.get("status") in _TERMINAL_TASK_STATUSES) or
+                    (isinstance(report_state, Mapping) and report_state.get("status") in _TERMINAL_TASK_STATUSES)):
+                raise RunStoreError("cannot claim terminal task")
             # Sample lease time only after the store lock is acquired.
             now = _clock_value(self._clock)
             old=s["leases"].get(task_id)
@@ -411,7 +467,10 @@ class FleetRunStore:
             raise RunStoreError("max_parallel must be positive")
         if type(lease_seconds) not in (int, float) or isinstance(lease_seconds, bool) or not math.isfinite(lease_seconds) or lease_seconds <= 0:
             raise LeaseError("lease duration must be positive")
-        ids = list(task_ids)
+        try:
+            ids = list(task_ids)
+        except TypeError as exc:
+            raise RunStoreError("task ids must be iterable") from exc
         if any(type(tid) is not str or not _ID.fullmatch(tid) for tid in ids) or len(set(ids)) != len(ids):
             raise RunStoreError("invalid task id")
         with self._guard():
@@ -501,11 +560,27 @@ class FleetRunStore:
             candidate["updated_at"] = _clock_value(self._clock)
             self._write(run_id, candidate)
             return tokens
+    def _validate_token_shape(self, s, task_id, token):
+        required = {"run_id", "task_id", "lease_id", "generation", "expires_at"}
+        if (not isinstance(token, Mapping) or set(token) != required or
+                token.get("run_id") != s.get("run_id") or token.get("task_id") != task_id or
+                type(token.get("generation")) is not int or type(token.get("lease_id")) is not str or
+                type(token.get("expires_at")) is not str):
+            raise LeaseError("invalid lease")
+        try:
+            _clock_value(lambda: token["expires_at"])
+        except RunStoreError as exc:
+            raise LeaseError("invalid lease") from exc
+
     def _check_token(self,s,task_id,token,now=None):
-        if not isinstance(token,Mapping) or type(token.get("generation")) is not int or type(token.get("lease_id")) is not str: raise LeaseError("invalid lease")
+        self._validate_token_shape(s, task_id, token)
         lease=s["leases"].get(task_id)
         if now is None: now = _clock_value(self._clock)
-        if not lease or lease.get("lease_id")!=token["lease_id"] or lease.get("generation")!=token["generation"] or lease.get("expires_at","")<=now: raise LeaseError("stale or expired lease")
+        if (not lease or lease.get("lease_id")!=token["lease_id"] or
+                lease.get("generation")!=token["generation"] or
+                lease.get("expires_at") != token["expires_at"] or
+                lease.get("expires_at","")<=now):
+            raise LeaseError("stale or expired lease")
         return lease
     def use(self,run_id,task_id,token,owner):
         with self._guard():
@@ -537,7 +612,7 @@ class FleetRunStore:
             s=self._valid_snapshot(run_id)
             if s is None: raise RunNotFoundError("run snapshot unavailable")
             if s["owner"]!=owner: raise OwnerMismatchError("run owner mismatch")
-            if not isinstance(token,Mapping): raise LeaseError("invalid lease")
+            self._validate_token_shape(s, task_id, token)
             existing=s["reports"].get(task_id)
             if existing is not None:
                 if existing.get("lease_id")!=token.get("lease_id") or existing.get("lease_generation")!=token.get("generation"): raise LeaseError("stale or invalid lease")

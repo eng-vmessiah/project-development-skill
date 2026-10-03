@@ -331,3 +331,10 @@ def test_untrusted_mapping_truthiness_and_hash_are_not_coerced():
 
     result = Dispatcher(routes=HostileMapping({"coder": "simulated"})).dispatch(task())
     assert result.status == "completed"
+
+
+def test_simulated_v2_report_rejects_unbounded_or_path_output_name():
+    adapter = SimulatedAdapter()
+    for output_name in ("/home/private", "x" * 129):
+        with pytest.raises(AdapterDeniedError):
+            adapter.dispatch(task(outputs=[{"name": output_name}]), {"report_v2": True})

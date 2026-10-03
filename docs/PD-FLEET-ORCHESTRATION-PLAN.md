@@ -1,8 +1,28 @@
 # PD Fleet Orchestration — Plano de Evolução
 
-**Status:** implementação local verificada parcialmente; aguardando verification gate humano
+**Status:** plano histórico de evolução; o objetivo vigente é verificação local/simulada, sem
+runtime live ou produção
 **Branch de planejamento:** `feat/pd-fleet-orchestration-plan`
-**Objetivo:** evoluir o PD de um pipeline orientado a fases para um sistema de planejamento e execução coordenada por uma fleet de subagents.
+**Objetivo histórico:** evoluir o PD de um pipeline orientado a fases para um sistema de
+planejamento e coordenação por uma fleet de subagents. A direção vigente restringe a execução
+ao protocolo local/simulado.
+
+## 0. Direção vigente e limites
+
+Este documento preserva o histórico do plano e de suas remediações, mas não deve ser lido como
+declaração de runtime ativo. **PD** continua sendo o compiler/workflow e a camada de decisão;
+**PD Fleet** é uma extensão opcional de coordenação local; **Hermes Runtime/Gateway** hospeda
+sessões, `delegate_task`, cron, providers, ferramentas, capabilities e os eventos/transportes
+consumidos pelos clientes; **OMH** é somente referência/aprendizagem.
+O objetivo local atual é planejar, validar, reivindicar, executar de forma simulada/local,
+reconciliar e reportar tasks sem rede, credenciais, provider externo, cron, deployment ou
+dispatch live. Não há claim de produção, sandbox de produção, worker pool ou operação multi-host.
+
+O `HermesGatewayFleetBridge` — Gateway Hermes → Fleet events/state — é o follow-up de integração
+atual. Primeiro cobre sessões `user_owned_session` de modo read-only; uma sessão
+`fleet_owned_task` e o envelope Fleet → execução Hermes são uma etapa posterior, separada e
+explicitamente autorizada. Isso não é uma implementação presente nem autorização para ativar
+runtime Hermes ou integração OMH.
 
 ## 1. Visão
 
@@ -45,12 +65,12 @@ Plan Compiler (waves, DAG, contracts)
   ↓
 Plan Grill / aprovação
   ↓
-Orchestrator
+Orchestrator local
   ├── Researcher(s)
   ├── Coder(s)
   ├── Analyst / Reviewer(s)
   ├── Test / Smoke Tester(s)
-  └── Prompt Refiner (saída)
+  └── Prompt Refiner (saída local)
   ↓
 Evidence Gate
   ↓
@@ -68,7 +88,7 @@ Relatório + próximo prompt / merge
 | `test-engineer` | cria/ajusta testes e executa suíte relevante | sim, testes |
 | `reviewer` | revisa diff contra contrato e critérios de aceitação | não |
 | `grill` | procura falhas, premissas ocultas, gaps e complexidade desnecessária | não |
-| `smoke-tester` | executa o caminho crítico em ambiente real | não por padrão |
+| `smoke-tester` | executa o caminho crítico em ambiente local/simulado | não por padrão |
 | `prompt-refiner` | transforma goal, plano e feedback em prompt executável | não |
 
 O monitor é uma função do orchestrator, não um agente com autoridade ilimitada: observa cada transição e pode pausar, bloquear ou solicitar replanejamento.
@@ -123,7 +143,10 @@ Implementar modelos, validação de DAG/ownership, lifecycle, gates e templates.
 Integrar `fleet_state` backward-compatible, status, tasks elegíveis e checkpoint/resume.
 
 ### Wave 4 — Orquestração local
-Integrar protocolo de adapter, adapter simulado e `FleetOrchestrator` com seleção, dispatch e reports.
+Integrar o seam de protocolo, um adapter local/simulado e `FleetOrchestrator` com seleção, dispatch
+local e reports. Esta wave deve funcionar sem Hermes instalado. A integração com o Hermes Gateway
+permanece no follow-up opcional `.spec/pd-fleet-hermes-gateway-fleet-v1/` e não é pré-requisito
+para fechar o Fleet local.
 
 **Gate:** pelo menos duas tasks independentes e uma dependente executadas localmente.
 
@@ -135,8 +158,9 @@ Reviewer, analyst e grill verificam requisitos, diff, segurança, regressões, p
 
 **Gate:** zero blocker aberto ou decisão humana explícita.
 
-### Wave 7 — Smoke e evidence gate
-Executar build, inicialização, caminho crítico e testes mínimos. Gerar `VERIFICATION.md` com evidências.
+### Wave 7 — Smoke local e evidence gate
+Executar build, inicialização, caminho crítico local/simulado e testes mínimos. Gerar
+`VERIFICATION.md` com evidências, sem inferir disponibilidade de produção.
 
 ### Wave 8 — Closeout
 Atualizar estado, changelog e relatório. Merge somente após aprovação humana.
@@ -153,9 +177,13 @@ Uma task pode rodar em paralelo somente se:
 
 O orchestrator deverá identificar automaticamente o conjunto elegível e pausar a wave se houver conflito. O plano deve distinguir dependência real de mera ordem conveniente.
 
-## 8. Estado persistente
+## Authority and state boundaries
 
-A implementação deverá estender o estado atual do PD sem quebrar compatibilidade:
+The `.spec` control plane is authoritative for PD intent, task contracts, development gates, acceptance, and human delivery decisions. Fleet state is authoritative for generic coordination: task lifecycle, leases, checkpoints, reports, event reconciliation, and session/task association when an adapter provides that capability. PD Core and Fleet local must not require Hermes. A runtime adapter is selected explicitly (`none`, `local`, `hermes`, or future adapters) and exposes capabilities rather than assumptions. Hermes runtime state is authoritative only for Hermes-backed sessions, tools, providers, capabilities, and runtime events. The dashboard is a sibling Gateway client, not a Fleet dependency. Fleet or runtime state cannot substitute for a PD decision, approve a merge, change scope, or declare release readiness.
+
+The term **scheduler** in Fleet means deterministic ready-set calculation and local claim coordination inside an already-created run. It does not mean a persistent service, cron, worker daemon, or production scheduler; those remain outside Fleet and cron remains a Hermes responsibility.
+
+## 8. Estado persistente
 
 - `STATE.json`: estado de execução, waves, tasks, agentes, tentativas, blockers e evidências;
 - `STATE.md`: visão humana resumida;
@@ -174,11 +202,13 @@ Transições inválidas devem ser rejeitadas pelo CLI/validador.
 3. Implementar validação de DAG, paths, critérios e transições.
 4. Adicionar comandos CLI read-only para visualizar fleet e tasks elegíveis.
 5. Adicionar checkpoints e resume por task/wave.
-6. Adicionar dispatcher/adapters para execução por subagents.
-7. Adicionar isolamento de execução e detecção de conflitos.
-8. Implementar gates de review, grill e smoke/evidence.
-9. Implementar Prompt Refinement de entrada e saída.
-10. Atualizar skill `pd`, exemplos, testes, documentação e compatibilidade Hermes/OpenCode/Claude.
+6. Definir e testar a interface capability-based de runtime adapters, incluindo adapter `local` sem Hermes.
+7. Adicionar dispatcher/adapters para execução por subagents.
+8. Adicionar isolamento de execução e detecção de conflitos.
+9. Implementar gates de review, grill e smoke/evidence.
+10. Implementar Prompt Refinement de entrada e saída.
+11. Atualizar skill `pd`, exemplos, testes e documentação; registrar Hermes/OpenCode/Claude como adapters opcionais sem ativar adapters de runtime por default.
+12. Tratar a integração Hermes em trilha opcional de plugin/adapter `pd-fleet-hermes`: B15a TUI local por sessão, depois B15b Gateway/API de mensagens. O plugin não contém o Fleet Core.
 
 ## 10. Critérios de sucesso
 
@@ -187,21 +217,28 @@ Transições inválidas devem ser rejeitadas pelo CLI/validador.
 - Uma sessão nova consegue retomar pelo estado persistido.
 - Falhas são localizadas e reexecutáveis sem replay cego.
 - Review, grill e smoke test produzem evidência auditável.
-- O primeiro caso — a própria evolução do PD — é executável pelo prompt final deste branch.
+- O primeiro caso — a própria evolução do PD — é executável localmente pelo prompt final deste
+  branch.
 - O comportamento antigo de pipeline simples permanece compatível.
 
 ## 11. Fora de escopo inicial
 
 - Inferência autônoma ilimitada de novos agentes.
+- Cron, scheduler de produção, providers live, deployment e integração runtime do OMH.
 - Deploy automático em produção.
 - Merge automático sem gate humano.
 - Orquestração distribuída multi-host.
 - Dependência de um único provedor/modelo.
 - Métricas sofisticadas antes de existir um fluxo funcional.
 
-## 12. Remediações R3 e verification gate
+## 12. Remediações R3 e verification gate (registro histórico)
 
-As remediações T1–T13, R1/R2 e matching de `role`/`capabilities` foram incorporadas ao caminho local. A evidência atual está em [`.spec/pd-fleet-orchestration/VERIFICATION.md`](../.spec/pd-fleet-orchestration/VERIFICATION.md): a suíte completa registra 278 testes passando, o exemplo local é executável sem provider externo e o CLI `fleet-run` foi exercitado em normal, `--dry-run` e `--resume`.
+As remediações T1–T13, R1/R2 e matching de `role`/`capabilities` foram registradas como parte
+do caminho local histórico. A evidência então registrada está em
+[`.spec/pd-fleet-orchestration/VERIFICATION.md`](../.spec/pd-fleet-orchestration/VERIFICATION.md):
+a suíte completa registra 278 testes passando, o exemplo local é executável sem provider externo
+e o CLI `fleet-run` foi exercitado em normal, `--dry-run` e `--resume`. Esses registros não
+constituem evidência de produção ou de runtime live.
 
 O estado documental é deliberadamente **PARTIAL até o verification gate**. Nenhum gate declarativo, número de testes ou smoke local autoriza declarar PASS global sem comando executado, evidência fresca, owner e decisão registrados. Em particular, `validation_commands` permanecem declarativos; a saída JSON bruta pode variar em timestamps/paths; e provider externo não é habilitado por default.
 

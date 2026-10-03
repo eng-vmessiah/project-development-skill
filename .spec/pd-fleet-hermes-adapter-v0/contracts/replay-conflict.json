@@ -1,0 +1,22 @@
+{
+  "schema_version": "pd-fleet-hermes-adapter:v0",
+  "fixture_id": "replay-conflict",
+  "operation": "cancel",
+  "lineage": {
+    "run_id": "run-001",
+    "task_id": "task-001",
+    "attempt_id": "attempt-001",
+    "session_handle_id": "handle-001",
+    "workspace_id": "ws-001"
+  },
+  "owner": "owner-team",
+  "expected_generation": 4,
+  "idempotency_key": "idem-cancel-001",
+  "request_fingerprint": "sha256:ac8a78f73ae28da9a227adc92899ac53a6bfa969a8db9edd07748ea598ede53b",
+  "prior_request_fingerprint": "sha256:original-request",
+  "expected": {
+    "status": "rejected",
+    "dispatch_count_delta": 0,
+    "error_code": "idempotency_conflict"
+  }
+}

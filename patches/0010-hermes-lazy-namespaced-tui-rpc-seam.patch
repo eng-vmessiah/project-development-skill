@@ -1,0 +1,302 @@
+From f66d3d4b0695c9c44c49e3b9692e65f870d717b5 Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Fri, 31 Jul 2026 22:02:49 -0300
+Subject: [PATCH] feat(tui): add lazy namespaced plugin RPC seam
+
+
+diff --git a/hermes_cli/plugins.py b/hermes_cli/plugins.py
+index ea0b8ea2ff..a81577dd0a 100644
+--- a/hermes_cli/plugins.py
++++ b/hermes_cli/plugins.py
+@@ -1170,6 +1170,31 @@ class PluginContext:
+         self._manager._hooks.setdefault(hook_name, []).append(callback)
+         logger.debug("Plugin %s registered hook: %s", self.manifest.name, hook_name)
+ 
++    def register_tui_rpc(self, relative_name: str, callback: Callable) -> None:
++        """Stage one namespaced, host-owned TUI JSON-RPC handler."""
++        if not isinstance(relative_name, str) or not relative_name.strip():
++            raise ValueError("TUI RPC name must be a non-empty relative name")
++        relative_name = relative_name.strip()
++        if (
++            relative_name.startswith(".")
++            or relative_name.endswith(".")
++            or relative_name.startswith(f"{self.manifest.name}.")
++            or ".." in relative_name
++            or "/" in relative_name
++            or any(
++                not segment
++                or any(not (char.isascii() and (char.isalnum() or char in "_-")) for char in segment)
++                for segment in relative_name.split(".")
++            )
++        ):
++            raise ValueError("TUI RPC name must be a non-empty relative name")
++        if not callable(callback):
++            raise ValueError("TUI RPC handler must be callable")
++        self._manager._tui_rpcs.append(
++            {"name": f"{self.manifest.name}.{relative_name}", "handler": callback, "plugin": self.manifest.name}
++        )
++        logger.debug("Plugin %s staged TUI RPC: %s.%s", self.manifest.name, self.manifest.name, relative_name)
++
+     # -- middleware registration -------------------------------------------
+ 
+     def register_middleware(self, kind: str, callback: Callable) -> None:
+@@ -1249,6 +1274,7 @@ class PluginManager:
+     def __init__(self) -> None:
+         self._plugins: Dict[str, LoadedPlugin] = {}
+         self._hooks: Dict[str, List[Callable]] = {}
++        self._tui_rpcs: List[Dict[str, Any]] = []
+         self._middleware: Dict[str, List[Callable]] = {}
+         self._plugin_tool_names: Set[str] = set()
+         self._plugin_platform_names: Set[str] = set()
+@@ -1290,6 +1316,7 @@ class PluginManager:
+         if force:
+             self._plugins.clear()
+             self._hooks.clear()
++            self._tui_rpcs.clear()
+             self._middleware.clear()
+             self._plugin_tool_names.clear()
+             self._plugin_platform_names.clear()
+@@ -1759,6 +1786,7 @@ class PluginManager:
+             PluginContext(manifest, self)._tool_override_allowed(""),
+         )
+         try:
++            _tui_rpcs_before = len(self._tui_rpcs)
+             if manifest.source in {"user", "project", "bundled"}:
+                 module = self._load_directory_module(manifest)
+             else:
+@@ -1820,6 +1848,7 @@ class PluginManager:
+                 )
+ 
+         except Exception as exc:
++            del self._tui_rpcs[_tui_rpcs_before:]
+             loaded.error = str(exc)
+             logger.warning(
+                 "Failed to load plugin '%s': %s",
+diff --git a/tests/hermes_cli/test_tui_rpc_plugin_seam.py b/tests/hermes_cli/test_tui_rpc_plugin_seam.py
+new file mode 100644
+index 0000000000..b9d994739d
+--- /dev/null
++++ b/tests/hermes_cli/test_tui_rpc_plugin_seam.py
+@@ -0,0 +1,130 @@
++"""Red tests for the opt-in, lazy TUI RPC plugin seam."""
++
++from __future__ import annotations
++
++import pytest
++
++from hermes_cli.plugins import PluginContext, PluginManager, PluginManifest
++
++
++def _ctx(name: str = "pd-fleet"):
++    manager = PluginManager()
++    manager._discovered = True
++    return PluginContext(PluginManifest(name=name), manager), manager
++
++
++def test_plugin_context_stages_namespaced_tui_rpc():
++    ctx, manager = _ctx()
++
++    def handler(rid, params):
++        return {"jsonrpc": "2.0", "id": rid, "result": {"ok": True}}
++
++    ctx.register_tui_rpc("session.snapshot", handler)
++
++    assert manager._tui_rpcs == [
++        {
++            "name": "pd-fleet.session.snapshot",
++            "handler": handler,
++            "plugin": "pd-fleet",
++        }
++    ]
++
++
++def test_plugin_context_rejects_invalid_tui_rpc_registration():
++    ctx, _manager = _ctx("pd-fleet")
++
++    with pytest.raises(ValueError, match="non-empty relative name"):
++        ctx.register_tui_rpc("pd-fleet.session.snapshot", lambda *_: None)
++
++    with pytest.raises(ValueError, match="non-empty relative name"):
++        ctx.register_tui_rpc("session:snapshot", lambda *_: None)
++
++    with pytest.raises(ValueError, match="callable"):
++        ctx.register_tui_rpc("session.snapshot", None)
++
++
++def test_tui_rpc_registry_installs_only_plugin_namespace(monkeypatch):
++    from tui_gateway import server
++
++    ctx, manager = _ctx("pd-fleet")
++    handler = lambda rid, params: {"jsonrpc": "2.0", "id": rid, "result": params}
++    ctx.register_tui_rpc("session.snapshot", handler)
++    monkeypatch.setattr(server, "_methods", {"existing.method": object()})
++
++    server.register_plugin_rpcs(manager)
++
++    assert server._methods["pd-fleet.session.snapshot"] is handler
++    assert "existing.method" in server._methods
++
++
++def test_tui_rpc_registry_rejects_collisions(monkeypatch):
++    from tui_gateway import server
++
++    ctx, manager = _ctx("pd-fleet")
++    ctx.register_tui_rpc("session.snapshot", lambda *_: None)
++    monkeypatch.setattr(server, "_methods", {"pd-fleet.session.snapshot": object()})
++
++    with pytest.raises(ValueError, match="already registered"):
++        server.register_plugin_rpcs(manager)
++
++
++def test_tui_rpc_registry_validates_before_publishing(monkeypatch):
++    from tui_gateway import server
++
++    ctx, manager = _ctx("pd-fleet")
++    first = lambda *_: None
++    ctx.register_tui_rpc("first", first)
++    manager._tui_rpcs.append({"name": "pd-fleet.second", "handler": None, "plugin": "pd-fleet"})
++    monkeypatch.setattr(server, "_methods", {})
++
++    with pytest.raises(ValueError, match="invalid plugin"):
++        server.register_plugin_rpcs(manager)
++    assert "pd-fleet.first" not in server._methods
++
++
++def test_tui_rpc_registry_removes_stale_handlers_after_refresh(monkeypatch):
++    from tui_gateway import server
++
++    ctx, manager = _ctx("pd-fleet")
++    old = lambda *_: None
++    ctx.register_tui_rpc("old", old)
++    monkeypatch.setattr(server, "_methods", {})
++    server.register_plugin_rpcs(manager)
++
++    manager._tui_rpcs.clear()
++    server.register_plugin_rpcs(manager)
++
++    assert "pd-fleet.old" not in server._methods
++
++
++def test_tui_rpc_registry_replaces_owned_handler_on_refresh(monkeypatch):
++    from tui_gateway import server
++
++    ctx, manager = _ctx("pd-fleet")
++    old = lambda *_: None
++    new = lambda *_: None
++    ctx.register_tui_rpc("refresh", old)
++    monkeypatch.setattr(server, "_methods", {})
++    server.register_plugin_rpcs(manager)
++    manager._tui_rpcs[0]["handler"] = new
++    server.register_plugin_rpcs(manager)
++
++    assert server._methods["pd-fleet.refresh"] is new
++
++
++def test_failed_plugin_registration_discards_staged_tui_rpcs(monkeypatch):
++    from types import SimpleNamespace
++
++    manager = PluginManager()
++    manager._discovered = True
++    manifest = PluginManifest(name="pd-fleet", source="user", path="/tmp/pd-fleet")
++
++    def register(ctx):
++        ctx.register_tui_rpc("leaked", lambda *_: None)
++        raise RuntimeError("registration failed")
++
++    monkeypatch.setattr(manager, "_load_directory_module", lambda _manifest: SimpleNamespace(register=register))
++    manager._load_plugin(manifest)
++
++    assert manager._tui_rpcs == []
++    assert manager._plugins["pd-fleet"].enabled is False
+diff --git a/tui_gateway/server.py b/tui_gateway/server.py
+index cf168a688a..5e88728160 100644
+--- a/tui_gateway/server.py
++++ b/tui_gateway/server.py
+@@ -15,7 +15,7 @@ import time
+ import uuid
+ from datetime import datetime
+ from pathlib import Path
+-from typing import Any, Optional
++from typing import Any, Callable, Optional
+ 
+ from hermes_constants import (
+     get_hermes_home,
+@@ -1217,6 +1217,68 @@ def method(name: str):
+     return dec
+ 
+ 
++_plugin_rpc_handlers: dict[str, Callable] = {}
++_plugin_rpc_lock = threading.RLock()
++
++
++def register_plugin_rpcs(manager) -> None:
++    """Publish staged plugin RPCs into the host-owned TUI registry."""
++    with _plugin_rpc_lock:
++        entries = list(getattr(manager, "_tui_rpcs", []))
++        validated: list[tuple[str, Callable]] = []
++        seen: set[str] = set()
++        for entry in entries:
++            if not isinstance(entry, dict):
++                raise ValueError("invalid plugin TUI RPC registration")
++            name = entry.get("name")
++            handler = entry.get("handler")
++            if (
++                not isinstance(name, str)
++                or not name.startswith("pd-fleet.")
++                or name.endswith(".")
++                or ".." in name
++                or "/" in name
++                or any(
++                    not segment
++                    or any(not (char.isascii() and (char.isalnum() or char in "_-")) for char in segment)
++                    for segment in name.split(".")
++                )
++                or entry.get("plugin") != "pd-fleet"
++                or not callable(handler)
++                or name in seen
++            ):
++                raise ValueError("invalid plugin TUI RPC registration")
++            seen.add(name)
++            existing = _methods.get(name)
++            owned = _plugin_rpc_handlers.get(name)
++            if existing is not None and existing is not handler and existing is not owned:
++                raise ValueError(f"TUI RPC already registered: {name}")
++            validated.append((name, handler))
++
++        current_names = {name for name, _handler in validated}
++        for name, handler in list(_plugin_rpc_handlers.items()):
++            if name not in current_names and _methods.get(name) is handler:
++                del _methods[name]
++                del _plugin_rpc_handlers[name]
++        for name, handler in validated:
++            if _methods.get(name) is not handler:
++                _methods[name] = handler
++            _plugin_rpc_handlers[name] = handler
++
++
++def _load_plugin_rpcs() -> None:
++    """Lazily discover and publish PD Fleet RPCs on their first request."""
++    with _plugin_rpc_lock:
++        try:
++            from hermes_cli.plugins import discover_plugins, get_plugin_manager
++
++            discover_plugins()
++            register_plugin_rpcs(get_plugin_manager())
++        except Exception:
++            logger.warning("Plugin TUI RPC discovery failed", exc_info=True)
++
++
++
+ def _normalize_request(req: Any) -> tuple[Any, str, dict] | dict:
+     """Validate a JSON-RPC request enough for safe local dispatch."""
+     if not isinstance(req, dict):
+@@ -1243,6 +1305,9 @@ def handle_request(req: dict) -> dict | None:
+ 
+     rid, method, params = normalized
+     fn = _methods.get(method)
++    if fn is None and method.startswith("pd-fleet."):
++        _load_plugin_rpcs()
++        fn = _methods.get(method)
+     if not fn:
+         return _err(rid, -32601, f"unknown method: {method}")
+     return fn(rid, params)

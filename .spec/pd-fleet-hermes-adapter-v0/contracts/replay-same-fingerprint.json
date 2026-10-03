@@ -1,0 +1,29 @@
+{
+  "schema_version": "pd-fleet-hermes-adapter:v0",
+  "fixture_id": "replay-same-fingerprint",
+  "operation": "prepare",
+  "scope": {
+    "run_id": "run-001",
+    "task_id": "task-001",
+    "operation": "prepare",
+    "idempotency_key": "idem-prepare-001"
+  },
+  "request_fingerprint": "sha256:ded53f69b1a0fe90408b24958481730b878d36b268ec34e5579e6a434348f605",
+  "first_result": {
+    "status": "ready",
+    "dispatch_count": 0,
+    "event_sequence": 2
+  },
+  "replay_result": {
+    "status": "ready",
+    "dispatch_count": 0,
+    "event_sequence": 2,
+    "same_result": true
+  },
+  "expected": {
+    "error_code": null,
+    "new_dispatches": 0,
+    "new_attempts": 0,
+    "new_events": 0
+  }
+}

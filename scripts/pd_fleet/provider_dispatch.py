@@ -46,6 +46,7 @@ class DispatchAuditReason(str, Enum):
     PROVIDER_NOT_CONFIGURED = "provider_not_configured"
     ADAPTER_MISSING = "adapter_missing"
     RUNNER_MISSING = "runner_missing"
+    UNSUPPORTED_RUNTIME_CAPABILITY = "unsupported_runtime_capability"
     DISPATCH_ERROR = "dispatch_error"
 
 
@@ -203,9 +204,31 @@ class ProviderDispatchBoundary:
                                        DispatchStatus.BLOCKED, DispatchAuditReason.ADAPTER_MISSING)
             return ProviderDispatchResult(DispatchStatus.BLOCKED, route, None, audit)
         if not isinstance(adapter, RuntimeAdapter):
+            if not callable(getattr(adapter, "capabilities", None)):
+                audit = DispatchAuditEvent(request.task_id, run_id, identity,
+                                           DispatchStatus.BLOCKED,
+                                           DispatchAuditReason.UNSUPPORTED_RUNTIME_CAPABILITY)
+                return ProviderDispatchResult(DispatchStatus.BLOCKED, route, None, audit)
             raise DispatchConfigurationError("invalid_adapter")
         if getattr(adapter, "profile", None) != selected:
             raise DispatchConfigurationError("adapter_profile_mismatch")
+        try:
+            adapter_capabilities = adapter.capabilities()
+        except Exception:
+            raise DispatchConfigurationError("adapter_capabilities_invalid") from None
+        if (type(adapter_capabilities) is not frozenset
+                or any(type(capability) is not str for capability in adapter_capabilities)
+                or not adapter_capabilities.issubset(ALLOWED_CAPABILITIES)):
+            raise DispatchConfigurationError("adapter_capabilities_invalid")
+        effective_capabilities = (
+            adapter_capabilities.intersection(selected.capabilities)
+            .intersection(selected.policy.allowed_capabilities)
+        )
+        if not set(request.capabilities).issubset(effective_capabilities):
+            audit = DispatchAuditEvent(request.task_id, run_id, identity,
+                                       DispatchStatus.BLOCKED,
+                                       DispatchAuditReason.UNSUPPORTED_RUNTIME_CAPABILITY)
+            return ProviderDispatchResult(DispatchStatus.BLOCKED, route, None, audit)
         runner = self._runners.get(identity)
         if runner is None:
             audit = DispatchAuditEvent(request.task_id, run_id, identity,

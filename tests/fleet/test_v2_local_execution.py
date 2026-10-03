@@ -23,7 +23,8 @@ def test_local_v2_execution_has_no_external_side_effect_and_commits_once():
     assert commits[0]["schema_version"] == "pd-fleet-report:v2"
     assert commits[0]["status"] == "completed"
     assert commits[0]["task_id"] == "a"
-
+    assert list(commits[0]["outputs"]) == ["out"]
+    assert commits[0]["outputs"]["out"].startswith("simulated:a:")
 
 def test_v1_calls_both_lifecycle_hook_names_when_both_are_present():
     calls = []

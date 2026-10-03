@@ -1,0 +1,40 @@
+{
+  "schema_version": "pd-fleet-hermes-adapter:v0",
+  "fixture_id": "handoff-forbidden-fields",
+  "operation": "handoff",
+  "lineage": {
+    "run_id": "run-001",
+    "task_id": "task-001",
+    "attempt_id": "attempt-001",
+    "session_handle_id": "handle-001",
+    "workspace_id": "ws-001"
+  },
+  "owner": "owner-team",
+  "expected_generation": 3,
+  "idempotency_key": "idem-handoff-001",
+  "request_fingerprint": "sha256:3000b6c83043cc49603264256ebff37c54a02782f72b72629866f4546e179ad2",
+  "handoff_reason": "bounded_resume",
+  "forbidden_fields": [
+    "prompt",
+    "chain_of_thought",
+    "raw_output",
+    "credential",
+    "token",
+    "pid",
+    "command",
+    "absolute_path",
+    "native_hermes_handle"
+  ],
+  "attempted_artifact": {
+    "prompt": "do not persist",
+    "raw_output": "do not persist",
+    "pid": 1234,
+    "absolute_path": "/private/path"
+  },
+  "expected": {
+    "status": "rejected",
+    "error_code": "forbidden_field",
+    "artifact_persisted": false,
+    "raw_values_in_evidence": false
+  }
+}

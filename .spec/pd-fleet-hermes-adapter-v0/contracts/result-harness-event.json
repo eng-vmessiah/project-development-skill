@@ -1,0 +1,11 @@
+{
+  "schema_version": "pd-fleet-hermes-adapter:v0",
+  "event_id": "event-001",
+  "sequence": 3,
+  "event_type": "completed",
+  "run_id": "run-001",
+  "task_id": "task-001",
+  "attempt_id": "attempt-001",
+  "status": "succeeded",
+  "payload_ref": "evidence-001"
+}

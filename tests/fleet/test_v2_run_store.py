@@ -13,6 +13,109 @@ from pd_fleet.run_store import FleetRunStore, LeaseError
 from pd_fleet.run_store import RunStoreError
 
 
+
+
+def test_append_terminal_event_if_absent_is_idempotent_and_does_not_rewrite(tmp_path: Path):
+    store = FleetRunStore(tmp_path)
+    store.create("run", PLAN, "owner")
+    token = store.claim("run", "a", "owner")
+    store.commit("run", "a", token, "owner", _complete_report())
+    first = store.append_terminal_event_if_absent("run", "a", "owner")
+    before = store.load("run")
+    bytes_before = (tmp_path / "run" / "snapshot.json").read_bytes()
+    second = store.append_terminal_event_if_absent("run", "a", "owner")
+    assert first["appended"] is True and second["appended"] is False
+    assert store.load("run") == before
+    assert (tmp_path / "run" / "snapshot.json").read_bytes() == bytes_before
+
+
+def test_task_status_invalidation_fences_active_lease_before_stale_commit(tmp_path: Path):
+    store = FleetRunStore(tmp_path)
+    store.create("run", PLAN, "owner")
+    token = store.claim("run", "a", "owner")
+
+    store.update_task_status("run", "a", "failed", "owner")
+    invalidated = store.load("run")
+    assert "a" not in invalidated["leases"]
+    assert invalidated["attempts"]["a"] == 1
+
+    with pytest.raises(LeaseError, match="stale or expired lease"):
+        store.commit("run", "a", token, "owner", _complete_report())
+
+    assert store.load("run") == invalidated
+
+
+def test_claim_rejects_invalidated_terminal_task(tmp_path: Path):
+    store = FleetRunStore(tmp_path)
+    store.create("run", PLAN, "owner")
+    store.update_task_status("run", "a", "failed", "owner")
+
+    with pytest.raises(RunStoreError, match="terminal task"):
+        store.claim("run", "a", "owner")
+
+    assert store.load("run")["leases"] == {}
+
+
+@pytest.mark.parametrize("status", ["cancelled", "orphaned"])
+def test_claim_rejects_all_terminal_task_statuses(tmp_path: Path, status: str):
+    store = FleetRunStore(tmp_path)
+    store.create("run", PLAN, "owner")
+    store.update_task_status("run", "a", status, "owner")
+
+    with pytest.raises(RunStoreError, match="terminal task"):
+        store.claim("run", "a", "owner")
+    with pytest.raises(RunStoreError, match="terminal task"):
+        store.claim_many("run", ["a"], "owner", max_parallel=1)
+
+
+def test_task_status_update_rejects_committed_task_without_mutation(tmp_path: Path):
+    store = FleetRunStore(tmp_path)
+    store.create("run", PLAN, "owner")
+    token = store.claim("run", "a", "owner")
+    store.commit("run", "a", token, "owner", _complete_report())
+    before = store.load("run")
+
+    with pytest.raises(RunStoreError, match="committed task"):
+        store.update_task_status("run", "a", "failed", "owner")
+
+    assert store.load("run") == before
+
+
+def test_token_binding_and_shape_are_fail_closed(tmp_path: Path):
+    store = FleetRunStore(tmp_path)
+    store.create("run", PLAN, "owner")
+    token = store.claim("run", "a", "owner")
+
+    for invalid in (
+        {key: value for key, value in token.items() if key != "run_id"},
+        {**token, "task_id": "b"},
+        {**token, "expires_at": "2099-01-01T00:00:00Z"},
+        {**token, "extra": True},
+    ):
+        with pytest.raises(LeaseError):
+            store.use("run", "a", invalid, "owner")
+
+
+def test_duplicate_commit_rejects_malformed_token(tmp_path: Path):
+    store = FleetRunStore(tmp_path)
+    store.create("run", PLAN, "owner")
+    token = store.claim("run", "a", "owner")
+    report = _complete_report()
+    store.commit("run", "a", token, "owner", report)
+
+    malformed = {"lease_id": token["lease_id"], "generation": token["generation"]}
+    with pytest.raises(LeaseError, match="invalid lease"):
+        store.commit("run", "a", malformed, "owner", report)
+
+
+def test_claim_many_rejects_non_iterable_task_ids(tmp_path: Path):
+    store = FleetRunStore(tmp_path)
+    store.create("run", PLAN, "owner")
+
+    with pytest.raises(RunStoreError, match="task ids must be iterable"):
+        store.claim_many("run", None, "owner", max_parallel=1)
+
+
 def test_claim_use_commit_rejects_stale_generation_or_lease_without_corruption(
     tmp_path: Path,
 ):

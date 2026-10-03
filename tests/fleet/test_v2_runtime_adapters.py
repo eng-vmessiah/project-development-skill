@@ -34,6 +34,11 @@ def test_named_templates_are_exact_and_data_only() -> None:
         assert all(arg for arg in adapter.build_argv(envelope))
 
 
+def test_named_adapter_declares_effective_profile_capabilities() -> None:
+    adapter = create_runtime_adapter("codex-cli", profile("codex-cli", "codex-cli"), CommandMetadata("/tools/codex"))
+    assert adapter.capabilities() == frozenset({"read"})
+
+
 def test_factory_rejects_unknown_mismatch_and_missing_command() -> None:
     with pytest.raises(RuntimeFactoryError) as exc:
         create_runtime_adapter("unknown", profile("unknown", "unknown"), CommandMetadata("/x"))

@@ -1,0 +1,28 @@
+{
+  "schema_version": "pd-fleet-hermes-adapter:v0",
+  "fixture_id": "valid-prepare",
+  "operation": "prepare",
+  "lineage": {
+    "run_id": "run-001",
+    "task_id": "task-001",
+    "attempt_id": "attempt-001",
+    "session_handle_id": null,
+    "workspace_id": "ws-001"
+  },
+  "owner": "owner-team",
+  "expected_generation": 3,
+  "idempotency_key": "idem-prepare-001",
+  "request_fingerprint": "sha256:201003db733d4f0d9278ff56b13a3ace9241b49546492dd4253110e2c9e3f2fa",
+  "workspace": {
+    "workspace_id": "ws-001",
+    "root_ref": "test-root-001",
+    "isolation": "dedicated",
+    "cleanup_policy": "always"
+  },
+  "expected": {
+    "status": "ready",
+    "dispatch_count_delta": 0,
+    "error_code": null,
+    "external_effects": false
+  }
+}

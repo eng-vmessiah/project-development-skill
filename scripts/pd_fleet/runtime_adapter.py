@@ -73,6 +73,7 @@ class RuntimeErrorCode(str, Enum):
     SANDBOX_FAILED = "sandbox_failed"
     COMMAND_UNRESOLVED = "command_unresolved"
     CATALOG_INVALID = "catalog_invalid"
+    UNSUPPORTED_RUNTIME_CAPABILITY = "unsupported_runtime_capability"
     INVALID_TIMEOUT = "invalid_timeout"
 
 
@@ -248,6 +249,7 @@ class RuntimeAdapter(Protocol):
     name: str
     profile: RuntimeProviderProfile
 
+    def capabilities(self) -> frozenset[str]: ...
     def build_argv(self, envelope: RuntimeTaskEnvelope) -> tuple[str, ...]: ...
     def execute(self, envelope: RuntimeTaskEnvelope, *, runner: SandboxRunner | Any) -> RuntimeResult: ...
 
@@ -278,6 +280,9 @@ class TemplateRuntimeAdapter:
     def __post_init__(self) -> None:
         if self.command_metadata is not None and not isinstance(self.command_metadata, CommandMetadata):
             raise RuntimeConfigurationError(RuntimeErrorCode.COMMAND_UNRESOLVED.value)
+
+    def capabilities(self) -> frozenset[str]:
+        return frozenset(self.profile.capabilities)
 
     def _trusted_command(self) -> CommandMetadata | None:
         command = self.command_metadata

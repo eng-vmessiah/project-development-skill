@@ -192,6 +192,9 @@ class NamedRuntimeAdapter:
     command_metadata: CommandMetadata
     runtime: str
 
+    def capabilities(self) -> frozenset[str]:
+        return frozenset(self.profile.capabilities)
+
     def _template(self, envelope: RuntimeTaskEnvelope) -> tuple[str, ...]:
         if envelope.provider_profile != self.profile:
             raise RuntimeFactoryError(FACTORY_PROFILE_MISMATCH)

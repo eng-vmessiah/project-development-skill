@@ -1,0 +1,29 @@
+{
+  "schema_version": "pd-fleet-hermes-adapter:v0",
+  "fixture_id": "cleanup-failure",
+  "operation": "cleanup",
+  "lineage": {
+    "run_id": "run-001",
+    "task_id": "task-001",
+    "attempt_id": "attempt-001",
+    "session_handle_id": "handle-001",
+    "workspace_id": "ws-001"
+  },
+  "owner": "owner-team",
+  "expected_generation": 3,
+  "idempotency_key": "idem-cleanup-002",
+  "request_fingerprint": "sha256:e554e953734b1b4ac53ae5581e6856c5c5d257f5e0be8ff26e5f0ae8052fd8a1",
+  "original_terminal_status": "succeeded",
+  "cleanup_attempt": {
+    "marker_before": "not_cleaned",
+    "simulated_result": "failure"
+  },
+  "expected": {
+    "status": "succeeded",
+    "cleanup_marker": "not_cleaned",
+    "error_code": "cleanup_failed",
+    "original_terminal_preserved": true,
+    "retry_allowed": true
+  },
+  "cleanup_reason": "test_cleanup"
+}

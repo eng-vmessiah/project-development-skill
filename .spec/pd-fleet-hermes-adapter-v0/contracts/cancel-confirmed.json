@@ -1,0 +1,28 @@
+{
+  "schema_version": "pd-fleet-hermes-adapter:v0",
+  "fixture_id": "cancel-confirmed",
+  "operation": "cancel",
+  "lineage": {
+    "run_id": "run-001",
+    "task_id": "task-001",
+    "attempt_id": "attempt-001",
+    "session_handle_id": "handle-001",
+    "workspace_id": "ws-001"
+  },
+  "owner": "owner-team",
+  "expected_generation": 3,
+  "idempotency_key": "idem-cancel-003",
+  "request_fingerprint": "sha256:ab267bbae42b6376836ed7679e1df5fb0a89a82fc8cf73243148edaa17f13f4d",
+  "cancel_reason": "operator_requested",
+  "cancel_confirmation": {
+    "termination_observed": true,
+    "termination_ref": "termination-001"
+  },
+  "expected": {
+    "status": "cancelled",
+    "error_code": null,
+    "cancel_confirmed": true,
+    "termination_ref": "termination-001",
+    "second_cancel_is_replay": true
+  }
+}

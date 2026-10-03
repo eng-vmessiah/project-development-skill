@@ -1,0 +1,38 @@
+{
+  "schema_version": "pd-fleet-hermes-adapter:v0",
+  "fixture_id": "workspace-invalid",
+  "operation": "prepare",
+  "cases": [
+    {
+      "root_ref": "/absolute/path",
+      "error_code": "forbidden_field"
+    },
+    {
+      "root_ref": "../escape",
+      "error_code": "forbidden_field"
+    },
+    {
+      "root_ref": "C:\\\\Users\\\\vitor",
+      "error_code": "forbidden_field"
+    },
+    {
+      "root_ref": "\\\\server\\share",
+      "error_code": "forbidden_field"
+    },
+    {
+      "root_ref": "https://example.invalid/root",
+      "error_code": "forbidden_field"
+    },
+    {
+      "root_ref": "test-root-001",
+      "workspace_id": "ws-other-than-bound-lineage",
+      "error_code": "invalid_lineage"
+    }
+  ],
+  "expected": {
+    "filesystem_access": false,
+    "symlink_resolution": false,
+    "state_mutation": false
+  },
+  "request_fingerprint": "sha256:ded53f69b1a0fe90408b24958481730b878d36b268ec34e5579e6a434348f605"
+}

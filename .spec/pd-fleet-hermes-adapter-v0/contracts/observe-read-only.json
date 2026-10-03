@@ -1,0 +1,21 @@
+{
+  "schema_version": "pd-fleet-hermes-adapter:v0",
+  "fixture_id": "observe-read-only",
+  "operation": "observe",
+  "lineage": {
+    "run_id": "run-001",
+    "task_id": "task-001",
+    "attempt_id": "attempt-001",
+    "session_handle_id": "handle-001",
+    "workspace_id": "ws-001"
+  },
+  "cursor": "cursor-001",
+  "expected": {
+    "status": "ok",
+    "dispatch_count_delta": 0,
+    "state_mutations": 0,
+    "max_events": 64,
+    "sequence_strictly_increasing": true,
+    "raw_output_present": false
+  }
+}

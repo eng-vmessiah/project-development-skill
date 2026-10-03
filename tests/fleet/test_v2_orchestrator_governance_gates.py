@@ -1,4 +1,5 @@
 import sys
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -34,6 +35,42 @@ _EXPECTED_SCOPE = {
     "tasks": ["task-a", "task-b"],
     "waves": ["wave-1", "wave-2"],
 }
+
+
+def _admission_plan() -> dict:
+    return {
+        "waves": [{"id": "wave-1", "tasks": ["human-task"], "gates": ["human-review"]}],
+        "gates": [{"id": "human-review", "kind": "review", "status": "passed"}],
+        "tasks": [{
+            "id": "human-task",
+            "wave": 1,
+            "role": "release",
+            "objective": "perform human-required operation",
+            "outputs": [{"name": "result"}],
+            "acceptance_criteria": ["result is recorded"],
+            "validation_commands": ["local-check"],
+        }],
+    }
+
+
+class _CountingDispatcher:
+    def __init__(self):
+        self.calls = []
+
+    def dispatch(self, task, context):
+        self.calls.append((task.id, context))
+        raise AssertionError("human-required task must not dispatch")
+
+
+class _HostileGateMapping(Mapping):
+    def __getitem__(self, key):
+        raise RuntimeError("hostile gate access")
+
+    def __iter__(self):
+        raise RuntimeError("hostile gate iteration")
+
+    def __len__(self):
+        raise RuntimeError("hostile gate length")
 
 
 def _passed_result(gate_type: str) -> GateResult:
@@ -86,6 +123,27 @@ def test_human_gate_without_current_context_is_denied():
     assert not FleetOrchestrator._gate_passed(payload)
     assert not FleetOrchestrator._gate_passed(payload, expected_run=None, expected_scope=_EXPECTED_SCOPE)
     assert not FleetOrchestrator._gate_passed(payload, expected_run=_EXPECTED_RUN, expected_scope=None)
+
+
+def test_human_required_operation_is_blocked_before_dispatch_for_invalid_or_missing_gate():
+    for gates in ({}, {"human-review": _passed_result("review")}):
+        dispatcher = _CountingDispatcher()
+        result = FleetOrchestrator(_admission_plan(), gates=gates, dispatcher=dispatcher).run()
+
+        assert result.blocked == ("human-task",)
+        assert dispatcher.calls == []
+
+
+def test_hostile_mapping_at_admission_boundary_fails_closed_without_escaping():
+    dispatcher = _CountingDispatcher()
+    result = FleetOrchestrator(
+        _admission_plan(),
+        gates={"human-review": _HostileGateMapping()},
+        dispatcher=dispatcher,
+    ).run()
+
+    assert result.blocked == ("human-task",)
+    assert dispatcher.calls == []
 
 
 def test_automatic_gate_results_remain_policy_evaluated():

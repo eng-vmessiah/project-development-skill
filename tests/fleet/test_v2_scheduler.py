@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import sys
 import threading
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 from pd_fleet.run_store import FleetRunStore, LeaseError
+from pd_fleet.run_store import GenerationConflictError, OwnerMismatchError, RunStoreError
 from pd_fleet.scheduler import CapacityExceeded, LeaseScheduler, OwnershipConflict, SchedulerError
 
 PLAN = {"schema_version": "pd-fleet-plan:v2", "tasks": [
@@ -22,6 +24,42 @@ def test_ready_ids_are_sorted_and_dependencies_are_barriers(tmp_path: Path):
     store.create("run", PLAN, "owner", initial={"tasks": {"a": {"status": "completed"}}})
     scheduler = LeaseScheduler(store, "run", "owner", max_parallel=2)
     assert scheduler.ready_ids() == ["b", "child"]
+
+
+def test_update_task_status_is_public_atomic_and_does_not_claim(tmp_path: Path):
+    store = FleetRunStore(tmp_path)
+    store.create("run", PLAN, "owner")
+    before = store.load("run")
+
+    updated = store.update_task_status(
+        "run", "a", "failed", "owner", expected_generation=before["generation"],
+    )
+
+    assert updated["tasks"]["a"] == {"status": "failed"}
+    assert updated["generation"] == before["generation"] + 1
+    assert updated["checksum"] != before["checksum"]
+    assert updated["leases"] == {}
+    assert updated["attempts"] == {}
+    assert store.load("run") == updated
+
+
+def test_update_task_status_validates_owner_generation_task_and_status(tmp_path: Path):
+    store = FleetRunStore(tmp_path)
+    store.create("run", PLAN, "owner")
+    before = store.load("run")
+
+    with pytest.raises(OwnerMismatchError, match="run owner mismatch"):
+        store.update_task_status("run", "a", "failed", "other")
+    with pytest.raises(GenerationConflictError, match="generation mismatch"):
+        store.update_task_status(
+            "run", "a", "failed", "owner", expected_generation=before["generation"] + 1,
+        )
+    with pytest.raises(RunStoreError, match="unknown task id"):
+        store.update_task_status("run", "unknown", "failed", "owner")
+    with pytest.raises(RunStoreError, match="invalid task status"):
+        store.update_task_status("run", "a", "bogus", "owner")
+
+    assert store.load("run") == before
 
 
 @pytest.mark.parametrize("status", ["completed", "failed", "blocked", "orphaned"])
@@ -75,13 +113,72 @@ def test_claim_can_select_dependency_ready_in_locked_snapshot(tmp_path: Path, mo
     original_claim_many = store.claim_many
 
     def complete_dependency_then_claim(*args, **kwargs):
-        store._mutate("run", "owner", None, lambda state: state["tasks"].update({"a": {"status": "completed"}}))
+        store.update_task_status("run", "a", "completed", "owner")
         return original_claim_many(*args, **kwargs)
 
     monkeypatch.setattr(store, "claim_many", complete_dependency_then_claim)
     claimed = scheduler.claim("worker", limit=1)
 
     assert [token["task_id"] for token in claimed] == ["child"]
+
+
+def test_claim_rejects_dependency_invalidated_after_readiness_observation(
+    tmp_path: Path, monkeypatch,
+):
+    """A stale ready-list must not lease a child after its dependency fails."""
+    plan = {"schema_version": "pd-fleet-plan:v2", "tasks": [
+        {"id": "a", "depends_on": [], "allowed_paths": ["src/a.py"]},
+        {"id": "child", "depends_on": ["a"], "allowed_paths": ["src/c.py"]},
+    ]}
+    store = FleetRunStore(tmp_path)
+    store.create("run", plan, "owner", initial={"tasks": {"a": {"status": "completed"}}})
+    scheduler = LeaseScheduler(store, "run", "owner", max_parallel=1)
+    before_invalidation = store.load("run")
+    assert scheduler.ready_ids() == ["child"]
+
+    original_claim_many = store.claim_many
+    invalidated: dict[str, dict] = {}
+
+    def invalidate_dependency_then_claim(*args, **kwargs):
+        store.update_task_status("run", "a", "failed", "owner")
+        invalidated["state"] = store.load("run")
+        return original_claim_many(*args, **kwargs)
+
+    monkeypatch.setattr(store, "claim_many", invalidate_dependency_then_claim)
+    claimed = scheduler.claim("worker", limit=1)
+
+    assert claimed == []
+    state = store.load("run")
+    expected_after_invalidation = deepcopy(before_invalidation)
+    expected_after_invalidation["tasks"]["a"] = {"status": "failed"}
+    assert invalidated["state"]["tasks"]["a"] == {"status": "failed"}
+    assert invalidated["state"]["generation"] == before_invalidation["generation"] + 1
+    assert invalidated["state"]["checksum"] != before_invalidation["checksum"]
+    assert invalidated["state"]["event_sequence"] == before_invalidation["event_sequence"]
+    for key, value in expected_after_invalidation.items():
+        if key not in {"tasks", "generation", "checksum", "updated_at"}:
+            assert invalidated["state"][key] == value
+    assert invalidated["state"]["tasks"] == expected_after_invalidation["tasks"]
+    assert state["generation"] == invalidated["state"]["generation"]
+    assert state["checksum"] == invalidated["state"]["checksum"]
+    assert state["updated_at"] == invalidated["state"]["updated_at"]
+    assert state["leases"] == {}
+    assert state["attempts"] == {}
+    assert state == invalidated["state"]
+
+
+def test_declarative_wave_is_atomic_barrier_before_later_independent_tasks(tmp_path: Path):
+    plan = {"schema_version": "pd-fleet-plan:v2", "tasks": [
+        {"id": "z", "wave": 1, "depends_on": [], "allowed_paths": ["src/z.py"]},
+        {"id": "a", "wave": 2, "depends_on": [], "allowed_paths": ["src/a.py"]},
+    ]}
+    store = FleetRunStore(tmp_path)
+    store.create("run", plan, "owner")
+    scheduler = LeaseScheduler(store, "run", "owner", max_parallel=2)
+    assert scheduler.ready_ids() == ["z"]
+    assert [token["task_id"] for token in scheduler.claim("worker", limit=2)] == ["z"]
+    assert scheduler.ready_ids() == []
+    assert scheduler.claim("other", limit=1) == []
 
 
 def test_claims_are_bounded_and_release_allows_reuse(tmp_path: Path):

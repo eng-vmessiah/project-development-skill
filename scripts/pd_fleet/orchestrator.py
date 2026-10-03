@@ -715,6 +715,22 @@ class FleetOrchestrator:
         reports: list[dict[str, Any]] = []
         statuses: dict[str, str] = {task.id: "pending" for task in self.plan.tasks}
         terminal_ids: set[str] = set()
+        persisted = self.store.load(self.run_id)
+        for task_id, entry in persisted.get("reports", {}).items():
+            if task_id not in by_id or not isinstance(entry, Mapping):
+                continue
+            status = entry.get("status")
+            report = entry.get("report")
+            if status not in {"completed", "failed", "blocked"} or not isinstance(report, Mapping):
+                continue
+            projection = deepcopy(dict(report))
+            projection.setdefault("task_id", task_id)
+            projection["status"] = status
+            statuses[task_id] = status
+            terminal_ids.add(task_id)
+            reports.append(projection)
+        for task_id in sorted(terminal_ids):
+            self.store.append_terminal_event_if_absent(self.run_id, task_id, self.run_owner)
         # A scheduler's ready_ids is the authoritative dependency barrier.  One
         # claim/run/commit cycle is a wave; no child can be claimed mid-wave.
         while True:
@@ -758,10 +774,9 @@ class FleetOrchestrator:
                                               report, status="blocked")
                             statuses[task_id] = "blocked"
                             terminal_ids.add(task_id)
-                            reports.append(report)
+                            reports.append({**report, "task_id": task_id})
                             try:
-                                self.store.append_event(self.run_id, {"event_id": task_id,
-                                    "ordering_key": task_id, "task_id": task_id, "status": "blocked"}, self.run_owner)
+                                self.store.append_terminal_event_if_absent(self.run_id, task_id, self.run_owner)
                             except Exception as event_exc:
                                 warning = _sanitize_text(event_exc, "event persistence failed") or "event persistence failed"
                                 reports[-1]["event_persistence_warning"] = warning
@@ -782,10 +797,9 @@ class FleetOrchestrator:
                             # terminal commit.
                             self.store.commit(self.run_id, task_id, token, self.run_owner, report, status="completed")
                             statuses[task_id] = "completed"
-                            reports.append(report)
+                            reports.append({**report, "task_id": task_id})
                             try:
-                                self.store.append_event(self.run_id, {"event_id": task_id,
-                                    "ordering_key": task_id, "task_id": task_id, "status": "completed"}, self.run_owner)
+                                self.store.append_terminal_event_if_absent(self.run_id, task_id, self.run_owner)
                             except Exception as event_exc:
                                 warning = _sanitize_text(event_exc, "event persistence failed") or "event persistence failed"
                                 reports[-1]["event_persistence_warning"] = warning
@@ -825,9 +839,7 @@ class FleetOrchestrator:
                             committed = False
                         if committed:
                             try:
-                                self.store.append_event(self.run_id, {"event_id": task_id,
-                                    "ordering_key": task_id, "task_id": task_id,
-                                    "status": terminal_status}, self.run_owner)
+                                self.store.append_terminal_event_if_absent(self.run_id, task_id, self.run_owner)
                             except Exception as event_exc:
                                 warning = _sanitize_text(event_exc, "event persistence failed") or "event persistence failed"
                                 terminal_report["event_persistence_warning"] = warning
@@ -837,6 +849,14 @@ class FleetOrchestrator:
                                 except Exception:
                                     pass
                         terminal_ids.add(task_id)
+                    if can_retry:
+                        retry_event = {"event_id": f"retry-{task_id}-{attempt}",
+                            "ordering_key": f"retry-{task_id}-{attempt}", "task_id": task_id,
+                            "status": "retry_scheduled", "attempt": attempt,
+                            "next_attempt": attempt + 1, "error": safe_text(error or status, RUNTIME_ERROR),
+                            "backoff_seconds": policy.backoff_seconds}
+                        self.store.append_event(self.run_id, retry_event, self.run_owner)
+                        self.sleeper(policy.backoff_seconds)
                     release = getattr(self.scheduler, "release", None)
                     if callable(release):
                         try: release(token)
@@ -933,27 +953,32 @@ class FleetOrchestrator:
                     actual_scope != current_scope):
                 return False
             try:
-                return bool(gate.allows())
+                return bool(gate.allows(expected_run=expected_run, expected_scope=expected_scope))
             except Exception:
                 return False
         if isinstance(gate, Mapping):
-            human_keys = {"owner", "identity", "decision", "scope", "evidence_digest",
-                          "artifact_digest", "freshness_window"}
-            has_run = "run" in gate or "run_id" in gate
-            if human_keys.issubset(gate) and has_run:
-                actual_scope = FleetOrchestrator._canonical_gate_scope(gate.get("scope"))
-                current_scope = FleetOrchestrator._canonical_gate_scope(expected_scope)
-                if (type(expected_run) is not str or not expected_run.strip() or
-                        expected_scope is None or current_scope is None or
-                        gate.get("run", gate.get("run_id")) != expected_run or
-                        actual_scope != current_scope):
+            try:
+                human_keys = {"owner", "identity", "decision", "scope", "evidence_digest",
+                              "artifact_digest", "freshness_window"}
+                has_run = "run" in gate or "run_id" in gate
+                if human_keys.issubset(gate) and has_run:
+                    actual_scope = FleetOrchestrator._canonical_gate_scope(gate.get("scope"))
+                    current_scope = FleetOrchestrator._canonical_gate_scope(expected_scope)
+                    if (type(expected_run) is not str or not expected_run.strip() or
+                            expected_scope is None or current_scope is None or
+                            gate.get("run", gate.get("run_id")) != expected_run or
+                            actual_scope != current_scope):
+                        return False
+                    try:
+                        return bool(HumanVerificationGate.from_dict(gate).allows(
+                            expected_run=expected_run, expected_scope=expected_scope
+                        )) if HumanVerificationGate is not None else False
+                    except Exception:
+                        return False
+                gate_type = gate.get("gate_type", gate.get("kind", gate.get("type")))
+                if str(gate_type) in {"review", "grill"}:
                     return False
-                try:
-                    return bool(HumanVerificationGate.from_dict(gate).allows()) if HumanVerificationGate is not None else False
-                except Exception:
-                    return False
-            gate_type = gate.get("gate_type", gate.get("kind", gate.get("type")))
-            if str(gate_type) in {"review", "grill"}:
+            except Exception:
                 return False
         # Automatic contract GateResult (or its mapping form) remains policy
         # evaluated; status alone must never grant access.
@@ -1202,7 +1227,7 @@ class FleetOrchestrator:
         self._dry_run_seen.add(task.id)
         report = TaskReport(task.id, task.wave, "dry_run", self.lifecycles[task.id].attempt,
                             {"would_dispatch": True}, {"dry_run": True}, reason="dry_run").to_dict()
-        self.reports.append(report)
+        self.reports.append({**report, "task_id": task.id})
         self._call("report", report); self._call("evidence", task.id, report["evidence"])
 
     def _record(self, task: TaskSpec, life: TaskLifecycle, output: Any, evidence: Any, error: str | None = None, reason: str | None = None) -> None:
@@ -1211,7 +1236,7 @@ class FleetOrchestrator:
                             agent_id=task.owner, role=task.role, outputs=_sanitize_payload(output),
                             blockers=([reason] if life.status == "blocked" and reason else []),
                             timestamps={}).to_dict()
-        self.reports.append(report)
+        self.reports.append({**report, "task_id": task.id})
         self._call("report", report); self._call("evidence", task.id, evidence)
 
     def _block_unresolvable(self, by_id: Mapping[str, TaskSpec]) -> None:
