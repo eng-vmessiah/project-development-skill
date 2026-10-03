@@ -7,7 +7,7 @@ runner and its runner-issued capability.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 import json
 import os
@@ -352,7 +352,7 @@ class ProviderReadinessResult:
     argv: tuple[str, ...]
     output: str = ""
     audit: ProviderReadinessAudit | None = None
-    metadata: Mapping[str, Any] = MappingProxyType({})
+    metadata: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
 
     def __post_init__(self) -> None:
         if self.runtime not in _SAFE_RUNTIME or not isinstance(self.argv, tuple):

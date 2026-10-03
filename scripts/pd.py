@@ -25,7 +25,7 @@ from pd_fleet.state import normalize_fleet_state
 from pd_fleet.models import FleetPlan, FleetPlanError
 from pd_fleet.validation import compute_ready_tasks
 from pd_fleet.orchestrator import FleetOrchestrator
-from pd_fleet.dispatch import Dispatcher, SimulatedAdapter
+from pd_fleet.dispatch import SimulatedAdapter
 from pd_fleet.checkpoint import Checkpoint
 from pd_fleet.contracts import canonicalize as canonicalize_v2, plan_hash as plan_hash_v2, _redact_paths, _redact_sensitive_text, _EXTERNAL_URL
 from pd_fleet.state import FLEET_STATE_FIELDS

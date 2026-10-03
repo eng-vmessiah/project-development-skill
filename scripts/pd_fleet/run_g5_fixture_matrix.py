@@ -21,8 +21,8 @@ if str(_REPO_ROOT) not in sys.path:
 from scripts.pd_fleet.fake_gateway import FakeGateway
 from scripts.pd_fleet.fleet_gateway_bridge import FleetGatewayBridge
 from scripts.pd_fleet.gateway_bridge_contracts import (
-    MAX_REPLAY_BATCH, BridgeEvent, BridgeValidationError, BridgeCursor,
-    ObserverIdentity, OwnershipMode, ReplayWindow, SCHEMA_VERSION, SessionSnapshot,
+    MAX_REPLAY_BATCH, BridgeValidationError,
+    ObserverIdentity, ReplayWindow, SessionSnapshot,
 )
 
 REPORT_VERSION = "pd-fleet-g5-fixture-report:v2"
