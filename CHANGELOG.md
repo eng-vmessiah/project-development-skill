@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-10-03
+
+Patch release carrying the 1.2.0 content forward. The `v1.2.0` tag's release
+workflow failed before publishing because the release workflow's test-dependency
+install did not include `jsonschema` (required by the Fleet schema-validation
+tests and fixtures) — the same class of gap repaired in the main CI workflow for
+1.2.0. Per the release policy, the failed tag is preserved unmodified and the fix
+is forwarded here.
+
+### Fixed
+- The release workflow now installs the `jsonschema` test dependency, matching
+  the main CI workflow.
+
 ## [1.2.0] - 2026-10-03
 
 This release promotes the skill-source reconciliation and the Hermes gateway/fleet
@@ -113,6 +126,7 @@ file and is published from an exact `v1.1.0` Git tag by the release workflow.
 
 | Version | Date | Changes |
 |---|---|---|
+| 1.2.1 | 2026-10-03 | Patch: release workflow test-dependency fix (carries 1.2.0 forward) |
 | 1.2.0 | 2026-10-03 | Skill-source reconciliation, B15a local closeout, CI repair |
 | 1.1.1 | 2026-07-28 | Directory/executable pin validation fix |
 | 1.1.0 | 2026-07-28 | Installer coverage, CLI workflows, release CI, Fleet V2 docs |
