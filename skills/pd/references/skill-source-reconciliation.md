@@ -15,7 +15,11 @@ Treat the versioned repository as the intended source of truth and installed pat
 5. Make a backup of every installed copy before changing it.
 6. Promote accepted installed-only improvements into a reconciliation branch in the source repository. Do not silently edit the active installation as the first step.
 7. Commit the reconciled source, then reinstall all destinations from that source.
-8. Verify expected platform transformations only (for example, metadata removal), and verify hashes/content for all other files.
+8. Immediately before each install, re-snapshot the destination and compare its hash/content with the audited backup. If it changed during reconciliation, stop and re-audit the new copy instead of overwriting it.
+9. Verify expected platform transformations only (for example, metadata removal), and verify hashes/content for all other files.
+10. If an additional destination is discovered after the first inventory (for example, a flat Claude command), back it up first, then classify its format and include it in the post-install matrix.
+11. Stage the installer against temporary Hermes/OpenCode/Claude destinations before touching active installations. Assert that nested references/templates/scripts are copied, platform-specific rendering is correct, stale files are removed only within the managed skill scope, and flat-name collisions fail closed.
+12. Keep the active runtime unchanged until the staged install and verification matrix pass; a validated installer is not the same as a completed live synchronization.
 
 ## Required report
 
@@ -35,4 +39,6 @@ Record:
 - Do not compare only the main file; missing `references/` can be the real divergence.
 - Do not assume the default Hermes profile is synchronized with named profiles.
 - Do not use a generic installer that copies only `SKILL.md` when the skill depends on `references/`, `templates/`, or `scripts/`.
-- Do not claim synchronization until all active destinations have been reinstalled and checked.
+- Backups and reports must record paths, hashes, and classifications without preserving or printing credentials, tokens, or other secrets; redact sensitive values.
+- A destination that changes during the audit is not a harmless race: treat the latest content as a new source candidate and preserve both snapshots before deciding.
+- A late-discovered flat-format installation must be handled separately; do not assume every platform uses the same directory tree or frontmatter.
