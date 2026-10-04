@@ -1,0 +1,191 @@
+{
+  "generated_at": "2026-10-04T20:51:20+00:00",
+  "sources": {
+    "repo": "/home/vitor/project/project-development-skill",
+    "hermes_worktree": "/home/vitor/project/hermes-agent-b15a2-integration"
+  },
+  "features": [
+    {
+      "feature": "pd-fleet-hermes-adapter-real-v1",
+      "phase": 0,
+      "status": "initialized",
+      "tasks": 0
+    },
+    {
+      "feature": "pd-fleet-hermes-adapter-v0",
+      "phase": 0,
+      "status": "initialized",
+      "tasks": 0
+    },
+    {
+      "feature": "pd-fleet-hermes-gateway-fleet-v1",
+      "phase": 0,
+      "status": "initialized",
+      "tasks": 0
+    },
+    {
+      "feature": "pd-fleet-orchestration",
+      "phase": 0,
+      "status": "initialized",
+      "tasks": 0
+    },
+    {
+      "feature": "pd-fleet-scope-alignment",
+      "phase": 0,
+      "status": "initialized",
+      "tasks": 0
+    },
+    {
+      "feature": "pd-fleet-supervisor-handoff",
+      "phase": 0,
+      "status": "initialized",
+      "tasks": 0
+    }
+  ],
+  "gates": [
+    {
+      "gate": "G0",
+      "status": "HOLD_live_surface_unconfirmed",
+      "note": "No supported global Fleet subscription, activation, replay, or opaque issuer seam confirmed."
+    },
+    {
+      "gate": "G1",
+      "status": "local_verified",
+      "note": "Versioned bridge contract and review packet."
+    },
+    {
+      "gate": "G2",
+      "status": "local_verified",
+      "note": "Ownership/association rules and local tests."
+    },
+    {
+      "gate": "G3",
+      "status": "local_verified",
+      "note": "Cursor, replay, reconnect, stale, and recovery behavior in local fixtures."
+    },
+    {
+      "gate": "G4",
+      "status": "local_verified_live_auth_open",
+      "note": "Local default-deny/redaction/auth policy verified; Hermes Gateway mechanism, issuer, transport, and security closure rem"
+    },
+    {
+      "gate": "G5",
+      "status": "local_fake_verified",
+      "note": "45/45 scenarios; 44 distinct negative scenarios; direct and module runs deterministic."
+    },
+    {
+      "gate": "G6",
+      "status": "local_injected_verified_live_not_ready",
+      "note": "Local bridge and adapter verified; unsupported live Fleet operations explicitly return `NOT_READY_HERMES_SEAM`."
+    },
+    {
+      "gate": "G7",
+      "status": "local_fake_canary_verified",
+      "note": "Isolated fake Gateway canary only; no live or provider effect."
+    },
+    {
+      "gate": "G8",
+      "status": "local_closeout_not_promotable",
+      "note": "Documentation/evidence closeout complete; no promotion, merge, release, or production readiness claim."
+    }
+  ],
+  "slices": [
+    {
+      "slice": "S0",
+      "state": "✅",
+      "title": "worktree `~/project/hermes-agent-b15a2-integration` (branch `feat/b15a2-integration` @ `63301027cc`) = merge l"
+    },
+    {
+      "slice": "S1",
+      "state": "✅",
+      "title": "`hermes_cli/fleet_tui_wire.py` (+ 26 testes RED-first) @ `1828ab35dd` — schemas fechados `pd-fleet-tui:v1`, bo"
+    },
+    {
+      "slice": "S2",
+      "state": "✅",
+      "title": "`hermes_cli/fleet_tui_session.py` (+ 16 testes ×3) @ `df1fc55f0a` — ops D4 sobre a maquinaria existente; ≤1 as"
+    },
+    {
+      "slice": "S3",
+      "state": "✅",
+      "title": "`tui_gateway/fleet_tui_registration.py` (+ 7 testes) @ `a2412badf6` — batch atômico default-off dos 4 nomes; e"
+    },
+    {
+      "slice": "S4",
+      "state": "✅",
+      "title": "`tui_gateway/fleet_tui_hooks.py` + funil `_teardown_popped_session` instrumentado (+ 8 testes) @ `0e3ac7915d` "
+    },
+    {
+      "slice": "S5",
+      "state": "✅",
+      "title": "PD `tests/fleet/test_b15a2_host_seam_harness.py` @ `f7b466a` — adapter REAL → host REAL, 11 passed (9 fixtures"
+    },
+    {
+      "slice": "S6",
+      "state": "✅",
+      "title": "2 revisores (segurança + integração); 2 majors corrigidos @ `590a18f75f` (paginação do replay + identidade no "
+    }
+  ],
+  "commits": {
+    "pd": [
+      {
+        "commit": "d9c33dc",
+        "summary": "docs(fleet): B15a.2 Fase 1 evidence packet + S6 review dispositions"
+      },
+      {
+        "commit": "f7b466a",
+        "summary": "test(fleet): bind the D1 batch adapter to the real Hermes seam (B15a.2 S5)"
+      },
+      {
+        "commit": "d9c6afd",
+        "summary": "docs(b15a2): host integration gap analysis (phase 1, local-only)"
+      },
+      {
+        "commit": "011c050",
+        "summary": "chore: prepare 1.2.1 patch release (fix release workflow test deps)"
+      },
+      {
+        "commit": "a606ad3",
+        "summary": "chore: prepare 1.2.0 release"
+      },
+      {
+        "commit": "2fd3495",
+        "summary": "fix(ci): repair py3.11 collection, missing jsonschema, and lint F401s"
+      },
+      {
+        "commit": "cfad698",
+        "summary": "merge(pd): promote B15a gateway fleet closeout and skill-source reconciliation"
+      },
+      {
+        "commit": "1cd43a9",
+        "summary": "docs(pd): reconcile installed-only skill content from deployments"
+      }
+    ],
+    "hermes_b15a2": [
+      {
+        "commit": "590a18f75f",
+        "summary": "fix(fleet): close S6 review findings on the B15a.2 series"
+      },
+      {
+        "commit": "759fe1bd73",
+        "summary": "refactor(fleet): expose build_fleet_session_registrations for the S5 harness (b15a2-S5)"
+      },
+      {
+        "commit": "0e3ac7915d",
+        "summary": "feat(fleet): default-off TUI lifecycle hooks into the fleet service (b15a2-S4)"
+      },
+      {
+        "commit": "a2412badf6",
+        "summary": "feat(fleet): register the four D4 fleet.session.* handlers on the seam (b15a2-S3)"
+      },
+      {
+        "commit": "df1fc55f0a",
+        "summary": "feat(fleet): add FleetTuiSessionService for the D4 ops (b15a2-S2)"
+      },
+      {
+        "commit": "1828ab35dd",
+        "summary": "feat(fleet): add closed D4 TUI wire codec (b15a2-S1)"
+      }
+    ]
+  }
+}
