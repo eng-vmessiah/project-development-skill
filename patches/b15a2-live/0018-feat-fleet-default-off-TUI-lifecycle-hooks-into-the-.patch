@@ -1,0 +1,273 @@
+From 0e3ac7915d5e2ebd4f6ad093931acdaeb8a7ab88 Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Sun, 4 Oct 2026 17:12:05 -0300
+Subject: [PATCH 4/7] feat(fleet): default-off TUI lifecycle hooks into the
+ fleet service (b15a2-S4)
+
+- FleetTuiHooks: best-effort adapter (never raises into the host path) over an
+  injected session service; host close reasons map to closed wire codes
+  (tui_shutdown -> tui_exit, everything else -> session_end).
+- Single funnel instrumentation: session_lifecycle._teardown_popped_session
+  notes the close in a finally (no-op unless hooks installed). The note uses a
+  lazy import because bind_module re-creates split-module functions with server
+  globals and never publishes imported module objects.
+- Restart invalidation pinned: a fresh service rejects cursors minted before
+  the restart (invalid_provenance).
+- Tests: 8 passed (incl. the server-rebound runtime path); regression 208
+  passed; canonical tests/tui_gateway identical to base (one pre-existing
+  flaky signature test fails on base too).
+---
+ tests/tui_gateway/test_fleet_tui_hooks.py | 134 ++++++++++++++++++++++
+ tui_gateway/fleet_tui_hooks.py            |  78 +++++++++++++
+ tui_gateway/session_lifecycle.py          |  12 +-
+ 3 files changed, 223 insertions(+), 1 deletion(-)
+ create mode 100644 tests/tui_gateway/test_fleet_tui_hooks.py
+ create mode 100644 tui_gateway/fleet_tui_hooks.py
+
+diff --git a/tests/tui_gateway/test_fleet_tui_hooks.py b/tests/tui_gateway/test_fleet_tui_hooks.py
+new file mode 100644
+index 0000000000..9caf94c762
+--- /dev/null
++++ b/tests/tui_gateway/test_fleet_tui_hooks.py
+@@ -0,0 +1,134 @@
++"""RED-first tests for the default-off TUI lifecycle → fleet hooks (B15a.2, S4).
++
++The hooks are best-effort by design: they must never break the host session
++path; the fleet service itself stays fail-closed. The single close funnel
++(``session_lifecycle._teardown_popped_session``) is the only instrumented
++point, and with no hooks installed the funnel is byte-for-byte unchanged.
++"""
++from __future__ import annotations
++
++from types import SimpleNamespace
++
++import pytest
++
++from hermes_cli.fleet_activation import FleetActivationOwner
++from hermes_cli.fleet_observer import FleetObserverConfig, FleetObserverHub, FleetObserverScope
++from hermes_cli.fleet_tui_session import FleetTuiSessionService, TuiActiveSession
++from hermes_cli.fleet_tui_wire import FleetTuiWireError
++from tui_gateway import fleet_tui_hooks, session_lifecycle
++
++OBSERVER = "tui.observer-1"
++OWNER = "owner.alpha"
++S1 = "session.alpha-1"
++
++
++def _build() -> SimpleNamespace:
++    owner = FleetActivationOwner("issuer.one", OWNER, enabled=True, wired=True)
++    assert owner.activate() is True and owner.ready
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    resolver = lambda: TuiActiveSession(S1, OWNER, "acct.main", "ws.here")  # noqa: E731
++    svc = FleetTuiSessionService(owner, hub, observer_ref=OBSERVER, resolve_active_session=resolver)
++    return SimpleNamespace(owner=owner, hub=hub, svc=svc)
++
++
++@pytest.fixture()
++def env():
++    e = _build()
++    e.hooks = fleet_tui_hooks.FleetTuiHooks(e.svc)
++    fleet_tui_hooks.set_fleet_tui_hooks(e.hooks)
++    yield e
++    fleet_tui_hooks.set_fleet_tui_hooks(None)
++
++
++def _code(fn):
++    with pytest.raises(FleetTuiWireError) as exc:
++        fn()
++    return exc.value.code
++
++
++def _events(env):
++    scope = FleetObserverScope(OWNER, OBSERVER, session_ref=S1)
++    return [e.event_type for e in env.hub.replay(scope, None).events]
++
++
++def test_hooks_registry_defaults_and_type_gate():
++    fleet_tui_hooks.set_fleet_tui_hooks(None)
++    assert fleet_tui_hooks.get_fleet_tui_hooks() is None
++    fleet_tui_hooks.note_session_end("tui_shutdown")  # no-op, must not raise
++    fleet_tui_hooks.note_status("observing")  # no-op
++    with pytest.raises(TypeError):
++        fleet_tui_hooks.set_fleet_tui_hooks(object())
++    with pytest.raises(TypeError):
++        fleet_tui_hooks.FleetTuiHooks(object())
++
++
++def test_note_session_end_ends_association_and_maps_reason(env):
++    env.svc.activate()
++    assert env.svc.session_status_changed("observing") is True
++    fleet_tui_hooks.note_session_end("tui_shutdown")  # → tui_exit
++    assert _code(env.svc.status) == "association_stale"
++    assert _events(env) == ["session.registered", "session.status_changed", "session.ended"]
++    scope = FleetObserverScope(OWNER, OBSERVER, session_ref=S1)
++    ended = [e for e in env.hub.replay(scope, None).events if e.event_type == "session.ended"]
++    assert ended[-1].payload.get("reason") == "tui_exit"
++
++
++def test_unknown_end_reason_maps_to_session_end(env):
++    env.svc.activate()
++    fleet_tui_hooks.note_session_end("idle_timeout")
++    scope = FleetObserverScope(OWNER, OBSERVER, session_ref=S1)
++    ended = [e for e in env.hub.replay(scope, None).events if e.event_type == "session.ended"]
++    assert ended and ended[-1].payload.get("reason") == "session_end"
++
++
++def test_hooks_never_raise_without_association_or_identity(env):
++    fleet_tui_hooks.note_session_end("tui_shutdown")  # no association → no-op, no raise
++    env.owner.deactivate()
++    fleet_tui_hooks.note_session_end("tui_shutdown")  # not ready → no-op, no raise
++    fleet_tui_hooks.note_status("observing")
++
++
++def test_close_funnel_fires_hook(env, monkeypatch):
++    env.svc.activate()
++    calls: list[str] = []
++    monkeypatch.setattr(session_lifecycle, "_settle_isolated_turn_before_close", lambda session: None)
++    monkeypatch.setattr(session_lifecycle, "_teardown_session",
++                        lambda session, *, end_reason: calls.append(end_reason))
++    assert session_lifecycle._teardown_popped_session({"last_active": 0.0}, end_reason="tui_shutdown") is True
++    assert calls == ["tui_shutdown"]
++    assert _code(env.svc.status) == "association_stale"
++    scope = FleetObserverScope(OWNER, OBSERVER, session_ref=S1)
++    ended = [e for e in env.hub.replay(scope, None).events if e.event_type == "session.ended"]
++    assert ended and ended[-1].payload.get("reason") == "tui_exit"
++
++
++def test_funnel_noop_without_hooks(monkeypatch):
++    fleet_tui_hooks.set_fleet_tui_hooks(None)
++    monkeypatch.setattr(session_lifecycle, "_settle_isolated_turn_before_close", lambda session: None)
++    monkeypatch.setattr(session_lifecycle, "_teardown_session", lambda session, *, end_reason: None)
++    assert session_lifecycle._teardown_popped_session({}, end_reason="tui_close") is True
++    assert session_lifecycle._teardown_popped_session(None, end_reason="tui_close") is False
++
++
++def test_close_funnel_via_server_rebound_copy(env, monkeypatch):
++    """The runtime path: ``bind_module`` re-creates the funnel with server globals."""
++    from tui_gateway import server
++
++    env.svc.activate()
++    calls: list[str] = []
++    monkeypatch.setattr(server, "_settle_isolated_turn_before_close", lambda session: None)
++    monkeypatch.setattr(server, "_teardown_session", lambda session, *, end_reason: calls.append(end_reason))
++    assert server._teardown_popped_session({"last_active": 0.0}, end_reason="tui_shutdown") is True
++    assert calls == ["tui_shutdown"]
++    assert _code(env.svc.status) == "association_stale"
++    scope = FleetObserverScope(OWNER, OBSERVER, session_ref=S1)
++    ended = [e for e in env.hub.replay(scope, None).events if e.event_type == "session.ended"]
++    assert ended and ended[-1].payload.get("reason") == "tui_exit"
++
++
++def test_restart_invalidates_old_cursors(env):
++    started = env.svc.activate()
++    restarted = _build().svc  # fresh process: new service, new cursor secret
++    restarted.activate()
++    assert _code(lambda: restarted.replay(started["cursor"])) == "invalid_provenance"
+diff --git a/tui_gateway/fleet_tui_hooks.py b/tui_gateway/fleet_tui_hooks.py
+new file mode 100644
+index 0000000000..910d49a515
+--- /dev/null
++++ b/tui_gateway/fleet_tui_hooks.py
+@@ -0,0 +1,78 @@
++"""Default-off bridge from the TUI session lifecycle into the fleet service.
++
++The host owns the integration flag: nothing is wired until an owner installs a
++:class:`FleetTuiHooks` via :func:`set_fleet_tui_hooks`. The bridge is
++best-effort on purpose — the HOST session path must never break because of the
++fleet side — while the service itself stays fail-closed (it simply declines
++operations when not ready or not associated).
++"""
++from __future__ import annotations
++
++import contextlib
++import logging
++from typing import Any
++
++from hermes_cli.fleet_tui_session import FleetTuiSessionService
++
++logger = logging.getLogger(__name__)
++
++#: Host close reasons → closed wire reason codes (D4). Unknown reasons fall
++#: back to the generic ``session_end``.
++_END_REASON_MAP = {"tui_shutdown": "tui_exit"}
++
++
++class FleetTuiHooks:
++    """Thin, never-raising adapter over an injected session service."""
++
++    def __init__(self, service: FleetTuiSessionService) -> None:
++        if type(service) is not FleetTuiSessionService:
++            raise TypeError("service must be an exact FleetTuiSessionService")
++        self._service = service
++
++    def note_session_end(self, end_reason: str) -> None:
++        reason = _END_REASON_MAP.get(str(end_reason), "session_end")
++        with contextlib.suppress(Exception):
++            self._service.session_ended(reason)
++
++    def note_status(self, status: str) -> None:
++        with contextlib.suppress(Exception):
++            self._service.session_status_changed(status)
++
++
++_hooks: FleetTuiHooks | None = None
++
++
++def set_fleet_tui_hooks(hooks: FleetTuiHooks | None) -> None:
++    """Install (or clear) the process hooks. Default is ``None`` = disabled."""
++    global _hooks
++    if hooks is not None and type(hooks) is not FleetTuiHooks:
++        raise TypeError("hooks must be a FleetTuiHooks or None")
++    _hooks = hooks
++
++
++def get_fleet_tui_hooks() -> FleetTuiHooks | None:
++    return _hooks
++
++
++def note_session_end(end_reason: str) -> None:
++    """Funnel-safe note: no-op when disabled; never raises."""
++    hooks = _hooks
++    if hooks is None:
++        return
++    try:
++        hooks.note_session_end(end_reason)
++    except Exception:  # pragma: no cover - belt and braces for the host path
++        logger.debug("fleet session-end hook failed", exc_info=True)
++
++
++def note_status(status: str) -> None:
++    hooks = _hooks
++    if hooks is None:
++        return
++    try:
++        hooks.note_status(status)
++    except Exception:  # pragma: no cover
++        logger.debug("fleet status hook failed", exc_info=True)
++
++
++__all__ = ["FleetTuiHooks", "get_fleet_tui_hooks", "note_session_end", "note_status", "set_fleet_tui_hooks"]
+diff --git a/tui_gateway/session_lifecycle.py b/tui_gateway/session_lifecycle.py
+index d124ed258a..5a29059b76 100644
+--- a/tui_gateway/session_lifecycle.py
++++ b/tui_gateway/session_lifecycle.py
+@@ -580,7 +580,17 @@ def _teardown_popped_session(session: dict | None, *, end_reason: str = "tui_clo
+             logger.debug("failed waiting for session turn thread", exc_info=True)
+     if end_reason != "tui_shutdown":
+         _settle_isolated_turn_before_close(session)
+-    _teardown_session(session, end_reason=end_reason)
++    try:
++        _teardown_session(session, end_reason=end_reason)
++    finally:
++        # Best-effort, default-off lifecycle note: no-op unless an owner
++        # installed fleet hooks; never raises into the host close path.
++        # Lazy import: this function is also rebound with ``server`` globals
++        # (``bind_module``), which never publishes imported module objects.
++        with contextlib.suppress(Exception):
++            from tui_gateway import fleet_tui_hooks
++
++            fleet_tui_hooks.note_session_end(end_reason)
+     return True
+ 
+ 

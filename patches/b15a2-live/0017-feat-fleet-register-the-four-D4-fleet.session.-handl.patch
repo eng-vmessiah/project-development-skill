@@ -1,0 +1,210 @@
+From a2412badf64fa99b250226e3ee939a84672d7f0c Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Sun, 4 Oct 2026 16:42:54 -0300
+Subject: [PATCH 3/7] feat(fleet): register the four D4 fleet.session.*
+ handlers on the seam (b15a2-S3)
+
+- register_fleet_session_rpcs: atomic, default-off batch registration over the
+  approved plugin RPC seam; thin (rid, params) adapters over an injected
+  FleetTuiSessionService.
+- Wire-level failures become canonical bounded error payloads; unexpected
+  exceptions stay isolated by the dispatcher (-32000, no internals leaked).
+- Tests: default-off, atomic four-name batch, client-authority denial over the
+  RPC path, canonical errors, duplicate rejection keeps original, exception
+  isolation, non-Fleet dispatch byte-for-byte unchanged.
+- 7 passed; regression 200 passed; ruff clean.
+---
+ .../test_fleet_tui_registration.py            | 114 ++++++++++++++++++
+ tui_gateway/fleet_tui_registration.py         |  62 ++++++++++
+ 2 files changed, 176 insertions(+)
+ create mode 100644 tests/tui_gateway/test_fleet_tui_registration.py
+ create mode 100644 tui_gateway/fleet_tui_registration.py
+
+diff --git a/tests/tui_gateway/test_fleet_tui_registration.py b/tests/tui_gateway/test_fleet_tui_registration.py
+new file mode 100644
+index 0000000000..a9e8a562ed
+--- /dev/null
++++ b/tests/tui_gateway/test_fleet_tui_registration.py
+@@ -0,0 +1,114 @@
++"""RED-first tests for the D4 fleet.session.* seam registration (B15a.2, S3).
++
++Proves: default-off registration, atomic batch of the four approved names,
++wire-level canonical bounded errors, client-authority denial over the RPC
++path, handler exception isolation, and non-Fleet dispatch compatibility.
++"""
++from __future__ import annotations
++
++from types import SimpleNamespace
++
++import pytest
++
++from hermes_cli.fleet_activation import FleetActivationOwner
++from hermes_cli.fleet_observer import FleetObserverConfig, FleetObserverHub
++from hermes_cli.fleet_tui_session import FleetTuiSessionService, TuiActiveSession
++from hermes_cli.fleet_tui_wire import WIRE_SCHEMA
++from tui_gateway import server
++from tui_gateway.fleet_tui_registration import FLEET_SESSION_METHODS, register_fleet_session_rpcs
++from tui_gateway.plugin_rpc import PluginRpcRegistrationError
++
++OBSERVER = "tui.observer-1"
++OWNER = "owner.alpha"
++S1 = "session.alpha-1"
++
++FOUR = ("fleet.session.activate", "fleet.session.status", "fleet.session.deactivate", "fleet.session.replay")
++
++
++@pytest.fixture()
++def svc():
++    owner = FleetActivationOwner("issuer.one", OWNER, enabled=True, wired=True)
++    assert owner.activate() is True and owner.ready
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    resolver = lambda: TuiActiveSession(S1, OWNER, "acct.main", "ws.here")  # noqa: E731
++    return FleetTuiSessionService(owner, hub, observer_ref=OBSERVER, resolve_active_session=resolver)
++
++
++@pytest.fixture(autouse=True)
++def _clean_registry():
++    server.clear_plugin_rpcs_for_tests()
++    yield
++    server.clear_plugin_rpcs_for_tests()
++
++
++def _call(method, params):
++    return server.handle_request({"id": 1, "method": method, "params": params})
++
++
++def test_registration_is_default_off(svc):
++    with pytest.raises(PluginRpcRegistrationError):
++        register_fleet_session_rpcs(svc, enabled=False)
++    assert _call("fleet.session.activate", {"schema_version": WIRE_SCHEMA})["error"]["code"] == -32601
++
++
++def test_enabled_registration_is_atomic_and_dispatches_all_four(svc):
++    names = register_fleet_session_rpcs(svc, enabled=True)
++    assert names == FOUR
++    assert FLEET_SESSION_METHODS == FOUR
++
++    activated = _call("fleet.session.activate", {"schema_version": WIRE_SCHEMA})
++    result = activated["result"]
++    assert set(result) == {"schema_version", "association_ref", "subscriber_ref", "stream_epoch", "cursor", "snapshot"}
++    assert result["snapshot"]["state"] == "observing"
++
++    status = _call("fleet.session.status", {"schema_version": WIRE_SCHEMA})["result"]
++    assert status["snapshot"]["association_ref"] == result["association_ref"]
++
++    assert svc.session_status_changed("observing") is True
++    replay = _call("fleet.session.replay", {"schema_version": WIRE_SCHEMA, "cursor": result["cursor"]})["result"]
++    assert [e["event_type"] for e in replay["events"]] == ["session.status_changed"]
++
++    detached = _call("fleet.session.deactivate", {"schema_version": WIRE_SCHEMA})["result"]
++    assert detached == {"schema_version": WIRE_SCHEMA, "status": "detached"}
++
++
++def test_client_authority_denied_over_rpc(svc):
++    register_fleet_session_rpcs(svc, enabled=True)
++    forged = _call("fleet.session.activate", {"schema_version": WIRE_SCHEMA, "session_id": "client-chosen"})
++    assert forged["result"] == {"schema_version": WIRE_SCHEMA, "error": {"code": "invalid_request"}}
++    bad_schema = _call("fleet.session.status", {"schema_version": "pd-fleet-tui:v9"})
++    assert bad_schema["result"]["error"]["code"] == "unsupported_schema"
++
++
++def test_wire_errors_are_canonical(svc):
++    register_fleet_session_rpcs(svc, enabled=True)
++    stale = _call("fleet.session.status", {"schema_version": WIRE_SCHEMA})
++    assert stale["result"] == {"schema_version": WIRE_SCHEMA, "error": {"code": "association_stale"}}
++    bad_cursor = _call("fleet.session.replay", {"schema_version": WIRE_SCHEMA, "cursor": "cur.nope"})
++    assert bad_cursor["result"]["error"]["code"] == "association_stale"
++
++
++def test_duplicate_registration_is_rejected_and_keeps_original(svc):
++    register_fleet_session_rpcs(svc, enabled=True)
++    with pytest.raises(PluginRpcRegistrationError):
++        register_fleet_session_rpcs(svc, enabled=True)
++    assert _call("fleet.session.activate", {"schema_version": WIRE_SCHEMA})["result"]["schema_version"] == WIRE_SCHEMA
++
++
++def test_handler_exception_is_isolated(svc):
++    def boom(rid, params):
++        raise RuntimeError("secret internals")
++
++    server.register_plugin_rpc_batch("fleet", [("session.explode", boom)], enabled=True)
++    resp = _call("fleet.session.explode", {})
++    assert resp["error"]["code"] == -32000
++    assert "secret" not in resp["error"]["message"]
++
++
++def test_non_fleet_dispatch_is_unchanged(svc):
++    before = _call("core.not_a_real_method", {})
++    register_fleet_session_rpcs(svc, enabled=True)
++    after = _call("core.not_a_real_method", {})
++    assert before == after  # byte-for-byte: unknown non-Fleet methods unchanged
++    assert after["error"]["code"] == -32601
+diff --git a/tui_gateway/fleet_tui_registration.py b/tui_gateway/fleet_tui_registration.py
+new file mode 100644
+index 0000000000..6d79ad5cb1
+--- /dev/null
++++ b/tui_gateway/fleet_tui_registration.py
+@@ -0,0 +1,62 @@
++"""Host-side registration of the four approved D4 ``fleet.session.*`` handlers.
++
++The seam is default-off: callers must pass the host's already-resolved
++integration flag. Handlers are thin adapters over an injected
++:class:`FleetTuiSessionService`; wire-level failures become canonical bounded
++error payloads, and any unexpected exception is isolated by the dispatcher
++(never leaking internals to the client).
++"""
++from __future__ import annotations
++
++from typing import Any, Callable
++
++from hermes_cli.fleet_tui_session import FleetTuiSessionService
++from hermes_cli.fleet_tui_wire import (
++    FleetTuiWireError,
++    build_error,
++    parse_activate_request,
++    parse_deactivate_request,
++    parse_replay_request,
++    parse_status_request,
++)
++
++FLEET_SESSION_METHODS = (
++    "fleet.session.activate",
++    "fleet.session.status",
++    "fleet.session.deactivate",
++    "fleet.session.replay",
++)
++
++
++def _make_handler(service: FleetTuiSessionService,
++                  parse: Callable[[Any], dict[str, Any]],
++                  invoke: Callable[[FleetTuiSessionService, dict[str, Any]], dict[str, Any]]
++                  ) -> Callable[[Any, Any], dict]:
++    def handler(rid: Any, params: Any) -> dict:
++        from . import server
++        try:
++            request = parse(params)
++            response = invoke(service, request)
++        except FleetTuiWireError as exc:
++            return server._ok(rid, build_error(exc.code))
++        return server._ok(rid, response)
++
++    return handler
++
++
++def register_fleet_session_rpcs(service: FleetTuiSessionService, *, enabled: bool) -> tuple[str, ...]:
++    """Atomically register the four D4 handlers behind the host integration flag."""
++    from . import server
++
++    if type(service) is not FleetTuiSessionService:
++        raise TypeError("service must be an exact FleetTuiSessionService")
++    registrations = (
++        ("session.activate", _make_handler(service, parse_activate_request, lambda svc, req: svc.activate())),
++        ("session.status", _make_handler(service, parse_status_request, lambda svc, req: svc.status())),
++        ("session.deactivate", _make_handler(service, parse_deactivate_request, lambda svc, req: svc.deactivate())),
++        ("session.replay", _make_handler(service, parse_replay_request, lambda svc, req: svc.replay(req["cursor"]))),
++    )
++    return server.register_plugin_rpc_batch("fleet", registrations, enabled=enabled)
++
++
++__all__ = ["FLEET_SESSION_METHODS", "register_fleet_session_rpcs"]

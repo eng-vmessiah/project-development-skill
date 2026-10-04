@@ -1,0 +1,330 @@
+From 590a18f75f0913be17c876a51b90dffc68fbc13f Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Sun, 4 Oct 2026 17:38:04 -0300
+Subject: [PATCH 6/7] fix(fleet): close S6 review findings on the B15a.2 series
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- replay: bounded pagination — serve the largest prefix that fits the 8 KiB
+  envelope with an advancing next_cursor (was a dead-end payload_too_large
+  retry loop for backlogs beyond ~31 events); payload_too_large is now a
+  canonical bounded ERROR_CODES member.
+- session_ended(session_ref=...) and the hooks/funnel chain carry the closed
+  session id: an ended session's association is torn down even when the
+  resolver already moved on, and closes of unrelated sessions are no-ops.
+- cursor MAC compare on bytes (str compare_digest raised on non-ASCII input);
+  a hub-first expiry check surfaces as cursor_expired, not replay_gap.
+- tests: session group 78 passed (+8); regression 216; ruff clean.
+---
+ hermes_cli/fleet_tui_session.py               | 58 +++++++++++----
+ hermes_cli/fleet_tui_wire.py                  |  1 +
+ tests/hermes_cli/test_fleet_tui_session.py    | 73 +++++++++++++++++++
+ tests/hermes_cli/test_fleet_tui_wire.py       |  2 +-
+ tests/tui_gateway/test_fleet_tui_hooks.py     | 15 +++-
+ .../test_fleet_tui_registration.py            | 11 ++-
+ tui_gateway/fleet_tui_hooks.py                |  8 +-
+ tui_gateway/session_lifecycle.py              |  2 +-
+ 8 files changed, 146 insertions(+), 24 deletions(-)
+
+diff --git a/hermes_cli/fleet_tui_session.py b/hermes_cli/fleet_tui_session.py
+index c7adb8349f..69970fec54 100644
+--- a/hermes_cli/fleet_tui_session.py
++++ b/hermes_cli/fleet_tui_session.py
+@@ -216,19 +216,37 @@ class FleetTuiSessionService:
+                 assoc.scope.key, issued_at, expires_at)
+             try:
+                 result = self._hub.replay(assoc.scope, internal)
+-            except ReplayGap:
+-                raise FleetTuiWireError("replay_gap") from None
++            except ReplayGap as gap:
++                # The hub can hit its own expiry check first (skewed/injected clocks):
++                # that condition is an expiry, not a continuity gap.
++                code = "cursor_expired" if "cursor has expired" in str(gap) else "replay_gap"
++                raise FleetTuiWireError(code) from None
+             except FleetObserverError:
+                 raise FleetTuiWireError("invalid_provenance") from None
+             if result.gap is not None:
+                 raise FleetTuiWireError("replay_gap")
+             events = [self._wire_event(assoc, event) for event in result.events]
+-            if events and result.next_cursor is not None:
+-                next_cursor = self._encode_cursor(assoc.scope, result.next_cursor.stream_epoch,
+-                                                  result.next_cursor.sequence, issued_at)
+-            else:
+-                next_cursor = cursor  # no advance: echo the client cursor unchanged
+-            return build_replay_response(events=events, next_cursor=next_cursor)
++            if not events:
++                return build_replay_response(events=[], next_cursor=cursor)  # echo: no advance
++            if result.next_cursor is None:
++                return build_replay_response(events=events, next_cursor=cursor)
++            # Bounded pagination: serve the largest prefix that fits the envelope so a
++            # backlogged client always advances (never a dead-end retry of one cursor).
++            epoch_now = result.next_cursor.stream_epoch
++            low, high = 1, len(events)
++            while low < high:
++                mid = (low + high + 1) // 2
++                probe = self._encode_cursor(assoc.scope, epoch_now, result.events[mid - 1].sequence, issued_at)
++                try:
++                    build_replay_response(events=events[:mid], next_cursor=probe)
++                except FleetTuiWireError as exc:
++                    if exc.code != "payload_too_large":
++                        raise
++                    high = mid - 1
++                else:
++                    low = mid
++            next_cursor = self._encode_cursor(assoc.scope, epoch_now, result.events[low - 1].sequence, issued_at)
++            return build_replay_response(events=events[:low], next_cursor=next_cursor)
+ 
+     # ── internal hooks (S4 wires these to the TUI session lifecycle) ─────
+ 
+@@ -249,17 +267,24 @@ class FleetTuiSessionService:
+             assoc.state = status
+             return True
+ 
+-    def session_ended(self, reason: str) -> bool:
++    def session_ended(self, reason: str, *, session_ref: str | None = None) -> bool:
+         if reason not in WIRE_REASON_CODES:
+             raise FleetTuiWireError("invalid_event")
+-        ctx = self._safe_ctx()
+-        if ctx is None:
+-            return False
++        if session_ref is not None:
++            try:
++                target = validate_ref(session_ref)
++            except FleetTuiWireError:
++                return False
++        else:
++            ctx = self._safe_ctx()
++            if ctx is None:
++                return False
++            target = ctx.session_ref
+         with self._lock:
+-            assoc = self._associations.get(ctx.session_ref)
++            assoc = self._associations.get(target)
+             if assoc is None:
+-                return False
+-            return self._teardown(ctx.session_ref, assoc, ended=True, reason=reason)
++                return False  # a close of an unrelated session is a no-op
++            return self._teardown(target, assoc, ended=True, reason=reason)
+ 
+     # ── internals ────────────────────────────────────────────────────────
+ 
+@@ -351,7 +376,8 @@ class FleetTuiSessionService:
+             raise FleetTuiWireError("invalid_provenance")
+         mac, payload_parts = parts[0], parts[1:]
+         expected = hmac.new(self._secret, "-".join(payload_parts).encode("utf-8"), hashlib.sha256).hexdigest()[:16]
+-        if not hmac.compare_digest(mac, expected):
++        # Byte comparison: str compare_digest raises on non-ASCII client input.
++        if not hmac.compare_digest(mac.encode("utf-8"), expected.encode("utf-8")):
+             raise FleetTuiWireError("invalid_provenance")
+         digest, epoch, sequence, issued_at, expires_at = payload_parts
+         if digest != self._scope_digest(scope):
+diff --git a/hermes_cli/fleet_tui_wire.py b/hermes_cli/fleet_tui_wire.py
+index fce4147c3b..21c6b52994 100644
+--- a/hermes_cli/fleet_tui_wire.py
++++ b/hermes_cli/fleet_tui_wire.py
+@@ -79,6 +79,7 @@ ERROR_CODES = frozenset({
+     "invalid_event",
+     "invalid_provenance",
+     "no_new_events",
++    "payload_too_large",
+ })
+ 
+ _SNAPSHOT_FIELDS = frozenset({
+diff --git a/tests/hermes_cli/test_fleet_tui_session.py b/tests/hermes_cli/test_fleet_tui_session.py
+index e39ca7cf56..bb62db342a 100644
+--- a/tests/hermes_cli/test_fleet_tui_session.py
++++ b/tests/hermes_cli/test_fleet_tui_session.py
+@@ -216,3 +216,76 @@ def test_replay_cursor_scope_binding(env):
+ def test_replay_before_activate_fails_closed(env):
+     # unattached session → association_stale regardless of cursor shape
+     assert _code(lambda: env.svc.replay("cur.whatever")) == "association_stale"
++
++
++# ── review fixes (S6): pagination, expiry mapping, identity-targeted end ─────
++
++def _clocked_service(clock):
++    owner = FleetActivationOwner("issuer.one", OWNER, enabled=True, wired=True)
++    assert owner.activate() is True and owner.ready
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    return FleetTuiSessionService(owner, hub, observer_ref=OBSERVER,
++                                  resolve_active_session=lambda: _ctx(), clock=clock)
++
++
++def test_replay_paginates_bounded_batches(env):
++    started = env.svc.activate()
++    for _ in range(40):
++        assert env.svc.session_status_changed("observing") is True
++    cursor = started["cursor"]
++    seen = 0
++    batches = 0
++    for _ in range(10):
++        response = env.svc.replay(cursor)
++        batches += 1
++        if not response["events"]:
++            break
++        assert len(response["events"]) < 40  # a single batch must never exceed the envelope
++        seen += len(response["events"])
++        cursor = response["next_cursor"]
++    assert seen == 40
++    assert batches >= 2
++
++
++def test_replay_cursor_expiry_fails_closed():
++    from hermes_cli.fleet_tui_session import CURSOR_TTL_SECONDS
++    clock = {"now": 10_000.0}
++    svc = _clocked_service(lambda: clock["now"])
++    started = svc.activate()
++    clock["now"] += CURSOR_TTL_SECONDS + 1
++    assert _code(lambda: svc.replay(started["cursor"])) == "cursor_expired"
++
++
++def test_replay_hub_clock_expiry_maps_to_cursor_expired():
++    import time as _time
++    # The hub's own expiry check can fire first when clocks diverge; that is an
++    # expiry condition and must surface as cursor_expired, never replay_gap.
++    svc = _clocked_service(lambda: _time.time() - 1801)
++    started = svc.activate()
++    assert _code(lambda: svc.replay(started["cursor"])) == "cursor_expired"
++
++
++def test_replay_non_ascii_cursor_fails_closed(env):
++    import base64
++    env.svc.activate()
++    forged = "cur." + base64.urlsafe_b64encode("é-a-b-c-d-e".encode("utf-8")).decode("ascii")
++    assert _code(lambda: env.svc.replay(forged)) == "invalid_provenance"
++
++
++def test_session_ended_targets_named_session(env):
++    from hermes_cli.fleet_observer import FleetObserverScope
++    started = env.svc.activate()
++    env.state["session"] = S2  # the resolver has already moved on
++    assert env.svc.session_ended("session_end", session_ref=S1) is True
++    scope = FleetObserverScope(OWNER, OBSERVER, session_ref=S1)
++    assert [e.event_type for e in env.hub.replay(scope, None).events] == ["session.registered", "session.ended"]
++    restarted = env.svc.activate()
++    assert restarted["association_ref"] != started["association_ref"]
++
++
++def test_session_ended_ignores_unrelated_or_invalid_refs(env):
++    env.svc.activate()
++    assert env.svc.session_ended("session_end", session_ref="session.other") is False
++    assert env.svc.session_ended("session_end", session_ref="bad ref!") is False
++    assert env.svc.status()["snapshot"]["state"] == "observing"  # association intact
+diff --git a/tests/hermes_cli/test_fleet_tui_wire.py b/tests/hermes_cli/test_fleet_tui_wire.py
+index 4594954d82..c5ef1a14d8 100644
+--- a/tests/hermes_cli/test_fleet_tui_wire.py
++++ b/tests/hermes_cli/test_fleet_tui_wire.py
+@@ -59,7 +59,7 @@ def test_wire_constants_are_the_approved_bounds():
+         "session.registered", "session.status_changed", "session.heartbeat",
+         "session.metadata_changed", "session.detached", "session.ended",
+     })
+-    assert "replay_gap" in ERROR_CODES and "invalid_request" in ERROR_CODES
++    assert "replay_gap" in ERROR_CODES and "invalid_request" in ERROR_CODES and "payload_too_large" in ERROR_CODES
+ 
+ 
+ # ── request parsing: closed {schema_version} ops ─────────────────────────────
+diff --git a/tests/tui_gateway/test_fleet_tui_hooks.py b/tests/tui_gateway/test_fleet_tui_hooks.py
+index 9caf94c762..f333635a41 100644
+--- a/tests/tui_gateway/test_fleet_tui_hooks.py
++++ b/tests/tui_gateway/test_fleet_tui_hooks.py
+@@ -3,7 +3,8 @@
+ The hooks are best-effort by design: they must never break the host session
+ path; the fleet service itself stays fail-closed. The single close funnel
+ (``session_lifecycle._teardown_popped_session``) is the only instrumented
+-point, and with no hooks installed the funnel is byte-for-byte unchanged.
++point; with no hooks installed the funnel keeps its exact return semantics and
++performs a single suppressed no-op call.
+ """
+ from __future__ import annotations
+ 
+@@ -132,3 +133,15 @@ def test_restart_invalidates_old_cursors(env):
+     restarted = _build().svc  # fresh process: new service, new cursor secret
+     restarted.activate()
+     assert _code(lambda: restarted.replay(started["cursor"])) == "invalid_provenance"
++
++
++def test_close_funnel_passes_session_identity(env, monkeypatch):
++    env.svc.activate()
++    monkeypatch.setattr(session_lifecycle, "_settle_isolated_turn_before_close", lambda session: None)
++    monkeypatch.setattr(session_lifecycle, "_teardown_session", lambda session, *, end_reason: None)
++    # a close of an unrelated session is a no-op for the fleet association
++    assert session_lifecycle._teardown_popped_session({"_sid": "session.other"}, end_reason="tui_close") is True
++    assert env.svc.status()["snapshot"]["state"] == "observing"
++    # the associated session's close ends exactly that association
++    assert session_lifecycle._teardown_popped_session({"_sid": S1}, end_reason="tui_shutdown") is True
++    assert _code(env.svc.status) == "association_stale"
+diff --git a/tests/tui_gateway/test_fleet_tui_registration.py b/tests/tui_gateway/test_fleet_tui_registration.py
+index a9e8a562ed..d7fa64e514 100644
+--- a/tests/tui_gateway/test_fleet_tui_registration.py
++++ b/tests/tui_gateway/test_fleet_tui_registration.py
+@@ -6,6 +6,7 @@ path, handler exception isolation, and non-Fleet dispatch compatibility.
+ """
+ from __future__ import annotations
+ 
++import json
+ from types import SimpleNamespace
+ 
+ import pytest
+@@ -110,5 +111,13 @@ def test_non_fleet_dispatch_is_unchanged(svc):
+     before = _call("core.not_a_real_method", {})
+     register_fleet_session_rpcs(svc, enabled=True)
+     after = _call("core.not_a_real_method", {})
+-    assert before == after  # byte-for-byte: unknown non-Fleet methods unchanged
++    # serialized-stable: the full response JSON is unchanged, not just dict-equal
++    assert json.dumps(before, sort_keys=True) == json.dumps(after, sort_keys=True)
+     assert after["error"]["code"] == -32601
++
++
++def test_invalid_flag_values_are_rejected_fail_closed(svc):
++    for bad in (1, "true", 0, None):
++        with pytest.raises(PluginRpcRegistrationError):
++            register_fleet_session_rpcs(svc, enabled=bad)
++    assert _call("fleet.session.activate", {"schema_version": WIRE_SCHEMA})["error"]["code"] == -32601
+diff --git a/tui_gateway/fleet_tui_hooks.py b/tui_gateway/fleet_tui_hooks.py
+index 910d49a515..ad1ef635ac 100644
+--- a/tui_gateway/fleet_tui_hooks.py
++++ b/tui_gateway/fleet_tui_hooks.py
+@@ -29,10 +29,10 @@ class FleetTuiHooks:
+             raise TypeError("service must be an exact FleetTuiSessionService")
+         self._service = service
+ 
+-    def note_session_end(self, end_reason: str) -> None:
++    def note_session_end(self, end_reason: str, session_ref: str | None = None) -> None:
+         reason = _END_REASON_MAP.get(str(end_reason), "session_end")
+         with contextlib.suppress(Exception):
+-            self._service.session_ended(reason)
++            self._service.session_ended(reason, session_ref=session_ref)
+ 
+     def note_status(self, status: str) -> None:
+         with contextlib.suppress(Exception):
+@@ -54,13 +54,13 @@ def get_fleet_tui_hooks() -> FleetTuiHooks | None:
+     return _hooks
+ 
+ 
+-def note_session_end(end_reason: str) -> None:
++def note_session_end(end_reason: str, session_ref: str | None = None) -> None:
+     """Funnel-safe note: no-op when disabled; never raises."""
+     hooks = _hooks
+     if hooks is None:
+         return
+     try:
+-        hooks.note_session_end(end_reason)
++        hooks.note_session_end(end_reason, session_ref)
+     except Exception:  # pragma: no cover - belt and braces for the host path
+         logger.debug("fleet session-end hook failed", exc_info=True)
+ 
+diff --git a/tui_gateway/session_lifecycle.py b/tui_gateway/session_lifecycle.py
+index 5a29059b76..8fe3eb9faa 100644
+--- a/tui_gateway/session_lifecycle.py
++++ b/tui_gateway/session_lifecycle.py
+@@ -590,7 +590,7 @@ def _teardown_popped_session(session: dict | None, *, end_reason: str = "tui_clo
+         with contextlib.suppress(Exception):
+             from tui_gateway import fleet_tui_hooks
+ 
+-            fleet_tui_hooks.note_session_end(end_reason)
++            fleet_tui_hooks.note_session_end(end_reason, session.get("_sid"))
+     return True
+ 
+ 

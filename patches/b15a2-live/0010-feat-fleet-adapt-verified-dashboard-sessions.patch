@@ -1,0 +1,166 @@
+From 7f9aa955f2374106c11b8995365bd5299ed53d52 Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Thu, 30 Jul 2026 14:54:11 -0300
+Subject: [PATCH 06/10] feat(fleet): adapt verified dashboard sessions
+
+---
+ hermes_cli/fleet_activation.py            | 54 ++++++++++++++++++++++
+ tests/hermes_cli/test_fleet_activation.py | 55 ++++++++++++++++++++++-
+ 2 files changed, 108 insertions(+), 1 deletion(-)
+
+diff --git a/hermes_cli/fleet_activation.py b/hermes_cli/fleet_activation.py
+index 0fbf928f85..9450bd60a7 100644
+--- a/hermes_cli/fleet_activation.py
++++ b/hermes_cli/fleet_activation.py
+@@ -5,9 +5,11 @@ from dataclasses import dataclass, field
+ from datetime import datetime
+ from math import isfinite
+ from threading import RLock
++from time import time
+ from types import MappingProxyType
+ from typing import Any, Callable, Mapping
+ 
++from .dashboard_auth.base import Session
+ from .fleet_observer import EVENT_TYPES, FleetObserverConfig, FleetObserverScope
+ 
+ CAPABILITY_OBSERVE = "pd:observe"
+@@ -264,6 +266,58 @@ class FleetPrincipalResolver:
+         return principal
+ 
+ 
++class DashboardSessionFleetIdentityAdapter:
++    """Convert one verified dashboard session into an observe-only principal.
++
++    Only the dashboard auth ``Session`` type is accepted. Request mappings,
++    strings, and service-to-service ``TokenPrincipal`` values are deliberately
++    not identity claims for this seam. Opaque token fields are never read or
++    copied.
++    """
++
++    def __init__(self, owner: FleetActivationOwner, *, clock: Callable[[], Any] | None = None) -> None:
++        if not isinstance(owner, FleetActivationOwner):
++            raise FleetActivationError("dashboard identity adapter requires a FleetActivationOwner")
++        if clock is not None and not callable(clock):
++            raise FleetActivationError("dashboard identity adapter clock must be callable")
++        self._owner = owner
++        self._clock = clock or time
++
++    @property
++    def owner(self) -> FleetActivationOwner:
++        return self._owner
++
++    def adapt(self, session: Session) -> FleetPrincipal:
++        """Issue the exact observe-only principal for a verified session."""
++        if type(session) is not Session:
++            raise FleetActivationError("dashboard identity requires a verified Session")
++        if not self._owner.ready:
++            raise FleetActivationNotReady("dashboard identity owner is not ready")
++        if type(session.expires_at) is not int or type(session.expires_at) is bool:
++            raise FleetActivationError("session expiry is malformed")
++        now = self._clock()
++        if type(now) not in (int, float) or not isfinite(now):
++            raise FleetActivationError("dashboard identity clock must return unix seconds")
++        if session.expires_at <= now:
++            raise FleetActivationError("session is expired")
++        _bounded(session.user_id, "session user_id")
++        _bounded(session.provider, "session provider", MAX_PROVIDER_LENGTH)
++        if (type(session.org_id) is not str or len(session.org_id) > MAX_PRINCIPAL_REF_LENGTH
++                or any(ord(c) < 32 or ord(c) == 127 for c in session.org_id)):
++            raise FleetActivationError("session org_id is malformed")
++        if session.org_id:
++            _bounded(session.org_id, "session org_id")
++        if self._owner.owner_ref != session.user_id:
++            raise FleetActivationError("session identity does not match the activation owner")
++        return self._owner.issue_principal(
++            subject_ref=session.user_id,
++            provider=session.provider,
++            scopes=(CAPABILITY_OBSERVE,),
++        )
++
++    resolve = adapt
++
++
+ @dataclass(frozen=True)
+ class _OwnerCapability:
+     owner: FleetActivationOwner
+diff --git a/tests/hermes_cli/test_fleet_activation.py b/tests/hermes_cli/test_fleet_activation.py
+index 79e4357623..da297f7fa6 100644
+--- a/tests/hermes_cli/test_fleet_activation.py
++++ b/tests/hermes_cli/test_fleet_activation.py
+@@ -5,8 +5,10 @@ import pytest
+ from hermes_cli.fleet_activation import (
+     CAPABILITY_OBSERVE, FleetActivationBinding, FleetActivationError,
+     FleetActivationNotReady, FleetActivationOwner, FleetLifecyclePublisher,
+-    FleetPrincipal, FleetPrincipalResolver, validate_server_binding,
++    DashboardSessionFleetIdentityAdapter, FleetPrincipal, FleetPrincipalResolver,
++    validate_server_binding,
+ )
++from hermes_cli.dashboard_auth.base import Session, TokenPrincipal
+ from hermes_cli.fleet_observer import FleetObserverConfig, FleetObserverHub, FleetObserverScope
+ 
+ 
+@@ -22,6 +24,16 @@ def active_owner():
+     return result
+ 
+ 
++def dashboard_session(**changes):
++    values = dict(
++        user_id="owner", email="owner@example.test", display_name="Owner",
++        org_id="org", provider="nous", expires_at=200,
++        access_token="access-secret", refresh_token="refresh-secret",
++    )
++    values.update(changes)
++    return Session(**values)
++
++
+ def hub():
+     result = FleetObserverHub(FleetObserverConfig(enabled=True))
+     assert result.activate()
+@@ -112,6 +124,47 @@ def test_principal_resolver_requires_owner_and_validates_issued_principals():
+     assert FleetPrincipalResolver(lambda _: foreign, owner=o).resolve(object()) is None
+ 
+ 
++def test_dashboard_session_adapter_issues_observe_only_principal():
++    o = active_owner()
++    principal = DashboardSessionFleetIdentityAdapter(o, clock=lambda: 100).adapt(dashboard_session())
++    assert principal.subject_ref == "owner"
++    assert principal.owner_ref == o.owner_ref
++    assert principal.provider == "nous"
++    assert principal.scopes == (CAPABILITY_OBSERVE,)
++    o.validate_principal(principal)
++
++
++def test_dashboard_session_adapter_rejects_owner_mismatch_and_expiry():
++    o = active_owner()
++    adapter = DashboardSessionFleetIdentityAdapter(o, clock=lambda: 100)
++    with pytest.raises(FleetActivationError):
++        adapter.adapt(dashboard_session(user_id="another"))
++    with pytest.raises(FleetActivationError):
++        adapter.adapt(dashboard_session(expires_at=100))
++
++
++@pytest.mark.parametrize("changes", [
++    {"user_id": ""}, {"user_id": "bad\nuser"}, {"provider": ""},
++    {"provider": "bad\nprovider"}, {"org_id": "bad\norg"},
++    {"expires_at": "200"},
++])
++def test_dashboard_session_adapter_rejects_malformed_session(changes):
++    o = active_owner()
++    with pytest.raises(FleetActivationError):
++        DashboardSessionFleetIdentityAdapter(o, clock=lambda: 100).adapt(dashboard_session(**changes))
++
++
++def test_dashboard_session_adapter_rejects_untrusted_shapes_without_secret_leakage():
++    o = active_owner()
++    adapter = DashboardSessionFleetIdentityAdapter(o, clock=lambda: 100)
++    secret = "access-secret-refresh-secret"
++    for value in ({"user_id": "owner", "access_token": secret}, "owner",
++                  TokenPrincipal("owner", "nous", (CAPABILITY_OBSERVE,))):
++        with pytest.raises(FleetActivationError) as error:
++            adapter.adapt(value)
++        assert secret not in str(error.value)
++
++
+ def test_publisher_rejects_wrong_binding_scope_and_events():
+     o = active_owner(); h = hub(); p = o.issue_principal("observer"); b = o.issue_binding("observer")
+     publisher = FleetLifecyclePublisher(h, o, b)

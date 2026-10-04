@@ -1,0 +1,369 @@
+From df97ad1a87b87f30a95693b6f539d6142ecfd1f6 Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Sun, 4 Oct 2026 18:10:35 -0300
+Subject: [PATCH 7/7] feat(fleet): local canary composition root + Fase 2
+ review fixes (b15a2-F2)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- tui_gateway/fleet_tui_composition.py: explicit default-off composition root
+  (owner+hub+service+4 handlers+hooks); resolver reads the REAL server registry
+  (exactly one live, client-bearing session; detached-WS sessions excluded);
+  guarded enable; scoped rollback (stale disable never touches newer globals;
+  hub deactivated).
+- service: TOCTOU guard in activate() — a close in the resolve→attach window
+  tears the fresh association down and denies (no orphan association, no wedge).
+- canary tests: 7 (disabled baseline / enable+attach+real close+replay+detach /
+  fail-closed zero-ambiguous-forged / rollback incl. hub-owner-service state /
+  guard+scoped disable / non-shutdown reason mapping / detached-WS exclusion).
+- S2: +window test (23 passed). Group 224 passed; ruff clean.
+- Independent owner/security review: 1 major + 4 minor fixed; not-proven items
+  recorded for the Fase 2 evidence notes.
+---
+ hermes_cli/fleet_tui_session.py            |   7 +
+ tests/hermes_cli/test_fleet_tui_session.py |  18 +++
+ tests/tui_gateway/test_fleet_tui_canary.py | 178 +++++++++++++++++++++
+ tui_gateway/fleet_tui_composition.py       | 104 ++++++++++++
+ 4 files changed, 307 insertions(+)
+ create mode 100644 tests/tui_gateway/test_fleet_tui_canary.py
+ create mode 100644 tui_gateway/fleet_tui_composition.py
+
+diff --git a/hermes_cli/fleet_tui_session.py b/hermes_cli/fleet_tui_session.py
+index 69970fec54..2106b07d7e 100644
+--- a/hermes_cli/fleet_tui_session.py
++++ b/hermes_cli/fleet_tui_session.py
+@@ -183,6 +183,13 @@ class FleetTuiSessionService:
+             assoc = _Association(principal=principal, binding=binding, subscriber_ref=subscriber_ref,
+                                  association_ref=f"assoc.{secrets.token_hex(8)}", scope=scope)
+             self._associations[ctx.session_ref] = assoc
++            # TOCTOU guard: if the session closed in the resolve→attach window, the
++            # close hook fired before this association existed (a no-op). Re-resolve
++            # and tear down immediately instead of leaving an unreachable association.
++            current = self._safe_ctx()
++            if current is None or current.session_ref != ctx.session_ref:
++                self._teardown(ctx.session_ref, assoc, ended=True, reason="session_end")
++                raise FleetTuiWireError("observer_not_authorized")
+             return self._activate_response(assoc)
+ 
+     def status(self) -> dict[str, Any]:
+diff --git a/tests/hermes_cli/test_fleet_tui_session.py b/tests/hermes_cli/test_fleet_tui_session.py
+index bb62db342a..9b01e9f381 100644
+--- a/tests/hermes_cli/test_fleet_tui_session.py
++++ b/tests/hermes_cli/test_fleet_tui_session.py
+@@ -289,3 +289,21 @@ def test_session_ended_ignores_unrelated_or_invalid_refs(env):
+     assert env.svc.session_ended("session_end", session_ref="session.other") is False
+     assert env.svc.session_ended("session_end", session_ref="bad ref!") is False
+     assert env.svc.status()["snapshot"]["state"] == "observing"  # association intact
++
++
++def test_activate_denies_when_session_closes_in_the_window():
++    calls = {"n": 0}
++
++    def flaky_resolver():
++        calls["n"] += 1
++        return _ctx() if calls["n"] == 1 else None  # dies between resolve and re-check
++
++    owner = FleetActivationOwner("issuer.one", OWNER, enabled=True, wired=True)
++    assert owner.activate() is True and owner.ready
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    svc = FleetTuiSessionService(owner, hub, observer_ref=OBSERVER, resolve_active_session=flaky_resolver)
++    assert _code(svc.activate) == "observer_not_authorized"
++    # no orphan association, no wedge: a fresh service over the same machinery attaches cleanly
++    healthy = FleetTuiSessionService(owner, hub, observer_ref=OBSERVER, resolve_active_session=lambda: _ctx())
++    assert healthy.activate()["snapshot"]["state"] == "observing"
+diff --git a/tests/tui_gateway/test_fleet_tui_canary.py b/tests/tui_gateway/test_fleet_tui_canary.py
+new file mode 100644
+index 0000000000..7ed90db3fd
+--- /dev/null
++++ b/tests/tui_gateway/test_fleet_tui_canary.py
+@@ -0,0 +1,178 @@
++"""B15a.2 Fase 2 — local canary against the REAL tui_gateway session machinery.
++
++Fidelity: real server module (session registry, close funnel, RPC dispatch),
++real registration/hooks/composition modules, isolated HERMES_HOME (tmp). This
++is the in-process canary; the out-of-process ``entry.py`` stdio variant is
++deferred (noted in the evidence packet).
++
++Sequence proven here: disabled baseline → explicit enable → attach → real close
++(ended via the funnel) → fail-closed (ambiguous/forged) → rollback.
++"""
++from __future__ import annotations
++
++import pytest
++
++from hermes_cli.fleet_observer import FleetObserverScope
++from hermes_cli.fleet_tui_wire import WIRE_SCHEMA
++from tui_gateway import server
++from tui_gateway.fleet_tui_composition import (
++    CANARY_OBSERVER_REF,
++    CANARY_OWNER_REF,
++    enable_fleet_tui_canary,
++    resolve_active_session_from_server,
++)
++from tui_gateway.fleet_tui_hooks import get_fleet_tui_hooks
++
++S1 = "session.canary-1"
++S2 = "session.canary-2"
++
++
++@pytest.fixture(autouse=True)
++def _temp_home(tmp_path, monkeypatch):
++    monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes-home"))
++    yield
++
++
++@pytest.fixture(autouse=True)
++def _clean_registries():
++    import tui_gateway.fleet_tui_composition as composition
++
++    server.clear_plugin_rpcs_for_tests()
++    with server._sessions_lock:
++        saved = dict(server._sessions)
++        server._sessions.clear()
++    yield
++    server.clear_plugin_rpcs_for_tests()
++    composition._runtime = None  # defensive: no test may leak an enabled runtime
++    with server._sessions_lock:
++        server._sessions.clear()
++        server._sessions.update(saved)
++
++
++def _register(sid, tmp_path):
++    session = {"agent": None, "session_key": sid, "running": False, "last_active": 0.0,
++               "profile_home": str(tmp_path / "profile-home")}
++    with server._sessions_lock:
++        server._sessions[sid] = session
++    return session
++
++
++def _call(method, params):
++    return server.handle_request({"id": 1, "method": method, "params": params})
++
++
++def _code(resp):
++    payload = resp.get("result", resp)
++    return payload.get("error", {}).get("code") if isinstance(payload, dict) else None
++
++
++def test_canary_disabled_baseline(tmp_path):
++    _register(S1, tmp_path)
++    assert _code(_call("fleet.session.activate", {"schema_version": WIRE_SCHEMA})) == -32601
++    # the real close funnel runs with no hooks installed: no fleet effect
++    assert server._close_session_by_id(S1, end_reason="tui_shutdown") is True
++    assert get_fleet_tui_hooks() is None
++    assert resolve_active_session_from_server() is None  # session popped
++
++
++def test_canary_enable_attach_real_close_and_detach(tmp_path):
++    _register(S1, tmp_path)
++    runtime = enable_fleet_tui_canary()
++    try:
++        assert runtime.names == ("fleet.session.activate", "fleet.session.status",
++                                 "fleet.session.deactivate", "fleet.session.replay")
++        activated = _call("fleet.session.activate", {"schema_version": WIRE_SCHEMA})["result"]
++        assert activated["snapshot"]["state"] == "observing"
++
++        replay = _call("fleet.session.replay",
++                       {"schema_version": WIRE_SCHEMA, "cursor": activated["cursor"]})["result"]
++        assert replay["events"] == [] and replay["next_cursor"] == activated["cursor"]
++
++        # the REAL close funnel (server-bound copy) fires the hook with the closed sid → ended(tui_exit)
++        assert server._close_session_by_id(S1, end_reason="tui_shutdown") is True
++        # with the session gone, the server-side resolver fails closed before any association lookup
++        assert _code(_call("fleet.session.status", {"schema_version": WIRE_SCHEMA})) == "observer_not_authorized"
++
++        scope = FleetObserverScope(CANARY_OWNER_REF, CANARY_OBSERVER_REF, session_ref=S1)
++        events = [e.event_type for e in runtime.hub.replay(scope, None).events]
++        assert events == ["session.registered", "session.ended"]
++        ended = runtime.hub.replay(scope, None).events[-1]
++        assert ended.payload.get("reason") == "tui_exit"
++
++        # attach again → explicit detach through the RPC surface
++        _register(S1, tmp_path)
++        _call("fleet.session.activate", {"schema_version": WIRE_SCHEMA})
++        detached = _call("fleet.session.deactivate", {"schema_version": WIRE_SCHEMA})["result"]
++        assert detached == {"schema_version": WIRE_SCHEMA, "status": "detached"}
++    finally:
++        runtime.disable()
++
++
++def test_canary_fail_closed_zero_ambiguous_and_forged(tmp_path):
++    runtime = enable_fleet_tui_canary()
++    try:
++        assert _code(_call("fleet.session.activate", {"schema_version": WIRE_SCHEMA})) == "observer_not_authorized"
++        _register(S1, tmp_path)
++        _register(S2, tmp_path)  # ambiguous: two live sessions → fail closed
++        assert _code(_call("fleet.session.activate", {"schema_version": WIRE_SCHEMA})) == "observer_not_authorized"
++        with server._sessions_lock:
++            server._sessions.pop(S2, None)
++        forged = _call("fleet.session.activate", {"schema_version": WIRE_SCHEMA, "session_id": "client-chosen"})
++        assert forged["result"]["error"]["code"] == "invalid_request"
++    finally:
++        runtime.disable()
++
++
++def test_canary_rollback_disables_everything(tmp_path):
++    _register(S1, tmp_path)
++    runtime = enable_fleet_tui_canary()
++    assert get_fleet_tui_hooks() is not None
++    runtime.disable()
++    assert get_fleet_tui_hooks() is None
++    assert runtime.hub.active is False
++    assert runtime.owner.ready is False
++    assert runtime.service.active is False
++    assert _code(_call("fleet.session.activate", {"schema_version": WIRE_SCHEMA})) == -32601
++    assert server._close_session_by_id(S1, end_reason="tui_shutdown") is True  # fleet-wise a no-op
++
++
++def test_canary_resolver_excludes_detached_ws_sessions(tmp_path):
++    session = _register(S1, tmp_path)
++    session["transport"] = server._detached_ws_transport
++    assert resolve_active_session_from_server() is None
++    runtime = enable_fleet_tui_canary()
++    try:
++        assert _code(_call("fleet.session.activate", {"schema_version": WIRE_SCHEMA})) == "observer_not_authorized"
++    finally:
++        runtime.disable()
++
++
++def test_canary_close_with_non_shutdown_reason_maps_to_session_end(tmp_path):
++    _register(S1, tmp_path)
++    runtime = enable_fleet_tui_canary()
++    try:
++        _call("fleet.session.activate", {"schema_version": WIRE_SCHEMA})
++        assert server._close_session_by_id(S1, end_reason="idle_timeout") is True
++        scope = FleetObserverScope(CANARY_OWNER_REF, CANARY_OBSERVER_REF, session_ref=S1)
++        ended = [e for e in runtime.hub.replay(scope, None).events if e.event_type == "session.ended"]
++        assert ended and ended[-1].payload.get("reason") == "session_end"
++    finally:
++        runtime.disable()
++
++
++def test_canary_enable_is_guarded_and_stale_disable_is_scoped(tmp_path):
++    _register(S1, tmp_path)
++    runtime = enable_fleet_tui_canary()
++    with pytest.raises(RuntimeError, match="already enabled"):
++        enable_fleet_tui_canary()
++    assert get_fleet_tui_hooks() is not None  # first runtime intact
++    runtime.disable()
++    # a stale runtime's disable must not tear down a newer runtime
++    newer = enable_fleet_tui_canary()
++    try:
++        runtime.disable()  # stale — globals untouched
++        assert get_fleet_tui_hooks() is not None
++        activated = _call("fleet.session.activate", {"schema_version": WIRE_SCHEMA})
++        assert activated["result"]["snapshot"]["state"] == "observing"
++    finally:
++        newer.disable()
+diff --git a/tui_gateway/fleet_tui_composition.py b/tui_gateway/fleet_tui_composition.py
+new file mode 100644
+index 0000000000..4ee0e690c6
+--- /dev/null
++++ b/tui_gateway/fleet_tui_composition.py
+@@ -0,0 +1,104 @@
++"""Explicit, default-off composition root for the local fleet TUI canary (B15a.2 Fase 2).
++
++Nothing here runs automatically. An operator (or the canary tests) must call
++:func:`enable_fleet_tui_canary` explicitly; :meth:`FleetTuiRuntime.disable` is
++the rollback. The active session is resolved from the REAL server registry
++(exactly one live session; zero/ambiguous fails closed), and identity is always
++server-side — the client never supplies it.
++"""
++from __future__ import annotations
++
++import contextlib
++import logging
++
++from hermes_cli.fleet_activation import FleetActivationOwner
++from hermes_cli.fleet_observer import FleetObserverConfig, FleetObserverHub
++from hermes_cli.fleet_tui_session import FleetTuiSessionService, TuiActiveSession
++from hermes_cli.fleet_tui_wire import FleetTuiWireError
++
++from .fleet_tui_hooks import FleetTuiHooks, set_fleet_tui_hooks
++from .fleet_tui_registration import register_fleet_session_rpcs
++
++logger = logging.getLogger(__name__)
++
++CANARY_ISSUER_REF = "issuer.canary"
++CANARY_OWNER_REF = "owner.canary"
++CANARY_OBSERVER_REF = "tui.observer-canary"
++_CANARY_PROFILE_REF = "acct.canary"
++_CANARY_WORKSPACE_REF = "ws.canary"
++
++_runtime: FleetTuiRuntime | None = None
++
++
++def resolve_active_session_from_server() -> TuiActiveSession | None:
++    """Exactly one live session in the server registry → that session; else None."""
++    from . import server
++
++    with server._sessions_lock:
++        live = [sid for sid, session in server._sessions.items()
++                if isinstance(session, dict)
++                and not session.get("_finalized") and not session.get("_closing")
++                and not server._ws_session_is_detached(session)]
++    if len(live) != 1:
++        return None
++    try:
++        return TuiActiveSession(live[0], CANARY_OWNER_REF, _CANARY_PROFILE_REF, _CANARY_WORKSPACE_REF)
++    except FleetTuiWireError:
++        logger.debug("canary resolver rejected session id %r", live[0])
++        return None
++
++
++class FleetTuiRuntime:
++    """Handle for an enabled canary runtime; ``disable()`` is the rollback."""
++
++    def __init__(self, *, owner: FleetActivationOwner, hub: FleetObserverHub,
++                 service: FleetTuiSessionService, names: tuple[str, ...]) -> None:
++        self.owner = owner
++        self.hub = hub
++        self.service = service
++        self.names = names
++
++    def disable(self) -> None:
++        """Rollback: only the CURRENT runtime touches the process globals."""
++        global _runtime
++        if _runtime is self:
++            set_fleet_tui_hooks(None)
++            from . import server
++
++            server.clear_plugin_rpcs_for_tests()  # registry clear() — no selective unregister exists yet
++            _runtime = None
++        self.owner.deactivate()
++        with contextlib.suppress(Exception):
++            self.hub.deactivate()
++
++
++def enable_fleet_tui_canary(*, owner_ref: str = CANARY_OWNER_REF,
++                            observer_ref: str = CANARY_OBSERVER_REF) -> FleetTuiRuntime:
++    """Explicitly enable the runtime: owner+hub+service, four handlers, lifecycle hooks."""
++    global _runtime
++    if _runtime is not None:
++        raise RuntimeError("fleet TUI canary runtime is already enabled; disable() it first")
++    owner = FleetActivationOwner(CANARY_ISSUER_REF, owner_ref, enabled=True, wired=True)
++    if owner.activate() is not True or not owner.ready:
++        raise RuntimeError("canary activation owner failed to activate")
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    service = FleetTuiSessionService(owner, hub, observer_ref=observer_ref,
++                                     resolve_active_session=resolve_active_session_from_server)
++    try:
++        names = register_fleet_session_rpcs(service, enabled=True)
++    except Exception:
++        with contextlib.suppress(Exception):
++            hub.deactivate()
++        owner.deactivate()
++        raise
++    set_fleet_tui_hooks(FleetTuiHooks(service))
++    runtime = FleetTuiRuntime(owner=owner, hub=hub, service=service, names=names)
++    _runtime = runtime
++    return runtime
++
++
++__all__ = [
++    "CANARY_OBSERVER_REF", "CANARY_OWNER_REF", "FleetTuiRuntime",
++    "enable_fleet_tui_canary", "resolve_active_session_from_server",
++]

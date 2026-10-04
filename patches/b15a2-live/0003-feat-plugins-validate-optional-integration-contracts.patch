@@ -1,0 +1,405 @@
+From a9b2c169846e9203f90fb82f74b710a630859e93 Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Sun, 2 Aug 2026 17:00:17 -0300
+Subject: [PATCH 3/4] feat(plugins): validate optional integration contracts
+
+---
+ hermes_cli/plugins.py                         |  12 +
+ hermes_cli/plugins_manifest.py                |  46 ++++
+ plugins/pd-fleet-hermes/__init__.py           |  22 ++
+ plugins/pd-fleet-hermes/plugin.yaml           |  12 +
+ .../plugins/test_pd_fleet_hermes_packaging.py | 236 ++++++++++++++++++
+ 5 files changed, 328 insertions(+)
+ create mode 100644 plugins/pd-fleet-hermes/__init__.py
+ create mode 100644 plugins/pd-fleet-hermes/plugin.yaml
+ create mode 100644 tests/plugins/test_pd_fleet_hermes_packaging.py
+
+diff --git a/hermes_cli/plugins.py b/hermes_cli/plugins.py
+index 02222185a2..8a3ee72e65 100644
+--- a/hermes_cli/plugins.py
++++ b/hermes_cli/plugins.py
+@@ -1489,6 +1489,18 @@ class PluginManager(PluginLoaderMixin, PluginDispatchMixin, PluginLedgerMixin):
+         # bundled key from another directory (resolve_manifest_winners); gate the winners, then
+         # load survivors in requires_plugins order (see resolve_plugin_load_order).
+         winners = resolve_manifest_winners(manifests)
++        # Optional integration contracts are validated pre-import: an invalid contract is a hard
++        # failure — recorded for introspection and kept out of the load set so config state cannot
++        # re-include it (all-or-nothing gate; see _parse_integration_contract).
++        for contract_key, contract_manifest in list(winners.items()):
++            if contract_manifest.integration_contract_error is not None:
++                self._plugins[contract_key] = LoadedPlugin(
++                    manifest=contract_manifest,
++                    enabled=False,
++                    error=contract_manifest.integration_contract_error,
++                )
++                logger.warning("Plugin '%s': %s", contract_key, contract_manifest.integration_contract_error)
++                del winners[contract_key]
+         to_load = {k: m for k, m in winners.items() if self._gate_manifest(m, disabled, enabled)}
+         for lookup_key in resolve_plugin_load_order(to_load):
+             manifest = to_load[lookup_key]
+diff --git a/hermes_cli/plugins_manifest.py b/hermes_cli/plugins_manifest.py
+index 409b309361..d2531d677e 100644
+--- a/hermes_cli/plugins_manifest.py
++++ b/hermes_cli/plugins_manifest.py
+@@ -392,6 +392,10 @@ class PluginManifest:
+     # ``{endonym, rtl}`` from the mapping form of a ``provides_locales`` entry.
+     provides_locales: List[str] = field(default_factory=list)
+     locale_metadata: Dict[str, Dict[str, Any]] = field(default_factory=dict)
++    # Optional host-recognized integration metadata (closed pre-import contract).
++    # Invalid values are kept out of this field and reported before the plugin can be imported.
++    integration_contract: Optional[Dict[str, Any]] = None
++    integration_contract_error: Optional[str] = None
+ 
+ 
+ def parse_provides_locales(raw: Any, key: str = "") -> Tuple[List[str], Dict[str, Dict[str, Any]]]:
+@@ -521,6 +525,43 @@ def _manifest_kind(data: Mapping, key: str, plugin_dir: Path) -> str:
+     return kind
+ 
+ 
++_INTEGRATION_CONTRACT_KEYS = frozenset({"namespace", "version", "default_enabled"})
++# Contract versions use a deliberately small MAJOR.MINOR compatibility format.
++# It accepts the published "1.0" contract and rejects YAML numeric versions.
++_INTEGRATION_CONTRACT_VERSION_RE = re.compile(r"^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$")
++_INTEGRATION_CONTRACT_NAMESPACE_RE = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
++_INTEGRATION_CONTRACT_ERROR = "integration_contract rejected: invalid manifest"
++
++
++def _parse_integration_contract(data: Any) -> tuple[Optional[Dict[str, Any]], Optional[str]]:
++    """Validate the optional, closed pre-import integration contract.
++
++    A manifest without this extension remains a normal plugin manifest. Once
++    present, the mapping is all-or-nothing: accepting a partial or unknown
++    contract would make an intended safety gate merely advisory.
++    """
++    if data is None:
++        return None, None
++    if not isinstance(data, dict) or set(data) != _INTEGRATION_CONTRACT_KEYS:
++        return None, _INTEGRATION_CONTRACT_ERROR
++    namespace = data["namespace"]
++    version = data["version"]
++    default_enabled = data["default_enabled"]
++    if (
++        not isinstance(namespace, str)
++        or not _INTEGRATION_CONTRACT_NAMESPACE_RE.fullmatch(namespace)
++        or not isinstance(version, str)
++        or not _INTEGRATION_CONTRACT_VERSION_RE.fullmatch(version)
++        or default_enabled is not False
++    ):
++        return None, _INTEGRATION_CONTRACT_ERROR
++    return {
++        "namespace": namespace,
++        "version": version,
++        "default_enabled": default_enabled,
++    }, None
++
++
+ def parse_manifest_file(
+     manifest_file: Path, plugin_dir: Path, source: str, prefix: str
+ ) -> Optional[PluginManifest]:
+@@ -534,6 +575,9 @@ def parse_manifest_file(
+             logger.warning("Failed to parse %s: top level must be a mapping, got %s (#14066)",
+                            manifest_file, type(data).__name__)
+             return None
++        integration_contract, integration_contract_error = _parse_integration_contract(
++            data.get("integration_contract") if isinstance(data, dict) else data
++        )
+         name = data.get("name", plugin_dir.name)
+         key = f"{prefix}/{plugin_dir.name}" if prefix else name
+         kind = _manifest_kind(data, key, plugin_dir)
+@@ -552,6 +596,8 @@ def parse_manifest_file(
+             capabilities=_parse_declared_capabilities(data.get("capabilities"), name),
+             **_parse_manifest_v2_fields(data, key), emits=data.get("emits") or [],
+             listens=data.get("listens") or [],
++            integration_contract=integration_contract,
++            integration_contract_error=integration_contract_error,
+             provides_locales=provides_locales, locale_metadata=locale_metadata,
+         )
+     except Exception as exc:
+diff --git a/plugins/pd-fleet-hermes/__init__.py b/plugins/pd-fleet-hermes/__init__.py
+new file mode 100644
+index 0000000000..b2a81f548b
+--- /dev/null
++++ b/plugins/pd-fleet-hermes/__init__.py
+@@ -0,0 +1,22 @@
++"""Opt-in, lifecycle-only PD Fleet adapter plugin.
++
++This package intentionally has no Hermes imports. The host owns the context,
++configuration gate, identity, transport and all external-effect policy.
++"""
++from __future__ import annotations
++
++
++def _on_session_start(**_kwargs):
++    """Reserved lifecycle callback; observation is not enabled in this slice."""
++    return None
++
++
++def _on_session_end(**_kwargs):
++    """Reserved lifecycle callback; cleanup is host-owned in later slices."""
++    return None
++
++
++def register(ctx) -> None:
++    """Register only the lifecycle hooks approved for the first plugin slice."""
++    ctx.register_hook("on_session_start", _on_session_start)
++    ctx.register_hook("on_session_end", _on_session_end)
+diff --git a/plugins/pd-fleet-hermes/plugin.yaml b/plugins/pd-fleet-hermes/plugin.yaml
+new file mode 100644
+index 0000000000..a594f00a9e
+--- /dev/null
++++ b/plugins/pd-fleet-hermes/plugin.yaml
+@@ -0,0 +1,12 @@
++name: pd-fleet-hermes
++version: 0.1.0
++description: Optional lifecycle-only adapter between PD Fleet and Hermes
++kind: standalone
++integration_contract:
++  namespace: pd-fleet
++  version: "1.0"
++  default_enabled: false
++provides_hooks:
++  - on_session_start
++  - on_session_end
++provides_tools: []
+diff --git a/tests/plugins/test_pd_fleet_hermes_packaging.py b/tests/plugins/test_pd_fleet_hermes_packaging.py
+new file mode 100644
+index 0000000000..7730e3b55b
+--- /dev/null
++++ b/tests/plugins/test_pd_fleet_hermes_packaging.py
+@@ -0,0 +1,236 @@
++"""Hermetic packaging tests for the lifecycle-only PD Fleet plugin."""
++from __future__ import annotations
++
++import os
++import shutil
++import sys
++from pathlib import Path
++
++import pytest
++import yaml
++
++from hermes_cli.plugins import PluginManager
++from tools.registry import registry as tool_registry
++
++
++_PLUGIN_NAME = "pd-fleet-hermes"
++_PLUGIN_SOURCE = Path(__file__).resolve().parents[2] / "plugins" / _PLUGIN_NAME
++_EXPECTED_HOOKS = {"on_session_start", "on_session_end"}
++_MODULE_NAME = "hermes_plugins.pd_fleet_hermes"
++_CONTRACT_ERROR = "integration_contract rejected: invalid manifest"
++
++
++@pytest.fixture
++def staged_plugin_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
++    """Copy PD Fleet only beneath an isolated bundled-plugin root."""
++    assert _PLUGIN_SOURCE.is_dir(), "PD Fleet plugin package must be shipped with Hermes"
++    root = tmp_path / "bundled-plugins"
++    shutil.copytree(_PLUGIN_SOURCE, root / _PLUGIN_NAME)
++    monkeypatch.setenv("HERMES_BUNDLED_PLUGINS", str(root))
++    return root
++
++
++@pytest.fixture
++def isolated_manager(monkeypatch: pytest.MonkeyPatch):
++    """Restore global state, including state a successful import may mutate."""
++    monkeypatch.setattr(PluginManager, "_scan_entry_points", lambda _self: [])
++    prior_path = list(sys.path)
++    prior_module = sys.modules.get(_MODULE_NAME)
++    prior_parent = sys.modules.get("hermes_plugins")
++    with tool_registry._lock:
++        prior_policy = dict(tool_registry._plugin_override_policy)
++    manager = PluginManager()
++    try:
++        yield manager
++    finally:
++        with tool_registry._lock:
++            tool_registry._plugin_override_policy.clear()
++            tool_registry._plugin_override_policy.update(prior_policy)
++            assert tool_registry._plugin_override_policy == prior_policy
++        sys.path[:] = prior_path
++        assert sys.path == prior_path
++        if prior_module is None:
++            sys.modules.pop(_MODULE_NAME, None)
++            assert _MODULE_NAME not in sys.modules
++        else:
++            sys.modules[_MODULE_NAME] = prior_module
++            assert sys.modules[_MODULE_NAME] is prior_module
++        if prior_parent is None:
++            sys.modules.pop("hermes_plugins", None)
++        else:
++            sys.modules["hermes_plugins"] = prior_parent
++
++
++def _write_config(hermes_home: Path, contents: str) -> None:
++    (hermes_home / "config.yaml").write_text(contents, encoding="utf-8")
++
++
++def _enable_pd_fleet() -> None:
++    _write_config(Path(os.environ["HERMES_HOME"]), "plugins:\n  enabled: [pd-fleet-hermes]\n")
++
++
++def _write_manifest(path: Path, contract: object | None) -> None:
++    data = yaml.safe_load(path.read_text(encoding="utf-8"))
++    if contract is None:
++        data.pop("integration_contract", None)
++    else:
++        data["integration_contract"] = contract
++    path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
++
++
++def test_manifest_retains_generic_integration_contract(
++    staged_plugin_root: Path, isolated_manager: PluginManager
++) -> None:
++    isolated_manager.discover_and_load()
++
++    manifest = isolated_manager._plugins[_PLUGIN_NAME].manifest
++    assert manifest.name == _PLUGIN_NAME
++    assert manifest.version == "0.1.0"
++    assert manifest.kind == "standalone"
++    assert manifest.integration_contract == {
++        "namespace": "pd-fleet",
++        "version": "1.0",
++        "default_enabled": False,
++    }
++    assert manifest.provides_hooks == ["on_session_start", "on_session_end"]
++    assert manifest.provides_tools == []
++    assert manifest.path == str(staged_plugin_root / _PLUGIN_NAME)
++
++
++@pytest.mark.parametrize(
++    "contract",
++    [
++        [],
++        {"namespace": "pd-fleet", "version": "1.0"},
++        {"namespace": "pd-fleet", "default_enabled": False},
++        {"version": "1.0", "default_enabled": False},
++        {"namespace": 1, "version": "1.0", "default_enabled": False},
++        {"namespace": "PD Fleet", "version": "1.0", "default_enabled": False},
++        {"namespace": "pd-fleet", "version": 1.0, "default_enabled": False},
++        {"namespace": "pd-fleet", "version": "1", "default_enabled": False},
++        {"namespace": "pd-fleet", "version": "1.0", "default_enabled": True},
++        {"namespace": "pd-fleet", "version": "1.0", "default_enabled": "false"},
++        {"namespace": "pd-fleet", "version": "1.0", "default_enabled": False, "extra": "no"},
++    ],
++)
++def test_invalid_contract_is_reported_and_rejected_before_import(
++    staged_plugin_root: Path, isolated_manager: PluginManager, contract: object | None
++) -> None:
++    plugin_dir = staged_plugin_root / _PLUGIN_NAME
++    marker = plugin_dir / "imported-marker"
++    (plugin_dir / "__init__.py").write_text(
++        "from pathlib import Path\nPath(__file__).with_name('imported-marker').write_text('imported')\n",
++        encoding="utf-8",
++    )
++    _write_manifest(plugin_dir / "plugin.yaml", contract)
++    _enable_pd_fleet()
++    path_before = list(sys.path)
++    with tool_registry._lock:
++        policy_before = dict(tool_registry._plugin_override_policy)
++
++    isolated_manager.discover_and_load()
++
++    loaded = isolated_manager._plugins[_PLUGIN_NAME]
++    assert loaded.enabled is False
++    assert loaded.error == _CONTRACT_ERROR
++    assert loaded.module is None
++    assert loaded.hooks_registered == []
++    assert not marker.exists()
++    assert _MODULE_NAME not in sys.modules
++    assert isolated_manager._hooks == {}
++    assert isolated_manager._plugin_tool_names == set()
++    assert isolated_manager._plugin_commands == {}
++    assert isolated_manager.list_plugins()[0]["error"] == _CONTRACT_ERROR
++    assert sys.path == path_before
++    with tool_registry._lock:
++        assert tool_registry._plugin_override_policy == policy_before
++
++
++def test_absent_contract_is_a_noop_for_unrelated_plugins(
++    staged_plugin_root: Path, isolated_manager: PluginManager
++) -> None:
++    _write_manifest(staged_plugin_root / _PLUGIN_NAME / "plugin.yaml", None)
++    _enable_pd_fleet()
++
++    isolated_manager.discover_and_load()
++
++    loaded = isolated_manager._plugins[_PLUGIN_NAME]
++    assert loaded.manifest.integration_contract is None
++    assert loaded.error is None
++    assert loaded.enabled is True
++    assert set(loaded.hooks_registered) == _EXPECTED_HOOKS
++
++
++@pytest.mark.parametrize("config", ["", "plugins:\n  enabled: []\n"])
++def test_absent_or_empty_enabled_config_leaves_staged_plugin_unloaded(
++    staged_plugin_root: Path, isolated_manager: PluginManager, config: str
++) -> None:
++    if config:
++        _write_config(Path(os.environ["HERMES_HOME"]), config)
++
++    isolated_manager.discover_and_load()
++
++    loaded = isolated_manager._plugins[_PLUGIN_NAME]
++    assert loaded.enabled is False
++    assert loaded.module is None
++    assert loaded.hooks_registered == []
++    assert not (set(isolated_manager._hooks) & _EXPECTED_HOOKS)
++
++
++def test_explicit_enable_registers_only_declared_lifecycle_hooks(
++    staged_plugin_root: Path, isolated_manager: PluginManager
++) -> None:
++    _enable_pd_fleet()
++    staged_source_before = {path.name: path.read_bytes() for path in (staged_plugin_root / _PLUGIN_NAME).glob("*") if path.is_file()}
++    repository_source_before = {path.name: path.read_bytes() for path in _PLUGIN_SOURCE.glob("*") if path.is_file()}
++    path_before = list(sys.path)
++
++    isolated_manager.discover_and_load()
++
++    loaded = isolated_manager._plugins[_PLUGIN_NAME]
++    assert loaded.enabled is True
++    assert loaded.error is None
++    assert set(loaded.hooks_registered) == _EXPECTED_HOOKS
++    assert set(isolated_manager._hooks) == _EXPECTED_HOOKS
++    assert all(len(callbacks) == 1 for callbacks in isolated_manager._hooks.values())
++    assert loaded.tools_registered == []
++    assert isolated_manager._plugin_tool_names == set()
++    assert loaded.middleware_registered == []
++    assert loaded.commands_registered == []
++    assert not hasattr(loaded.module, "register_rpc")
++    assert isolated_manager._cli_commands == {}
++    assert isolated_manager._plugin_commands == {}
++    assert sys.path == path_before
++    assert staged_source_before == {path.name: path.read_bytes() for path in (staged_plugin_root / _PLUGIN_NAME).glob("*") if path.is_file()}
++    assert repository_source_before == {path.name: path.read_bytes() for path in _PLUGIN_SOURCE.glob("*") if path.is_file()}
++
++
++def test_disabled_config_wins_over_explicit_enable(
++    staged_plugin_root: Path, isolated_manager: PluginManager
++) -> None:
++    _write_config(Path(os.environ["HERMES_HOME"]), "plugins:\n  enabled: [pd-fleet-hermes]\n  disabled: [pd-fleet-hermes]\n")
++
++    isolated_manager.discover_and_load()
++
++    loaded = isolated_manager._plugins[_PLUGIN_NAME]
++    assert loaded.enabled is False
++    assert loaded.error == "disabled via config"
++    assert loaded.module is None
++    assert loaded.hooks_registered == []
++    assert isolated_manager._hooks == {}
++
++
++def test_absent_staged_plugin_root_has_no_entry_import_or_hooks(
++    tmp_path: Path, isolated_manager: PluginManager, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    monkeypatch.setenv("HERMES_BUNDLED_PLUGINS", str(tmp_path / "absent-bundled-plugins"))
++    _enable_pd_fleet()
++
++    isolated_manager.discover_and_load()
++
++    assert _PLUGIN_NAME not in isolated_manager._plugins
++    assert isolated_manager.list_plugins() == []
++    assert _MODULE_NAME not in sys.modules
++    assert isolated_manager._hooks == {}
++    assert isolated_manager._plugin_tool_names == set()
++    assert isolated_manager._plugin_commands == {}

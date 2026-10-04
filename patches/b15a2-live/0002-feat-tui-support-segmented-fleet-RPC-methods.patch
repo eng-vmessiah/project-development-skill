@@ -1,0 +1,65 @@
+From f5dd1d4fdd8b45daca7eba75ed3febd6b8eb0b0d Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Sun, 2 Aug 2026 14:21:10 -0300
+Subject: [PATCH 2/4] feat(tui): support segmented fleet RPC methods
+
+---
+ tests/tui_gateway/test_plugin_rpc_seam.py | 25 ++++++++++++++++++++++-
+ tui_gateway/plugin_rpc.py                 |  4 +++-
+ 2 files changed, 27 insertions(+), 2 deletions(-)
+
+diff --git a/tests/tui_gateway/test_plugin_rpc_seam.py b/tests/tui_gateway/test_plugin_rpc_seam.py
+index ae7b04734f..cf96474a40 100644
+--- a/tests/tui_gateway/test_plugin_rpc_seam.py
++++ b/tests/tui_gateway/test_plugin_rpc_seam.py
+@@ -31,11 +31,34 @@ def test_enabled_plugin_rpc_is_namespaced_and_dispatchable():
+     }
+ 
+ 
++def test_plugin_rpc_accepts_safe_segmented_names_and_dispatches():
++    def handler(rid, params):
++        return server._ok(rid, {"activated": True, "params": params})
++
++    assert server.register_plugin_rpc("fleet", "session.activate", handler, enabled=True) == "fleet.session.activate"
++    assert server.handle_request({"id": 6, "method": "fleet.session.activate", "params": {"session": "a"}}) == {
++        "jsonrpc": "2.0", "id": 6, "result": {"activated": True, "params": {"session": "a"}},
++    }
++
++
+ def test_plugin_rpc_rejects_invalid_namespace_names_and_duplicates():
+     def handler(rid, params):
+         return server._ok(rid, {})
+ 
+-    for namespace, name in (("", "probe"), ("fleet", ""), ("Fleet", "probe"), ("fleet", "probe.bad")):
++    invalid_methods = (
++        ("", "probe"),
++        ("Fleet", "probe"),
++        ("other", "probe"),
++        ("fleet", ""),
++        ("fleet", ".session"),
++        ("fleet", "session..activate"),
++        ("fleet", "session.activate."),
++        ("fleet", "session.Activate"),
++        ("fleet", "session-activate"),
++        ("fleet", "session/activate"),
++        ("fleet", "session activate"),
++    )
++    for namespace, name in invalid_methods:
+         with pytest.raises(server.PluginRpcRegistrationError):
+             server.register_plugin_rpc(namespace, name, handler, enabled=True)
+ 
+diff --git a/tui_gateway/plugin_rpc.py b/tui_gateway/plugin_rpc.py
+index 3b9e3f0bd5..2c541de9bf 100644
+--- a/tui_gateway/plugin_rpc.py
++++ b/tui_gateway/plugin_rpc.py
+@@ -18,7 +18,9 @@ def validate_plugin_rpc(namespace: Any, name: Any) -> str:
+         raise PluginRpcRegistrationError("invalid RPC namespace")
+     if namespace != "fleet":
+         raise PluginRpcRegistrationError("unsupported RPC namespace")
+-    if not isinstance(name, str) or not _IDENTIFIER.fullmatch(name):
++    if not isinstance(name, str) or not all(
++        _IDENTIFIER.fullmatch(segment) for segment in name.split(".")
++    ):
+         raise PluginRpcRegistrationError("invalid RPC name")
+     return f"{namespace}.{name}"
+ 

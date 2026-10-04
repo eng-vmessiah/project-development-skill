@@ -1,0 +1,369 @@
+From 3878eb9f4dcfb28df9222d34a19ae4cf702bbc2d Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Thu, 30 Jul 2026 16:38:27 -0300
+Subject: [PATCH 08/10] feat(fleet): add bounded per-session activation tickets
+
+---
+ gateway/platforms/api_server.py           |   3 +-
+ hermes_cli/fleet_activation.py            |   7 +-
+ hermes_cli/fleet_session_activation.py    | 234 ++++++++++++++++++++++
+ tests/hermes_cli/test_fleet_activation.py |  54 +++++
+ 4 files changed, 295 insertions(+), 3 deletions(-)
+ create mode 100644 hermes_cli/fleet_session_activation.py
+
+diff --git a/gateway/platforms/api_server.py b/gateway/platforms/api_server.py
+index 6aa899d702..e4ae95b0c1 100644
+--- a/gateway/platforms/api_server.py
++++ b/gateway/platforms/api_server.py
+@@ -1389,7 +1389,8 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
+             return None
+         try:
+             self._fleet_activation_owner.validate_binding(principal, binding)
+-            scope = FleetObserverScope("api_server", binding.observer_ref, principal.subject_ref)
++            scope_ref = binding.session_ref if binding.session_ref is not None else binding.observer_ref
++            scope = FleetObserverScope("api_server", scope_ref, principal.subject_ref)
+             return publisher.publish(principal, event_type, binding, scope, payload)
+         except Exception:
+             return None
+diff --git a/hermes_cli/fleet_activation.py b/hermes_cli/fleet_activation.py
+index 9450bd60a7..6fa66a3d3a 100644
+--- a/hermes_cli/fleet_activation.py
++++ b/hermes_cli/fleet_activation.py
+@@ -90,12 +90,15 @@ class FleetActivationBinding:
+     owner_ref: str
+     purpose: str = PURPOSE
+     ownership_mode: str = OWNERSHIP_MODE
++    session_ref: str | None = None
+     _authority: object | None = field(default=None, init=False, repr=False, compare=False)
+     _activation_epoch: int | None = field(default=None, init=False, repr=False, compare=False)
+ 
+     def __post_init__(self) -> None:
+         _bounded(self.observer_ref, "observer_ref")
+         _bounded(self.owner_ref, "owner_ref")
++        if self.session_ref is not None:
++            _bounded(self.session_ref, "session_ref")
+         if type(self.purpose) is not str or self.purpose != PURPOSE:
+             raise FleetActivationError("binding purpose is unavailable")
+         if type(self.ownership_mode) is not str or self.ownership_mode != OWNERSHIP_MODE:
+@@ -185,10 +188,10 @@ class FleetActivationOwner:
+             object.__setattr__(principal, "_activation_epoch", self._epoch)
+             return principal
+ 
+-    def issue_binding(self, observer_ref: str) -> FleetActivationBinding:
++    def issue_binding(self, observer_ref: str, *, session_ref: str | None = None) -> FleetActivationBinding:
+         with self._lock:
+             self._check_epoch_locked(self._epoch)
+-            binding = FleetActivationBinding(observer_ref, self._owner_ref, PURPOSE, OWNERSHIP_MODE)
++            binding = FleetActivationBinding(observer_ref, self._owner_ref, PURPOSE, OWNERSHIP_MODE, session_ref)
+             object.__setattr__(binding, "_authority", self._identity)
+             object.__setattr__(binding, "_activation_epoch", self._epoch)
+             return binding
+diff --git a/hermes_cli/fleet_session_activation.py b/hermes_cli/fleet_session_activation.py
+new file mode 100644
+index 0000000000..1f512373f7
+--- /dev/null
++++ b/hermes_cli/fleet_session_activation.py
+@@ -0,0 +1,234 @@
++"""Disabled-by-default, one-shot per-session Fleet activation tickets."""
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++from hashlib import sha256
++from hmac import compare_digest
++from math import isfinite
++from secrets import token_urlsafe
++from threading import RLock
++from time import monotonic
++from typing import Any, Callable
++
++from .fleet_activation import (
++    FleetActivationBinding, FleetActivationError, FleetActivationNotReady,
++    FleetActivationOwner, FleetPrincipal,
++)
++
++MAX_SESSION_REF_LENGTH = 128
++MIN_TICKET_LENGTH = 16
++MAX_TICKET_LENGTH = 512
++MIN_TICKET_TTL_SECONDS = 1
++MAX_TICKET_TTL_SECONDS = 3600
++MAX_ENTRIES = 1024
++
++
++def _session_ref(value: Any) -> None:
++    if type(value) is not str or not value or len(value) > MAX_SESSION_REF_LENGTH:
++        raise FleetActivationError("session_ref must be a non-empty bounded reference")
++    if any(ord(c) < 32 or ord(c) == 127 for c in value):
++        raise FleetActivationError("session_ref must be a non-empty bounded reference")
++    compact = "".join(c for c in value.casefold() if c.isalnum())
++    if any(term in compact for term in ("secret", "password", "credential", "token", "apikey", "privatekey")):
++        raise FleetActivationError("session_ref contains a secret-like value")
++
++
++@dataclass(frozen=True, repr=False)
++class FleetActivationTicket:
++    ticket: str = field(repr=False)
++
++    def __post_init__(self) -> None:
++        if type(self.ticket) is not str or not MIN_TICKET_LENGTH <= len(self.ticket) <= MAX_TICKET_LENGTH:
++            raise FleetActivationError("ticket is malformed")
++        if any(ord(c) < 32 or ord(c) == 127 for c in self.ticket):
++            raise FleetActivationError("ticket is malformed")
++
++    def __repr__(self) -> str:
++        return "FleetActivationTicket(<opaque>)"
++
++
++@dataclass
++class _Activation:
++    digest: bytes
++    issued_at: float
++    expires_at: float
++    epoch: int
++    principal: FleetPrincipal
++    binding: FleetActivationBinding
++    consumed: bool = False
++    revoked: bool = False
++
++
++class FleetSessionActivationRegistry:
++    """Owner-issued, bounded, one-shot activation registry."""
++
++    MAX_ENTRIES = 1024
++
++    def __init__(self, owner: FleetActivationOwner, clock: Callable[[], Any] | None = None,
++                 ticket_ttl_seconds: int | float = 300) -> None:
++        if type(owner) is not FleetActivationOwner:
++            raise FleetActivationError("registry requires a FleetActivationOwner")
++        if clock is not None and not callable(clock):
++            raise FleetActivationError("registry clock must be callable")
++        if type(ticket_ttl_seconds) not in (int, float) or isinstance(ticket_ttl_seconds, bool):
++            raise FleetActivationError("ticket TTL must be bounded seconds")
++        if not MIN_TICKET_TTL_SECONDS <= ticket_ttl_seconds <= MAX_TICKET_TTL_SECONDS:
++            raise FleetActivationError("ticket TTL must be bounded seconds")
++        self._owner = owner
++        # Ticket timestamps use one elapsed-time domain, not wall-clock time.
++        self._clock = clock or monotonic
++        self._ticket_ttl_seconds = ticket_ttl_seconds
++        self._lock = RLock()
++        self._entries: dict[str, _Activation] = {}
++        # Revocation tombstones contain no ticket material and retain only
++        # enough authenticated lifecycle state to make a repeated revoke
++        # idempotent after the revoked entry has been swept.
++        self._revoked: dict[str, tuple[FleetPrincipal, float, int]] = {}
++
++    @property
++    def owner(self) -> FleetActivationOwner:
++        return self._owner
++
++    def _ready_locked(self) -> None:
++        if type(self._owner) is not FleetActivationOwner or not self._owner.ready:
++            raise FleetActivationNotReady("fleet activation owner is not ready")
++
++    def _now(self) -> float:
++        now = self._clock()
++        if type(now) not in (int, float) or isinstance(now, bool) or not isfinite(now):
++            raise FleetActivationError("registry clock must return finite seconds")
++        return float(now)
++
++    def _sweep_locked(self, now: float) -> None:
++        """Remove entries that can no longer participate in the lifecycle.
++
++        Consumed entries remain indexed until expiry (or owner epoch
++        invalidation) so the authenticated owner can still revoke them.  The
++        registry is still bounded: entries are swept before capacity is
++        checked, and consumed entries are removed when their TTL elapses.
++        """
++        epoch = self._owner.activation_epoch
++        for session_ref, entry in tuple(self._entries.items()):
++            if entry.revoked:
++                if len(self._revoked) >= min(MAX_ENTRIES, self.MAX_ENTRIES):
++                    self._revoked.pop(next(iter(self._revoked)))
++                self._revoked[session_ref] = (entry.principal, entry.expires_at, entry.epoch)
++                del self._entries[session_ref]
++            elif entry.expires_at <= now or entry.epoch != epoch:
++                del self._entries[session_ref]
++        for session_ref, (_, expires_at, entry_epoch) in tuple(self._revoked.items()):
++            if expires_at <= now or entry_epoch != epoch:
++                del self._revoked[session_ref]
++
++    @staticmethod
++    def _digest(ticket: str) -> bytes:
++        return sha256(ticket.encode("utf-8")).digest()
++
++    def activate(self, principal: FleetPrincipal, session_ref: str, *,
++                 ttl_seconds: int | float | None = None) -> FleetActivationTicket:
++        _session_ref(session_ref)
++        if ttl_seconds is not None and (type(ttl_seconds) not in (int, float) or isinstance(ttl_seconds, bool)
++                                        or not MIN_TICKET_TTL_SECONDS <= ttl_seconds <= MAX_TICKET_TTL_SECONDS):
++            raise FleetActivationError("ticket TTL must be bounded seconds")
++        with self._lock, self._owner._lock:
++            self._ready_locked()
++            self._owner.validate_principal(principal)
++            if principal.owner_ref != self._owner.owner_ref or not principal.subject_ref:
++                raise FleetActivationError("principal does not belong to activation owner")
++            now = self._now()
++            self._sweep_locked(now)
++            old = self._entries.get(session_ref)
++            if old is not None and not old.revoked and not old.consumed and old.expires_at > now and old.epoch == self._owner.activation_epoch:
++                raise FleetActivationError("session is already active")
++            if len(self._entries) >= min(MAX_ENTRIES, self.MAX_ENTRIES):
++                raise FleetActivationNotReady("fleet activation registry capacity is exhausted")
++            self._revoked.pop(session_ref, None)
++            raw = token_urlsafe(32)
++            binding = self._owner.issue_binding(principal.subject_ref, session_ref=session_ref)
++            ttl = self._ticket_ttl_seconds if ttl_seconds is None else ttl_seconds
++            self._entries[session_ref] = _Activation(self._digest(raw), now, now + float(ttl),
++                                                      self._owner.activation_epoch, principal, binding)
++            return FleetActivationTicket(raw)
++
++    def _entry_locked(self, principal: FleetPrincipal, session_ref: str,
++                      ticket: str | None = None, *, require_consumed: bool = False) -> _Activation:
++        self._ready_locked()
++        _session_ref(session_ref)
++        self._owner.validate_principal(principal)
++        entry = self._entries.get(session_ref)
++        if entry is None or entry.epoch != self._owner.activation_epoch:
++            raise FleetActivationError("activation is stale or unavailable")
++        if entry.principal != principal or entry.binding.session_ref != session_ref:
++            raise FleetActivationError("activation principal does not match session")
++        now = self._now()
++        if entry.revoked:
++            raise FleetActivationError("activation is revoked")
++        if require_consumed and not entry.consumed:
++            raise FleetActivationError("activation ticket has not been consumed")
++        if entry.consumed and not require_consumed:
++            raise FleetActivationError("activation ticket was already consumed")
++        if now >= entry.expires_at:
++            raise FleetActivationError("activation ticket is expired")
++        if ticket is not None:
++            if type(ticket) is not str or not MIN_TICKET_LENGTH <= len(ticket) <= MAX_TICKET_LENGTH:
++                raise FleetActivationError("activation ticket is invalid")
++            if not compare_digest(entry.digest, self._digest(ticket)):
++                raise FleetActivationError("activation ticket is invalid")
++        return entry
++
++    def consume(self, ticket: FleetActivationTicket, principal: FleetPrincipal,
++                session_ref: str) -> FleetActivationBinding:
++        if type(ticket) is not FleetActivationTicket:
++            raise FleetActivationError("ticket must be a FleetActivationTicket")
++        with self._lock, self._owner._lock:
++            self._sweep_locked(self._now())
++            entry = self._entry_locked(principal, session_ref, ticket.ticket)
++            entry.consumed = True
++            return entry.binding
++
++    def binding_for(self, ticket: FleetActivationTicket, principal: FleetPrincipal | None = None,
++                    session_ref: str | None = None) -> FleetActivationBinding:
++        """Return a binding only with possession of the consumed ticket."""
++        if session_ref is None or type(principal) is not FleetPrincipal:
++            raise FleetActivationError("binding lookup requires a ticket, principal, and session_ref")
++        if type(ticket) is not FleetActivationTicket:
++            raise FleetActivationError("ticket must be a FleetActivationTicket")
++        with self._lock, self._owner._lock:
++            self._sweep_locked(self._now())
++            return self._entry_locked(principal, session_ref, ticket.ticket,
++                                      require_consumed=True).binding
++
++    def revoke(self, principal: FleetPrincipal, session_ref: str) -> bool:
++        with self._lock, self._owner._lock:
++            _session_ref(session_ref)
++            self._ready_locked()
++            self._owner.validate_principal(principal)
++            entry = self._entries.get(session_ref)
++            now = self._now()
++            if entry is None:
++                tombstone = self._revoked.get(session_ref)
++                if tombstone is not None and tombstone[0] == principal and tombstone[2] == self._owner.activation_epoch and now < tombstone[1]:
++                    return False
++                raise FleetActivationError("activation is stale or unavailable")
++            if entry.epoch != self._owner.activation_epoch:
++                raise FleetActivationError("activation is stale or unavailable")
++            if entry.principal != principal:
++                raise FleetActivationError("activation principal does not match session")
++            if entry.revoked:
++                return False
++            if entry.expires_at <= now:
++                del self._entries[session_ref]
++                raise FleetActivationError("activation is stale or unavailable")
++            entry.revoked = True
++            return True
++
++    def active(self, session_ref: str) -> bool:
++        _session_ref(session_ref)
++        with self._lock, self._owner._lock:
++            self._sweep_locked(self._now())
++            if not self._owner.ready:
++                return False
++            entry = self._entries.get(session_ref)
++            if entry is None or entry.epoch != self._owner.activation_epoch or entry.revoked or entry.consumed:
++                return False
++            return self._now() < entry.expires_at
+diff --git a/tests/hermes_cli/test_fleet_activation.py b/tests/hermes_cli/test_fleet_activation.py
+index da297f7fa6..a097eb7db3 100644
+--- a/tests/hermes_cli/test_fleet_activation.py
++++ b/tests/hermes_cli/test_fleet_activation.py
+@@ -10,6 +10,7 @@ from hermes_cli.fleet_activation import (
+ )
+ from hermes_cli.dashboard_auth.base import Session, TokenPrincipal
+ from hermes_cli.fleet_observer import FleetObserverConfig, FleetObserverHub, FleetObserverScope
++from hermes_cli.fleet_session_activation import FleetActivationTicket, FleetSessionActivationRegistry
+ 
+ 
+ def owner(**changes):
+@@ -211,3 +212,56 @@ def test_deactivation_cannot_race_a_publication():
+     assert result == ["event"] and deactivated == [True]
+     with pytest.raises(FleetActivationNotReady): publisher.publish(
+         p, "session.status_changed", FleetObserverScope("p", "i"), {"status": "ok"})
++
++
++def test_session_activation_requires_ticket_possession_and_one_shot_consume():
++    now = [10.0]
++    o = active_owner(); p = o.issue_principal("observer")
++    registry = FleetSessionActivationRegistry(o, clock=lambda: now[0], ticket_ttl_seconds=5)
++    ticket = registry.activate(p, "session")
++    with pytest.raises(FleetActivationError): registry.binding_for(p, "session")
++    with pytest.raises(FleetActivationError): registry.binding_for(
++        FleetActivationTicket("x" * 16), p, "session")
++    binding = registry.consume(ticket, p, "session")
++    assert registry.binding_for(ticket, p, "session") == binding
++    with pytest.raises(FleetActivationError): registry.consume(ticket, p, "session")
++    with pytest.raises(FleetActivationError): registry.binding_for(ticket, p, "other")
++    with pytest.raises(FleetActivationError): registry.binding_for(ticket, o.issue_principal("other"), "session")
++
++
++def test_session_activation_sweeps_expired_entries_before_capacity_check(monkeypatch):
++    now = [100.0]
++    o = active_owner(); p = o.issue_principal("observer")
++    registry = FleetSessionActivationRegistry(o, clock=lambda: now[0], ticket_ttl_seconds=1)
++    monkeypatch.setattr("hermes_cli.fleet_session_activation.MAX_ENTRIES", 1)
++    registry.activate(p, "expired")
++    now[0] = 101.0
++    registry.activate(p, "replacement")
++    assert len(registry._entries) == 1
++
++
++def test_session_activation_rejects_full_registry_without_eviction(monkeypatch):
++    o = active_owner(); p = o.issue_principal("observer")
++    registry = FleetSessionActivationRegistry(o, clock=lambda: 100.0)
++    monkeypatch.setattr("hermes_cli.fleet_session_activation.MAX_ENTRIES", 1)
++    registry.activate(p, "first")
++    with pytest.raises(FleetActivationNotReady): registry.activate(p, "second")
++    assert set(registry._entries) == {"first"}
++
++
++def test_session_activation_consumed_entry_remains_revocable_until_expiry():
++    now = [100.0]
++    o = active_owner(); p = o.issue_principal("observer")
++    registry = FleetSessionActivationRegistry(o, clock=lambda: now[0], ticket_ttl_seconds=5)
++    ticket = registry.activate(p, "session")
++    registry.consume(ticket, p, "session")
++
++    assert not registry.active("session")
++    assert registry.revoke(p, "session")
++    assert not registry.active("session")
++    with pytest.raises(FleetActivationError): registry.binding_for(ticket, p, "session")
++    assert not registry.revoke(p, "session")
++
++    now[0] = 105.0
++    registry.active("other")
++    assert "session" not in registry._entries

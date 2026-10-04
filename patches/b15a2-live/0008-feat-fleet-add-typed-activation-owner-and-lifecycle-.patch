@@ -1,0 +1,498 @@
+From 03f310c6b22837a1198fdc2bb7188e3adf07a01b Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Thu, 30 Jul 2026 14:02:52 -0300
+Subject: [PATCH 04/10] feat(fleet): add typed activation owner and lifecycle
+ publisher
+
+---
+ hermes_cli/fleet_activation.py            | 329 ++++++++++++++++++++++
+ tests/hermes_cli/test_fleet_activation.py | 144 ++++++++++
+ 2 files changed, 473 insertions(+)
+ create mode 100644 hermes_cli/fleet_activation.py
+ create mode 100644 tests/hermes_cli/test_fleet_activation.py
+
+diff --git a/hermes_cli/fleet_activation.py b/hermes_cli/fleet_activation.py
+new file mode 100644
+index 0000000000..b607f72fa0
+--- /dev/null
++++ b/hermes_cli/fleet_activation.py
+@@ -0,0 +1,329 @@
++"""Typed, server-owned activation foundation for the disabled Fleet observer."""
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++from datetime import datetime
++from math import isfinite
++from threading import RLock
++from types import MappingProxyType
++from typing import Any, Callable, Mapping
++
++from .fleet_observer import EVENT_TYPES, FleetObserverConfig, FleetObserverScope
++
++CAPABILITY_OBSERVE = "pd:observe"
++OBSERVE_CAPABILITY = CAPABILITY_OBSERVE
++MAX_PRINCIPAL_REF_LENGTH = 128
++MAX_PROVIDER_LENGTH = 128
++MAX_SCOPE_LENGTH = 64
++MAX_PRINCIPAL_SCOPES = 32
++MAX_METADATA_FIELDS = 16
++MAX_METADATA_VALUE_LENGTH = 256
++MAX_METADATA_DEPTH = 2
++PURPOSE = "pd_observation"
++OWNERSHIP_MODE = "user_owned_session"
++
++_ALLOWED_FIELDS = {
++    "session.registered": frozenset({"status", "metadata"}),
++    "session.status_changed": frozenset({"status"}),
++    "session.heartbeat": frozenset({"status", "heartbeat_at"}),
++    "session.metadata_changed": frozenset({"metadata"}),
++    "session.detached": frozenset({"reason"}),
++    "session.ended": frozenset({"reason"}),
++}
++_FORBIDDEN = frozenset({
++    "password", "pass", "authorization", "auth", "cookie", "secret", "token",
++    "api_key", "apikey", "private_key", "privatekey", "credential", "credentials",
++    "prompt", "history", "message", "messages", "tool", "tools", "provider",
++    "terminal", "filesystem", "path", "file", "files", "dispatch", "mutation",
++    "content", "issuer", "subject", "owner", "principal", "identity",
++})
++
++
++class FleetActivationError(ValueError):
++    """Malformed or unauthorised activation input."""
++
++
++class FleetActivationNotReady(RuntimeError):
++    """The owner/publisher is inactive or has not been explicitly wired."""
++
++
++def _bounded(value: Any, name: str, limit: int = MAX_PRINCIPAL_REF_LENGTH) -> None:
++    if type(value) is not str or not value or len(value) > limit or any(ord(c) < 32 or ord(c) == 127 for c in value):
++        raise FleetActivationError(f"{name} must be a non-empty bounded reference")
++    compact = "".join(c for c in value.casefold() if c.isalnum())
++    if any(term in compact for term in ("secret", "password", "credential", "token", "apikey", "privatekey")):
++        raise FleetActivationError(f"{name} contains a secret-like value")
++
++
++@dataclass(frozen=True)
++class FleetPrincipal:
++    issuer_ref: str
++    subject_ref: str
++    owner_ref: str
++    provider: str
++    scopes: tuple[str, ...]
++    # These are deliberately not constructor arguments and do not participate
++    # in equality/repr.  A principal made by a caller therefore has no authority.
++    _authority: object | None = field(default=None, init=False, repr=False, compare=False)
++    _activation_epoch: int | None = field(default=None, init=False, repr=False, compare=False)
++
++    def __post_init__(self) -> None:
++        for field_name in ("issuer_ref", "subject_ref", "owner_ref"):
++            _bounded(getattr(self, field_name), field_name)
++        _bounded(self.provider, "provider", MAX_PROVIDER_LENGTH)
++        if type(self.scopes) is not tuple or not 0 < len(self.scopes) <= MAX_PRINCIPAL_SCOPES:
++            raise FleetActivationError("scopes must be a bounded tuple")
++        for scope in self.scopes:
++            _bounded(scope, "scope", MAX_SCOPE_LENGTH)
++        if tuple(sorted(set(self.scopes))) != self.scopes or len(set(self.scopes)) != len(self.scopes):
++            raise FleetActivationError("scopes must be sorted and unique")
++
++    def has_capability(self, capability: str = CAPABILITY_OBSERVE) -> bool:
++        return type(capability) is str and capability in self.scopes
++
++
++@dataclass(frozen=True)
++class FleetActivationBinding:
++    observer_ref: str
++    owner_ref: str
++    purpose: str = PURPOSE
++    ownership_mode: str = OWNERSHIP_MODE
++    _authority: object | None = field(default=None, init=False, repr=False, compare=False)
++    _activation_epoch: int | None = field(default=None, init=False, repr=False, compare=False)
++
++    def __post_init__(self) -> None:
++        _bounded(self.observer_ref, "observer_ref")
++        _bounded(self.owner_ref, "owner_ref")
++        if type(self.purpose) is not str or self.purpose != PURPOSE:
++            raise FleetActivationError("binding purpose is unavailable")
++        if type(self.ownership_mode) is not str or self.ownership_mode != OWNERSHIP_MODE:
++            raise FleetActivationError("binding ownership mode is unavailable")
++
++
++FleetBinding = FleetActivationBinding
++
++
++def validate_server_binding(owner: "FleetActivationOwner", principal: FleetPrincipal,
++                            binding: FleetActivationBinding) -> None:
++    if not isinstance(owner, FleetActivationOwner):
++        raise FleetActivationError("owner must be a FleetActivationOwner")
++    owner.validate_binding(principal, binding)
++
++
++class FleetActivationOwner:
++    """The sole authority capable of issuing valid activation artifacts."""
++    def __init__(self, issuer_ref: str, owner_ref: str, *, enabled: bool = False,
++                 config: FleetObserverConfig | None = None, wired: bool = False,
++                 clock: Callable[[], Any] | None = None) -> None:
++        _bounded(issuer_ref, "issuer_ref")
++        _bounded(owner_ref, "owner_ref")
++        if config is not None and not isinstance(config, FleetObserverConfig):
++            raise FleetActivationError("config must be FleetObserverConfig")
++        if config is not None:
++            enabled = config.enabled
++        if type(enabled) is not bool or type(wired) is not bool:
++            raise FleetActivationError("enabled and wired must be booleans")
++        self._issuer_ref, self._owner_ref = issuer_ref, owner_ref
++        self._identity = object()
++        self._epoch = 0
++        self._active = False
++        self._wired, self._enabled, self._clock = wired, enabled, clock
++        self._lock = RLock()
++
++    @property
++    def active(self) -> bool:
++        return self._active
++
++    @property
++    def ready(self) -> bool:
++        return self._active and self._enabled and self._wired
++
++    @property
++    def activation_epoch(self) -> int:
++        return self._epoch
++
++    @property
++    def issuer_ref(self) -> str:
++        return self._issuer_ref
++
++    @property
++    def owner_ref(self) -> str:
++        return self._owner_ref
++
++    def activate(self) -> bool:
++        with self._lock:
++            if self._active:
++                return False
++            self._active = True
++            self._epoch += 1
++            return True
++
++    def deactivate(self) -> bool:
++        with self._lock:
++            changed = self._active
++            self._active = False
++            # Epoch advances on every deactivation, including a deactivation
++            # after a partially wired activation, so old artifacts cannot revive.
++            if changed:
++                self._epoch += 1
++            return changed
++
++    def _check_epoch_locked(self, epoch: int | None) -> None:
++        if not self.ready or epoch != self._epoch:
++            raise FleetActivationNotReady("fleet activation is not ready or artifact is stale")
++
++    def issue_principal(self, subject_ref: str, provider: str = "local", *,
++                        scopes: tuple[str, ...] = (CAPABILITY_OBSERVE,)) -> FleetPrincipal:
++        with self._lock:
++            self._check_epoch_locked(self._epoch)
++            if type(scopes) is not tuple or scopes != (CAPABILITY_OBSERVE,):
++                raise FleetActivationError("issued principal must have exactly pd:observe")
++            principal = FleetPrincipal(self._issuer_ref, subject_ref, self._owner_ref, provider, scopes)
++            object.__setattr__(principal, "_authority", self._identity)
++            object.__setattr__(principal, "_activation_epoch", self._epoch)
++            return principal
++
++    def issue_binding(self, observer_ref: str) -> FleetActivationBinding:
++        with self._lock:
++            self._check_epoch_locked(self._epoch)
++            binding = FleetActivationBinding(observer_ref, self._owner_ref, PURPOSE, OWNERSHIP_MODE)
++            object.__setattr__(binding, "_authority", self._identity)
++            object.__setattr__(binding, "_activation_epoch", self._epoch)
++            return binding
++
++    def validate_principal(self, principal: FleetPrincipal) -> None:
++        with self._lock:
++            if type(principal) is not FleetPrincipal:
++                raise FleetActivationError("principal must be a FleetPrincipal")
++            if (principal._authority is not self._identity or principal._activation_epoch != self._epoch
++                    or not self.ready):
++                raise FleetActivationError("principal is not a current owner-issued principal")
++            if principal.issuer_ref != self._issuer_ref or principal.owner_ref != self._owner_ref:
++                raise FleetActivationError("principal identity does not match this activation")
++            if principal.scopes != (CAPABILITY_OBSERVE,) or not principal.has_capability():
++                raise FleetActivationError("principal lacks exact pd:observe capability")
++
++    def validate_binding(self, principal: FleetPrincipal, binding: FleetActivationBinding) -> None:
++        with self._lock:
++            self._validate_binding_locked(principal, binding)
++
++    def _validate_binding_locked(self, principal: FleetPrincipal, binding: FleetActivationBinding) -> None:
++        self.validate_principal(principal)
++        if type(binding) is not FleetActivationBinding:
++            raise FleetActivationError("binding must be a FleetActivationBinding")
++        if binding._authority is not self._identity or binding._activation_epoch != self._epoch:
++            raise FleetActivationError("binding is not current and owner-issued")
++        if (principal.subject_ref != binding.observer_ref or principal.owner_ref != binding.owner_ref
++                or binding.purpose != PURPOSE or binding.ownership_mode != OWNERSHIP_MODE):
++            raise FleetActivationError("principal does not match binding")
++
++    def issuance_capability(self) -> object:
++        with self._lock:
++            self._check_epoch_locked(self._epoch)
++            return _OwnerCapability(self, self._identity, self._epoch)
++
++
++@dataclass(frozen=True)
++class _OwnerCapability:
++    owner: FleetActivationOwner
++    marker: object
++    epoch: int
++
++
++class FleetLifecyclePublisher:
++    def __init__(self, hub: Any, owner: FleetActivationOwner,
++                 binding: FleetActivationBinding | None = None) -> None:
++        if not isinstance(owner, FleetActivationOwner):
++            raise FleetActivationError("publisher requires a FleetActivationOwner")
++        if type(binding) is not FleetActivationBinding:
++            raise FleetActivationError("publisher requires an owner-issued FleetActivationBinding")
++        if not hasattr(hub, "publish"):
++            raise FleetActivationError("publisher requires a hub")
++        self._hub, self._owner, self._binding = hub, owner, binding
++        with owner._lock:
++            owner._check_epoch_locked(binding._activation_epoch)
++            owner._validate_binding_locked(owner.issue_principal(binding.observer_ref), binding)
++            if type(getattr(hub, "active", None)) is not bool or not hub.active:
++                raise FleetActivationNotReady("observer hub is inactive")
++            config = getattr(hub, "config", None)
++            if not isinstance(config, FleetObserverConfig) or config.enabled is not True:
++                raise FleetActivationNotReady("observer hub is disabled")
++            self._activation_epoch = owner._epoch
++
++    @property
++    def active(self) -> bool:
++        return (
++            self._owner.ready
++            and self._activation_epoch == self._owner.activation_epoch
++            and self._hub.active is True
++            and isinstance(getattr(self._hub, "config", None), FleetObserverConfig)
++            and self._hub.config.enabled is True
++        )
++
++    def publish(self, principal: FleetPrincipal, event_type: str, *args: Any,
++                occurred_at: datetime | None = None) -> Any:
++        # Accept the original B9 shape (scope, payload) while also accepting
++        # the explicit hardened shape (binding, scope, payload).  In either
++        # shape a real, owner-issued binding is mandatory.
++        if len(args) == 2:
++            binding, scope, payload = self._binding, args[0], args[1]
++        elif len(args) == 3:
++            binding, scope, payload = args
++        else:
++            raise FleetActivationError("publish requires a typed binding, scope, and payload")
++        # Keep the owner lock across all checks and the hub call.  In particular,
++        # deactivation cannot invalidate this epoch between validation and append.
++        with self._owner._lock:
++            self._owner._check_epoch_locked(self._activation_epoch)
++            if type(binding) is not FleetActivationBinding:
++                raise FleetActivationError("binding must be a FleetActivationBinding")
++            if binding != self._binding:
++                raise FleetActivationError("binding is not this publisher's binding")
++            self._owner._validate_binding_locked(principal, binding)
++            if type(scope) is not FleetObserverScope:
++                raise FleetActivationError("scope must be a FleetObserverScope")
++            if type(event_type) is not str or event_type not in EVENT_TYPES:
++                raise FleetActivationError("event is unavailable")
++            clean = _validate_payload(event_type, payload)
++            result = self._hub.publish(event_type, scope, clean, occurred_at=occurred_at)
++            if result is None or result is False:
++                raise FleetActivationError("observer hub did not publish")
++            return result
++
++
++def _validate_payload(event_type: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
++    if not isinstance(payload, Mapping) or len(payload) > MAX_METADATA_FIELDS:
++        raise FleetActivationError("payload must be bounded metadata")
++    allowed = _ALLOWED_FIELDS[event_type]
++    if set(payload) != allowed:
++        raise FleetActivationError("payload shape is unavailable")
++
++    def clean(value: Any, key: str, depth: int = 0) -> Any:
++        if depth > MAX_METADATA_DEPTH:
++            raise FleetActivationError("metadata is too deep")
++        if isinstance(value, str):
++            if len(value) > MAX_METADATA_VALUE_LENGTH or any(ord(c) < 32 for c in value):
++                raise FleetActivationError("metadata unavailable")
++            return value
++        if value is None or type(value) is bool:
++            return value
++        if type(value) is int and abs(value) <= 2**53 - 1:
++            return value
++        if type(value) is float and isfinite(value):
++            return value
++        if isinstance(value, Mapping):
++            if len(value) > MAX_METADATA_FIELDS:
++                raise FleetActivationError("metadata has too many fields")
++            out = {}
++            for child, child_value in value.items():
++                if type(child) is not str or len(child) > MAX_METADATA_VALUE_LENGTH:
++                    raise FleetActivationError("metadata key unavailable")
++                compact = "".join(c for c in child.casefold() if c.isalnum())
++                if any(term.replace("_", "") in compact for term in _FORBIDDEN):
++                    raise FleetActivationError("forbidden metadata")
++                out[child] = clean(child_value, child, depth + 1)
++            return MappingProxyType(out)
++        raise FleetActivationError("metadata must be redacted scalar metadata")
++
++    out = {key: clean(value, key) for key, value in payload.items()}
++    return MappingProxyType(out)
+diff --git a/tests/hermes_cli/test_fleet_activation.py b/tests/hermes_cli/test_fleet_activation.py
+new file mode 100644
+index 0000000000..c51c08cd47
+--- /dev/null
++++ b/tests/hermes_cli/test_fleet_activation.py
+@@ -0,0 +1,144 @@
++import threading
++
++import pytest
++
++from hermes_cli.fleet_activation import (
++    CAPABILITY_OBSERVE, FleetActivationBinding, FleetActivationError,
++    FleetActivationNotReady, FleetActivationOwner, FleetLifecyclePublisher,
++    FleetPrincipal, validate_server_binding,
++)
++from hermes_cli.fleet_observer import FleetObserverConfig, FleetObserverHub, FleetObserverScope
++
++
++def owner(**changes):
++    values = dict(issuer_ref="server", owner_ref="owner", enabled=True, wired=True)
++    values.update(changes)
++    return FleetActivationOwner(**values)
++
++
++def active_owner():
++    result = owner()
++    assert result.activate()
++    return result
++
++
++def hub():
++    result = FleetObserverHub(FleetObserverConfig(enabled=True))
++    assert result.activate()
++    return result
++
++
++def test_principal_is_frozen_and_direct_construction_has_no_authority():
++    o = active_owner()
++    forged = FleetPrincipal("server", "observer", "owner", "local", (CAPABILITY_OBSERVE,))
++    with pytest.raises(FleetActivationError):
++        o.validate_principal(forged)
++    with pytest.raises(FleetActivationError):
++        FleetPrincipal("s", "u", "o", "p", [CAPABILITY_OBSERVE])
++    with pytest.raises(FleetActivationError):
++        o.issue_principal("observer", scopes=("pd:admin",))
++    assert o.issue_principal("observer").scopes == (CAPABILITY_OBSERVE,)
++
++
++def test_capability_and_fields_are_canonical():
++    o = active_owner()
++    p = o.issue_principal("observer")
++    assert p.has_capability() and not p.has_capability("pd:admin")
++    with pytest.raises(FleetActivationError): o.issue_principal("bad\nref")
++    with pytest.raises((AttributeError, TypeError)): setattr(p, "owner_ref", "x")
++
++
++def test_owner_lifecycle_and_epoch_invalidation():
++    o = active_owner()
++    p = o.issue_principal("observer")
++    b = o.issue_binding("observer")
++    first_epoch = o.activation_epoch
++    assert o.deactivate() and not o.ready
++    with pytest.raises(FleetActivationError): o.validate_principal(p)
++    assert o.activate() and o.activation_epoch != first_epoch
++    with pytest.raises(FleetActivationError): o.validate_binding(p, b)
++    assert o.activation_epoch > first_epoch
++
++
++def test_binding_is_strict_and_server_validated():
++    o = active_owner(); p = o.issue_principal("observer"); binding = o.issue_binding("observer")
++    validate_server_binding(o, p, binding)
++    with pytest.raises(FleetActivationError): validate_server_binding(o, o.issue_principal("other"), binding)
++    with pytest.raises(FleetActivationError): validate_server_binding(o, p, FleetActivationBinding("observer", "owner"))
++    class Duck:
++        observer_ref = "observer"; owner_ref = "owner"; purpose = "pd_observation"; ownership_mode = "user_owned_session"
++    with pytest.raises(FleetActivationError): o.validate_binding(p, Duck())
++    with pytest.raises(FleetActivationError): FleetActivationBinding("observer", "owner", purpose="other")
++
++
++def test_publisher_requires_ready_typed_binding_active_enabled_hub():
++    o = active_owner(); h = hub(); p = o.issue_principal("observer"); b = o.issue_binding("observer")
++    publisher = FleetLifecyclePublisher(h, o, b)
++    scope = FleetObserverScope("profile", "instance")
++    assert publisher.publish(p, "session.heartbeat", scope, {"status": "ok", "heartbeat_at": 1})
++    disabled = FleetObserverHub(FleetObserverConfig(enabled=False))
++    with pytest.raises(FleetActivationNotReady): FleetLifecyclePublisher(disabled, o, b)
++    inactive = FleetObserverHub(FleetObserverConfig(enabled=True))
++    with pytest.raises(FleetActivationNotReady): FleetLifecyclePublisher(inactive, o, b)
++
++
++def test_publisher_active_tracks_hub_deactivation_and_config_disable():
++    o = active_owner(); h = hub(); p = o.issue_principal("observer"); b = o.issue_binding("observer")
++    publisher = FleetLifecyclePublisher(h, o, b)
++    assert publisher.active
++
++    assert h.deactivate()
++    assert not publisher.active
++
++    assert h.activate()
++    assert publisher.active
++    h.config = FleetObserverConfig(enabled=False)
++    assert not publisher.active
++
++
++def test_publisher_rejects_wrong_binding_scope_and_events():
++    o = active_owner(); h = hub(); p = o.issue_principal("observer"); b = o.issue_binding("observer")
++    publisher = FleetLifecyclePublisher(h, o, b)
++    scope = FleetObserverScope("profile", "instance")
++    with pytest.raises(FleetActivationError): publisher.publish(o.issue_principal("other"), "session.status_changed", scope, {"status": "ok"})
++    with pytest.raises(FleetActivationError): publisher.publish(p, [], scope, {"status": "ok"})
++    with pytest.raises(FleetActivationError): publisher.publish(p, "session.status_changed", object(), {"status": "ok"})
++    with pytest.raises(FleetActivationError): publisher.publish(p, "session.status_changed", scope, {"status": "ok", "extra": 1})
++    with pytest.raises(FleetActivationError): publisher.publish(p, "session.metadata_changed", scope, {"metadata": {"token": "***"}})
++
++
++def test_none_or_false_hub_result_is_not_silently_dropped():
++    class NullHub:
++        active = True
++        config = FleetObserverConfig(enabled=True)
++        def publish(self, *args, **kwargs): return None
++    o = active_owner(); p = o.issue_principal("observer"); b = o.issue_binding("observer")
++    with pytest.raises(FleetActivationError): FleetLifecyclePublisher(NullHub(), o, b).publish(
++        p, "session.status_changed", FleetObserverScope("p", "i"), {"status": "ok"})
++
++
++def test_unhashable_event_type_is_activation_error():
++    o = active_owner(); h = hub(); p = o.issue_principal("observer"); b = o.issue_binding("observer")
++    publisher = FleetLifecyclePublisher(h, o, b)
++    with pytest.raises(FleetActivationError): publisher.publish(p, [], FleetObserverScope("p", "i"), {"status": "ok"})
++
++
++def test_deactivation_cannot_race_a_publication():
++    class BlockingHub:
++        active = True
++        config = FleetObserverConfig(enabled=True)
++        entered = threading.Event(); release = threading.Event()
++        def publish(self, *args, **kwargs):
++            self.entered.set(); self.release.wait(2); return "event"
++    o = active_owner(); p = o.issue_principal("observer"); b = o.issue_binding("observer"); h = BlockingHub()
++    publisher = FleetLifecyclePublisher(h, o, b)
++    result = []
++    thread = threading.Thread(target=lambda: result.append(publisher.publish(
++        p, "session.status_changed", FleetObserverScope("p", "i"), {"status": "ok"})))
++    thread.start(); assert h.entered.wait(2)
++    deactivated = []
++    stopper = threading.Thread(target=lambda: deactivated.append(o.deactivate()))
++    stopper.start(); h.release.set(); thread.join(2); stopper.join(2)
++    assert result == ["event"] and deactivated == [True]
++    with pytest.raises(FleetActivationNotReady): publisher.publish(
++        p, "session.status_changed", FleetObserverScope("p", "i"), {"status": "ok"})

@@ -1,0 +1,645 @@
+From df1fc55f0a87a9f5d371c546f49a57721e53c915 Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Sun, 4 Oct 2026 16:23:53 -0300
+Subject: [PATCH 2/7] feat(fleet): add FleetTuiSessionService for the D4 ops
+ (b15a2-S2)
+
+- Host-side composition: injected observer identity + active-session resolver;
+  activate/status/deactivate/replay over the existing activation/lifecycle/
+  observer machinery; exactly one association per observer session scope.
+- Opaque issuer-verifiable cursors (service HMAC over scope digest, stream
+  epoch, sequence and TTL); tamper, expiry and scope mismatch fail closed.
+- Internal hooks session_status_changed/session_ended for the S4 TUI wiring;
+  replay serves the active association only (strict semantics).
+- Wire codec: exports validate_ref for host consumers.
+- RED-first tests: 16 passed (3x), regression suites 162 passed, ruff clean.
+---
+ hermes_cli/fleet_tui_session.py            | 370 +++++++++++++++++++++
+ hermes_cli/fleet_tui_wire.py               |   6 +
+ tests/hermes_cli/test_fleet_tui_session.py | 218 ++++++++++++
+ 3 files changed, 594 insertions(+)
+ create mode 100644 hermes_cli/fleet_tui_session.py
+ create mode 100644 tests/hermes_cli/test_fleet_tui_session.py
+
+diff --git a/hermes_cli/fleet_tui_session.py b/hermes_cli/fleet_tui_session.py
+new file mode 100644
+index 0000000000..c7adb8349f
+--- /dev/null
++++ b/hermes_cli/fleet_tui_session.py
+@@ -0,0 +1,370 @@
++"""Host-side composition of the four D4 TUI Fleet operations (B15a.2, S2).
++
++Pure local/injected composition: the authoritative active session and the
++observer identity are supplied by an injected, server-owned resolver — never
++by a client. Nothing in this module starts processes, talks to a live TUI, or
++performs external effects; the whole composition is gated by the exact owner
++readiness and hub enablement flags (default-off).
++
++Wire cursors are opaque, issuer-verifiable tokens: a service-local HMAC binds
++scope digest, stream epoch, sequence and TTL, so any tampering fails closed
++with ``invalid_provenance``.
++"""
++from __future__ import annotations
++
++import base64
++import hashlib
++import hmac
++import secrets
++import time
++from dataclasses import dataclass, field
++from threading import RLock
++from typing import Any, Callable
++
++from .fleet_activation import (
++    FleetActivationBinding,
++    FleetActivationError,
++    FleetActivationNotReady,
++    FleetActivationOwner,
++    FleetLifecyclePublisher,
++    FleetPrincipal,
++)
++from .fleet_observer import (
++    ReplayGap,
++    FleetObserverCursor,
++    FleetObserverError,
++    FleetObserverHub,
++    FleetObserverScope,
++)
++from .fleet_session_activation import FleetSessionActivationRegistry
++from .fleet_session_lifecycle import FleetSessionLifecycleIntegration
++from .fleet_tui_wire import (
++    FleetTuiWireError,
++    WIRE_REASON_CODES,
++    WIRE_SCHEMA,
++    WIRE_STATES,
++    build_activate_response,
++    build_deactivate_response,
++    build_event_envelope,
++    build_replay_response,
++    build_snapshot,
++    build_status_response,
++    validate_ref,
++)
++
++#: Candidate cursor TTL (G4); adjustable block pending owner/security approval.
++CURSOR_TTL_SECONDS = 900
++MAX_CURSOR_TOKEN_LENGTH = 128
++_CURSOR_PREFIX = "cur."
++_MAX_SESSIONS = 1024
++
++_STATUS_TO_WIRE: dict[str, str] = {
++    "pending_activation": "pending_activation",
++    "observing": "observing",
++    "active": "observing",
++    "reconnecting": "reconnecting",
++    "stale": "stale",
++    "registered": "registered",
++    "detached": "detached",
++    "ended": "ended",
++}
++_REASON_TO_WIRE: dict[str, str] = {code: code for code in WIRE_REASON_CODES}
++_REASON_TO_WIRE["detached"] = "user_deactivate"
++_REASON_TO_WIRE["ended"] = "session_end"
++
++
++def _noop(_event: Any) -> None:
++    return None
++
++
++@dataclass(frozen=True)
++class TuiActiveSession:
++    """Server-resolved facts for the authoritative active TUI session."""
++
++    session_ref: str
++    owner_ref: str
++    profile_ref: str
++    workspace_ref: str
++
++    def __post_init__(self) -> None:
++        for value in (self.session_ref, self.owner_ref, self.profile_ref, self.workspace_ref):
++            validate_ref(value)
++
++
++@dataclass
++class _Association:
++    principal: FleetPrincipal
++    binding: FleetActivationBinding
++    subscriber_ref: str
++    association_ref: str
++    scope: FleetObserverScope
++    state: str = "observing"
++
++
++class FleetTuiSessionService:
++    """Serve the D4 ops over one injected observer and active-session resolver."""
++
++    def __init__(self, owner: FleetActivationOwner, hub: FleetObserverHub, *,
++                 observer_ref: str, resolve_active_session: Callable[[], TuiActiveSession | None],
++                 clock: Callable[[], float] | None = None) -> None:
++        self._observer_ref = validate_ref(observer_ref)
++        if not callable(resolve_active_session):
++            raise TypeError("resolve_active_session must be callable")
++        if type(owner) is not FleetActivationOwner:
++            raise TypeError("owner must be an exact FleetActivationOwner")
++        if type(hub) is not FleetObserverHub:
++            raise TypeError("hub must be an exact FleetObserverHub")
++        self._owner = owner
++        self._hub = hub
++        self._resolve = resolve_active_session
++        self._clock = clock or time.time
++        self._secret = secrets.token_bytes(32)
++        self._registry = FleetSessionActivationRegistry(owner)
++        self._publisher = FleetLifecyclePublisher(hub, owner, owner.issue_binding(self._observer_ref))
++        self._lifecycle = FleetSessionLifecycleIntegration(owner, self._registry, self._publisher)
++        self._associations: dict[str, _Association] = {}
++        self._lock = RLock()
++
++    # ── gates ────────────────────────────────────────────────────────────
++
++    @property
++    def active(self) -> bool:
++        return bool(self._owner.ready and self._publisher.active)
++
++    def _resolve_ctx(self) -> TuiActiveSession:
++        if not self.active:
++            raise FleetTuiWireError("observer_not_authorized")
++        try:
++            ctx = self._resolve()
++        except Exception:
++            ctx = None
++        if type(ctx) is not TuiActiveSession or ctx.owner_ref != self._owner.owner_ref:
++            raise FleetTuiWireError("observer_not_authorized")
++        return ctx
++
++    def _safe_ctx(self) -> TuiActiveSession | None:
++        try:
++            return self._resolve_ctx()
++        except FleetTuiWireError:
++            return None
++
++    def _scope(self, session_ref: str) -> FleetObserverScope:
++        return FleetObserverScope(self._owner.owner_ref, self._observer_ref, session_ref=session_ref)
++
++    # ── ops ──────────────────────────────────────────────────────────────
++
++    def activate(self) -> dict[str, Any]:
++        ctx = self._resolve_ctx()
++        with self._lock:
++            existing = self._associations.get(ctx.session_ref)
++            if existing is not None:
++                return self._activate_response(existing)
++            if self._associations:
++                # One association per observer: a different active session must
++                # wait for the first to end/detach (never a duplicate attach).
++                raise FleetTuiWireError("association_stale")
++            if len(self._associations) >= _MAX_SESSIONS:
++                raise FleetTuiWireError("association_stale")
++            scope = self._scope(ctx.session_ref)
++            try:
++                subscriber_ref = self._hub.subscribe(scope, _noop)
++            except FleetObserverError:
++                raise FleetTuiWireError("resync_required") from None
++            try:
++                principal = self._owner.issue_principal(self._observer_ref)
++                ticket = self._registry.activate(principal, ctx.session_ref)
++                binding = self._lifecycle.attach(ticket, principal, ctx.session_ref, status="observing")
++            except FleetActivationNotReady:
++                self._hub.unsubscribe(subscriber_ref)
++                raise FleetTuiWireError("observer_not_authorized") from None
++            except FleetActivationError:
++                self._hub.unsubscribe(subscriber_ref)
++                raise FleetTuiWireError("association_stale") from None
++            assoc = _Association(principal=principal, binding=binding, subscriber_ref=subscriber_ref,
++                                 association_ref=f"assoc.{secrets.token_hex(8)}", scope=scope)
++            self._associations[ctx.session_ref] = assoc
++            return self._activate_response(assoc)
++
++    def status(self) -> dict[str, Any]:
++        ctx = self._resolve_ctx()
++        with self._lock:
++            assoc = self._associations.get(ctx.session_ref)
++            if assoc is None:
++                raise FleetTuiWireError("association_stale")
++            return build_status_response(snapshot=self._snapshot(assoc))
++
++    def deactivate(self) -> dict[str, Any]:
++        ctx = self._resolve_ctx()
++        with self._lock:
++            assoc = self._associations.get(ctx.session_ref)
++            if assoc is not None:
++                self._teardown(ctx.session_ref, assoc, ended=False, reason="user_deactivate")
++            return build_deactivate_response()
++
++    def replay(self, cursor: str) -> dict[str, Any]:
++        ctx = self._resolve_ctx()
++        with self._lock:
++            assoc = self._associations.get(ctx.session_ref)
++            if assoc is None:
++                raise FleetTuiWireError("association_stale")
++            epoch, sequence, issued_at, expires_at = self._decode_cursor(cursor, assoc.scope)
++            current = self._hub.replay(assoc.scope, None)
++            if current.next_cursor is not None and current.next_cursor.stream_epoch != epoch:
++                raise FleetTuiWireError("cursor_stale")
++            internal = FleetObserverCursor(
++                assoc.scope.stream_ref or assoc.scope.instance_ref, epoch, sequence,
++                assoc.scope.key, issued_at, expires_at)
++            try:
++                result = self._hub.replay(assoc.scope, internal)
++            except ReplayGap:
++                raise FleetTuiWireError("replay_gap") from None
++            except FleetObserverError:
++                raise FleetTuiWireError("invalid_provenance") from None
++            if result.gap is not None:
++                raise FleetTuiWireError("replay_gap")
++            events = [self._wire_event(assoc, event) for event in result.events]
++            if events and result.next_cursor is not None:
++                next_cursor = self._encode_cursor(assoc.scope, result.next_cursor.stream_epoch,
++                                                  result.next_cursor.sequence, issued_at)
++            else:
++                next_cursor = cursor  # no advance: echo the client cursor unchanged
++            return build_replay_response(events=events, next_cursor=next_cursor)
++
++    # ── internal hooks (S4 wires these to the TUI session lifecycle) ─────
++
++    def session_status_changed(self, status: str) -> bool:
++        if type(status) is not str or status not in WIRE_STATES:
++            raise FleetTuiWireError("invalid_event")
++        ctx = self._safe_ctx()
++        if ctx is None:
++            return False
++        with self._lock:
++            assoc = self._associations.get(ctx.session_ref)
++            if assoc is None:
++                return False
++            try:
++                self._lifecycle.status_changed(assoc.principal, ctx.session_ref, status)
++            except FleetActivationError:
++                return False
++            assoc.state = status
++            return True
++
++    def session_ended(self, reason: str) -> bool:
++        if reason not in WIRE_REASON_CODES:
++            raise FleetTuiWireError("invalid_event")
++        ctx = self._safe_ctx()
++        if ctx is None:
++            return False
++        with self._lock:
++            assoc = self._associations.get(ctx.session_ref)
++            if assoc is None:
++                return False
++            return self._teardown(ctx.session_ref, assoc, ended=True, reason=reason)
++
++    # ── internals ────────────────────────────────────────────────────────
++
++    def _teardown(self, session_ref: str, assoc: _Association, *, ended: bool, reason: str) -> bool:
++        failed = False
++        try:
++            if ended:
++                self._lifecycle.ended(assoc.principal, session_ref, reason)
++            else:
++                self._lifecycle.detach(assoc.principal, session_ref, reason)
++        except FleetActivationError:
++            failed = True
++        try:
++            self._hub.unsubscribe(assoc.subscriber_ref)
++        except Exception:
++            failed = True
++        self._associations.pop(session_ref, None)
++        return not failed
++
++    def _activate_response(self, assoc: _Association) -> dict[str, Any]:
++        snapshot = self._snapshot(assoc)
++        result = self._hub.replay(assoc.scope, None)
++        if result.next_cursor is None:
++            raise FleetTuiWireError("resync_required")
++        cursor = self._encode_cursor(assoc.scope, result.next_cursor.stream_epoch, result.next_cursor.sequence)
++        return build_activate_response(
++            association_ref=assoc.association_ref, subscriber_ref=assoc.subscriber_ref,
++            stream_epoch=result.next_cursor.stream_epoch, cursor=cursor, snapshot=snapshot)
++
++    def _snapshot(self, assoc: _Association) -> dict[str, Any]:
++        result = self._hub.replay(assoc.scope, None)
++        if result.next_cursor is not None:
++            epoch, sequence = result.next_cursor.stream_epoch, result.next_cursor.sequence
++        else:
++            epoch, sequence = "none", 0
++        return build_snapshot(
++            association_ref=assoc.association_ref, stream_epoch=epoch, snapshot_sequence=sequence,
++            boundary_ref=f"bnd.{epoch[:12]}.{sequence}", state=assoc.state, metadata_version=1)
++
++    def _wire_event(self, assoc: _Association, event: Any) -> dict[str, Any]:
++        payload = event.payload or {}
++        wire_payload: dict[str, Any] = {"metadata_version": 1}
++        if event.event_type in ("session.registered", "session.status_changed", "session.heartbeat"):
++            status_value = payload.get("status")
++            wire_status = _STATUS_TO_WIRE.get(status_value) if type(status_value) is str else None
++            if wire_status is None:
++                raise FleetTuiWireError("invalid_provenance")
++            wire_payload["status"] = wire_status
++        if event.event_type in ("session.detached", "session.ended"):
++            reason_value = payload.get("reason")
++            wire_reason = _REASON_TO_WIRE.get(reason_value) if type(reason_value) is str else None
++            if wire_reason is None:
++                raise FleetTuiWireError("invalid_provenance")
++            wire_payload["reason_code"] = wire_reason
++        return build_event_envelope(
++            event_id=f"evt.{event.stream_epoch[:12]}.{event.sequence}", event_type=event.event_type,
++            association_ref=assoc.association_ref, stream_epoch=event.stream_epoch,
++            sequence=event.sequence, payload=wire_payload)
++
++    # ── cursor tokens ────────────────────────────────────────────────────
++
++    def _scope_digest(self, scope: FleetObserverScope) -> str:
++        return hashlib.sha256(repr(scope.key).encode("utf-8")).hexdigest()[:8]
++
++    def _encode_cursor(self, scope: FleetObserverScope, epoch: str, sequence: int,
++                       issued_at: int | None = None) -> str:
++        now = int(self._clock())
++        issued = now if issued_at is None else issued_at
++        payload = f"{self._scope_digest(scope)}-{epoch}-{sequence}-{issued}-{issued + CURSOR_TTL_SECONDS}"
++        mac = hmac.new(self._secret, payload.encode("utf-8"), hashlib.sha256).hexdigest()[:16]
++        body = base64.urlsafe_b64encode(f"{mac}-{payload}".encode("utf-8")).decode("ascii").rstrip("=")
++        token = _CURSOR_PREFIX + body
++        if len(token) > MAX_CURSOR_TOKEN_LENGTH:
++            raise FleetTuiWireError("resync_required")
++        return token
++
++    def _decode_cursor(self, cursor: Any, scope: FleetObserverScope) -> tuple[str, int, int, int]:
++        if type(cursor) is not str or not cursor.startswith(_CURSOR_PREFIX) or len(cursor) > MAX_CURSOR_TOKEN_LENGTH:
++            raise FleetTuiWireError("invalid_provenance")
++        body = cursor[len(_CURSOR_PREFIX):]
++        if not body:
++            raise FleetTuiWireError("invalid_provenance")
++        try:
++            raw = base64.urlsafe_b64decode(body + "=" * (-len(body) % 4)).decode("utf-8")
++        except Exception:
++            raise FleetTuiWireError("invalid_provenance") from None
++        parts = raw.split("-")
++        if len(parts) != 6:
++            raise FleetTuiWireError("invalid_provenance")
++        mac, payload_parts = parts[0], parts[1:]
++        expected = hmac.new(self._secret, "-".join(payload_parts).encode("utf-8"), hashlib.sha256).hexdigest()[:16]
++        if not hmac.compare_digest(mac, expected):
++            raise FleetTuiWireError("invalid_provenance")
++        digest, epoch, sequence, issued_at, expires_at = payload_parts
++        if digest != self._scope_digest(scope):
++            raise FleetTuiWireError("cursor_stale")
++        try:
++            sequence_i, issued_i, expires_i = int(sequence), int(issued_at), int(expires_at)
++        except ValueError:
++            raise FleetTuiWireError("invalid_provenance") from None
++        if sequence_i < 0 or issued_i < 0:
++            raise FleetTuiWireError("invalid_provenance")
++        if expires_i < int(self._clock()):
++            raise FleetTuiWireError("cursor_expired")
++        return epoch, sequence_i, issued_i, expires_i
++
++
++__all__ = ["CURSOR_TTL_SECONDS", "FleetTuiSessionService", "TuiActiveSession"]
+diff --git a/hermes_cli/fleet_tui_wire.py b/hermes_cli/fleet_tui_wire.py
+index facfad957f..fce4147c3b 100644
+--- a/hermes_cli/fleet_tui_wire.py
++++ b/hermes_cli/fleet_tui_wire.py
+@@ -286,6 +286,11 @@ def build_replay_response(*, events: Any, next_cursor: Any = None) -> dict[str,
+     return response
+ 
+ 
++def validate_ref(value: Any, code: str = "invalid_request") -> str:
++    """Public bounded-opaque-ref validator for host-side consumers."""
++    return _ref(value, code)
++
++
+ def build_error(code: Any) -> dict[str, Any]:
+     if code not in ERROR_CODES:
+         _fail("invalid_request")
+@@ -317,4 +322,5 @@ __all__ = [
+     "parse_deactivate_request",
+     "parse_replay_request",
+     "parse_status_request",
++    "validate_ref",
+ ]
+diff --git a/tests/hermes_cli/test_fleet_tui_session.py b/tests/hermes_cli/test_fleet_tui_session.py
+new file mode 100644
+index 0000000000..e39ca7cf56
+--- /dev/null
++++ b/tests/hermes_cli/test_fleet_tui_session.py
+@@ -0,0 +1,218 @@
++"""Red-first tests for FleetTuiSessionService (B15a.2, S2).
++
++The service is the host-side composition of the four D4 ops over the existing
++activation/lifecycle/observer machinery. Nothing here performs live
++resolution: the active session and observer identity are injected/injected-
++resolver facts, as required by D7 (local/default-off/read-only).
++"""
++from __future__ import annotations
++
++from types import SimpleNamespace
++
++import pytest
++
++from hermes_cli.fleet_activation import FleetActivationNotReady, FleetActivationOwner
++from hermes_cli.fleet_observer import FleetObserverConfig, FleetObserverHub
++from hermes_cli.fleet_tui_session import FleetTuiSessionService, TuiActiveSession
++from hermes_cli.fleet_tui_wire import FleetTuiWireError, WIRE_SCHEMA
++
++OBSERVER = "tui.observer-1"
++OWNER = "owner.alpha"
++S1 = "session.alpha-1"
++S2 = "session.beta-2"
++
++
++def _ctx(session=S1, owner=OWNER):
++    return TuiActiveSession(session_ref=session, owner_ref=owner,
++                            profile_ref="acct.main", workspace_ref="ws.here")
++
++
++@pytest.fixture()
++def env():
++    owner = FleetActivationOwner("issuer.one", OWNER, enabled=True, wired=True)
++    assert owner.activate() is True and owner.ready
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub.activate()
++    assert hub.active is True
++    state: dict = {"session": S1, "owner": OWNER, "enabled": True}
++
++    def resolver():
++        if not state["enabled"]:
++            return None
++        return _ctx(state["session"], state["owner"])
++
++    svc = FleetTuiSessionService(owner, hub, observer_ref=OBSERVER, resolve_active_session=resolver)
++    return SimpleNamespace(owner=owner, hub=hub, state=state, svc=svc)
++
++
++def _code(fn):
++    with pytest.raises(FleetTuiWireError) as exc:
++        fn()
++    return exc.value.code
++
++
++# ── construction gates ───────────────────────────────────────────────────────
++
++
++def test_service_requires_ready_owner_and_enabled_hub():
++    owner = FleetActivationOwner("issuer.one", OWNER, enabled=True, wired=True)
++    hub_on = FleetObserverHub(FleetObserverConfig(enabled=True))
++    hub_on.activate()
++    with pytest.raises(FleetActivationNotReady):
++        FleetTuiSessionService(owner, hub_on, observer_ref=OBSERVER, resolve_active_session=lambda: None)
++    owner.activate()
++    assert owner.ready
++    hub_off = FleetObserverHub(FleetObserverConfig(enabled=False))
++    with pytest.raises(FleetActivationNotReady):
++        FleetTuiSessionService(owner, hub_off, observer_ref=OBSERVER, resolve_active_session=lambda: None)
++    with pytest.raises(FleetTuiWireError) as exc:
++        FleetTuiSessionService(owner, hub_on, observer_ref="bad token ref", resolve_active_session=lambda: None)
++    assert exc.value.code == "invalid_request"
++
++
++# ── activate ─────────────────────────────────────────────────────────────────
++
++
++def test_activate_happy_path_closed_shape(env):
++    resp = env.svc.activate()
++    assert set(resp) == {"schema_version", "association_ref", "subscriber_ref", "stream_epoch", "cursor", "snapshot"}
++    assert resp["schema_version"] == WIRE_SCHEMA
++    snap = resp["snapshot"]
++    assert set(snap) == {"association_ref", "stream_epoch", "snapshot_sequence", "boundary_ref", "state", "metadata_version"}
++    assert snap["association_ref"] == resp["association_ref"]
++    assert snap["state"] == "observing"
++    assert snap["snapshot_sequence"] >= 1  # session.registered is the first event
++    assert snap["metadata_version"] == 1
++
++
++def test_activate_is_idempotent_on_reconnect(env):
++    first = env.svc.activate()
++    second = env.svc.activate()
++    assert second["association_ref"] == first["association_ref"]
++    assert second["subscriber_ref"] == first["subscriber_ref"]
++    replay = env.svc.replay(second["cursor"])
++    assert replay["events"] == []  # no duplicate registration event
++
++
++def test_activate_denied_when_identity_unresolved(env):
++    env.state["enabled"] = False
++    assert _code(env.svc.activate) == "observer_not_authorized"
++
++
++def test_activate_denied_when_disabled_mid_stream(env):
++    env.owner.deactivate()
++    assert _code(env.svc.activate) == "observer_not_authorized"
++
++
++def test_activate_denied_when_context_owner_mismatches(env):
++    env.state["owner"] = "owner.beta"
++    assert _code(env.svc.activate) == "observer_not_authorized"
++
++
++def test_activate_denied_on_sensitive_ref(env):
++    env.state["session"] = "my-token-ref"
++    assert _code(env.svc.activate) == "observer_not_authorized"
++
++
++def test_single_active_session_enforced(env):
++    env.svc.activate()
++    env.state["session"] = S2
++    assert _code(env.svc.activate) == "association_stale"
++    env.state["session"] = S1
++    again = env.svc.activate()  # original active session still fine
++    assert again["snapshot"]["state"] == "observing"
++
++
++# ── status ───────────────────────────────────────────────────────────────────
++
++
++def test_status_requires_association(env):
++    assert _code(env.svc.status) == "association_stale"
++    first = env.svc.activate()
++    st = env.svc.status()
++    assert st["schema_version"] == WIRE_SCHEMA
++    assert st["snapshot"]["association_ref"] == first["association_ref"]
++    assert st["snapshot"]["stream_epoch"] == first["snapshot"]["stream_epoch"]
++
++
++# ── deactivate ───────────────────────────────────────────────────────────────
++
++
++def test_deactivate_detaches_and_is_idempotent(env):
++    first = env.svc.activate()
++    out = env.svc.deactivate()
++    assert out == {"schema_version": WIRE_SCHEMA, "status": "detached"}
++    assert env.svc.deactivate() == out  # idempotent
++    assert _code(env.svc.status) == "association_stale"
++    assert _code(lambda: env.svc.replay(first["cursor"])) == "association_stale"
++
++
++# ── internal hooks + replay flow ─────────────────────────────────────────────
++
++
++def test_status_change_events_and_replay_chain(env):
++    started = env.svc.activate()
++    assert env.svc.session_status_changed("observing") is True
++    replay = env.svc.replay(started["cursor"])
++    assert len(replay["events"]) == 1
++    ev = replay["events"][0]
++    assert set(ev) == {"schema_version", "event_id", "event_type", "association_ref", "stream_epoch", "sequence", "payload"}
++    assert ev["event_type"] == "session.status_changed"
++    assert ev["payload"] == {"status": "observing", "metadata_version": 1}
++    assert ev["association_ref"] == started["association_ref"]
++    assert ev["sequence"] > started["snapshot"]["snapshot_sequence"]
++    again = env.svc.replay(replay["next_cursor"])
++    assert again["events"] == []
++    assert again["next_cursor"] == replay["next_cursor"]
++
++
++def test_session_ended_flow(env):
++    from hermes_cli.fleet_observer import FleetObserverScope
++
++    started = env.svc.activate()
++    assert env.svc.session_ended("session_end") is True
++    # strict semantics: replay serves the active association only
++    assert _code(env.svc.status) == "association_stale"
++    assert _code(lambda: env.svc.replay(started["cursor"])) == "association_stale"
++    # the ended event itself reached the hub stream (verified on the observer scope)
++    scope = FleetObserverScope(OWNER, OBSERVER, session_ref=S1)
++    result = env.hub.replay(scope, None)
++    assert [e.event_type for e in result.events] == ["session.registered", "session.ended"]
++    assert result.events[-1].payload.get("reason") == "session_end"
++
++
++def test_hooks_are_noop_without_association(env):
++    assert env.svc.session_status_changed("observing") is False
++    assert env.svc.session_ended("session_end") is False
++    with pytest.raises(FleetTuiWireError) as exc:
++        env.svc.session_status_changed("prompt secret")
++    assert exc.value.code == "invalid_event"
++    with pytest.raises(FleetTuiWireError) as exc:
++        env.svc.session_ended("freeform reason")
++    assert exc.value.code == "invalid_event"
++
++
++# ── replay cursor verification ───────────────────────────────────────────────
++
++
++def test_replay_cursor_tamper_fails_closed(env):
++    started = env.svc.activate()
++    cursor = started["cursor"]
++    # Flip a character in the middle of the payload: guaranteed to change the
++    # decoded bytes (a last-character flip can land on unused base64 bits).
++    tampered = cursor[:10] + ("A" if cursor[10] != "A" else "B") + cursor[11:]
++    assert _code(lambda: env.svc.replay(tampered)) == "invalid_provenance"
++    assert _code(lambda: env.svc.replay("cur.not-base64!!")) == "invalid_provenance"
++
++
++def test_replay_cursor_scope_binding(env):
++    started = env.svc.activate()
++    env.svc.session_ended("session_end")
++    env.state["session"] = S2
++    env.svc.activate()
++    assert _code(lambda: env.svc.replay(started["cursor"])) == "cursor_stale"
++
++
++def test_replay_before_activate_fails_closed(env):
++    # unattached session → association_stale regardless of cursor shape
++    assert _code(lambda: env.svc.replay("cur.whatever")) == "association_stale"

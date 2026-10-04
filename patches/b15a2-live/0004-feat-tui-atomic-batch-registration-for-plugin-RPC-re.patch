@@ -1,0 +1,234 @@
+From e98c30490baaf755853dcb545138fc6655c08113 Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Sun, 4 Oct 2026 01:39:57 -0300
+Subject: [PATCH 4/4] feat(tui): atomic batch registration for plugin RPC
+ registry
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+B15a WIP (02/08) preservado: register_batch() atômico no PluginRpcRegistry
+(valida tudo antes; publica com 1 swap; collision/duplicate/enabled checks)
++ 114 linhas de teste (test_plugin_rpc_seam) + 19 linhas em server.py.
+Backup do diff: ~/backups/pd-skill-2026-10-03/b15a-rpc-seam-WIP-20260802.patch
+---
+ tests/tui_gateway/test_plugin_rpc_seam.py | 114 ++++++++++++++++++++++
+ tui_gateway/plugin_rpc.py                 |  49 ++++++++++
+ tui_gateway/server.py                     |  19 ++++
+ 3 files changed, 182 insertions(+)
+
+diff --git a/tests/tui_gateway/test_plugin_rpc_seam.py b/tests/tui_gateway/test_plugin_rpc_seam.py
+index cf96474a40..aec89b2348 100644
+--- a/tests/tui_gateway/test_plugin_rpc_seam.py
++++ b/tests/tui_gateway/test_plugin_rpc_seam.py
+@@ -41,6 +41,120 @@ def test_plugin_rpc_accepts_safe_segmented_names_and_dispatches():
+     }
+ 
+ 
++def test_plugin_rpc_batch_registers_segmented_methods_in_order():
++    def handler(rid, params):
++        return server._ok(rid, {"method": "batch", "params": params})
++
++    registrations = [
++        ("session.create", handler),
++        ("session.activate", handler),
++        ("session.inspect", handler),
++        ("session.close", handler),
++    ]
++
++    assert server.register_plugin_rpc_batch("fleet", registrations, enabled=True) == (
++        "fleet.session.create",
++        "fleet.session.activate",
++        "fleet.session.inspect",
++        "fleet.session.close",
++    )
++    assert server.handle_request({"id": 7, "method": "fleet.session.inspect", "params": {"session": "a"}}) == {
++        "jsonrpc": "2.0", "id": 7, "result": {"method": "batch", "params": {"session": "a"}},
++    }
++
++
++def test_plugin_rpc_batch_invalid_third_registration_leaves_zero_registered():
++    def handler(rid, params):
++        return server._ok(rid, {})
++
++    with pytest.raises(server.PluginRpcRegistrationError, match="callable"):
++        server.register_plugin_rpc_batch(
++            "fleet",
++            [("session.create", handler), ("session.activate", handler), ("session.inspect", None)],
++            enabled=True,
++        )
++
++    for name in ("fleet.session.create", "fleet.session.activate", "fleet.session.inspect"):
++        assert server.handle_request({"id": 8, "method": name, "params": {}})["error"]["code"] == -32601
++
++
++def test_plugin_rpc_batch_duplicate_and_core_collision_leave_zero_registered(monkeypatch):
++    def handler(rid, params):
++        return server._ok(rid, {})
++
++    monkeypatch.setitem(server._methods, "fleet.session.activate", handler)
++    with pytest.raises(server.PluginRpcRegistrationError, match="collision"):
++        server.register_plugin_rpc_batch(
++            "fleet", [("session.create", handler), ("session.activate", handler)], enabled=True
++        )
++    assert server.handle_request({"id": 9, "method": "fleet.session.create", "params": {}})["error"]["code"] == -32601
++
++
++def test_plugin_rpc_batch_existing_plugin_duplicate_leaves_new_methods_unregistered():
++    def handler(rid, params):
++        return server._ok(rid, {})
++
++    server.register_plugin_rpc("fleet", "session.activate", handler, enabled=True)
++    with pytest.raises(server.PluginRpcRegistrationError, match="duplicate"):
++        server.register_plugin_rpc_batch(
++            "fleet", [("session.create", handler), ("session.activate", handler)], enabled=True
++        )
++    assert server.handle_request({"id": 9, "method": "fleet.session.create", "params": {}})["error"]["code"] == -32601
++    assert server.handle_request({"id": 9, "method": "fleet.session.activate", "params": {}})["result"] == {}
++
++
++def test_plugin_rpc_batch_duplicate_within_batch_leaves_zero_registered():
++    def handler(rid, params):
++        return server._ok(rid, {})
++
++    with pytest.raises(server.PluginRpcRegistrationError, match="duplicate"):
++        server.register_plugin_rpc_batch(
++            "fleet", [("session.create", handler), ("session.create", handler)], enabled=True
++        )
++    assert server.handle_request({"id": 10, "method": "fleet.session.create", "params": {}})["error"]["code"] == -32601
++
++
++def test_plugin_rpc_batch_is_disabled_by_default_without_registration():
++    def handler(rid, params):
++        return server._ok(rid, {})
++
++    with pytest.raises(server.PluginRpcRegistrationError, match="disabled"):
++        server.register_plugin_rpc_batch("fleet", [("session.create", handler)])
++    assert server.handle_request({"id": 11, "method": "fleet.session.create", "params": {}})["error"]["code"] == -32601
++
++
++def test_plugin_rpc_batch_candidate_failure_keeps_live_mapping_unpublished():
++    class FailingCandidate(dict):
++        def __setitem__(self, key, value):
++            if key == "fleet.session.inspect":
++                raise RuntimeError("simulated candidate failure")
++            super().__setitem__(key, value)
++
++    class MethodsWithFailingCandidate(dict):
++        def copy(self):
++            return FailingCandidate(self)
++
++    def handler(rid, params):
++        return server._ok(rid, {})
++
++    registry = server._plugin_rpc_registry
++    original_methods = registry._methods
++    live_methods = MethodsWithFailingCandidate(original_methods)
++    registry._methods = live_methods
++    try:
++        with pytest.raises(RuntimeError, match="simulated candidate failure"):
++            server.register_plugin_rpc_batch(
++                "fleet",
++                [("session.create", handler), ("session.activate", handler), ("session.inspect", handler)],
++                enabled=True,
++            )
++        assert registry._methods is live_methods
++        for name in ("fleet.session.create", "fleet.session.activate", "fleet.session.inspect"):
++            assert server.handle_request({"id": 12, "method": name, "params": {}})["error"]["code"] == -32601
++    finally:
++        registry._methods = original_methods
++
++
+ def test_plugin_rpc_rejects_invalid_namespace_names_and_duplicates():
+     def handler(rid, params):
+         return server._ok(rid, {})
+diff --git a/tui_gateway/plugin_rpc.py b/tui_gateway/plugin_rpc.py
+index 2c541de9bf..721e83b494 100644
+--- a/tui_gateway/plugin_rpc.py
++++ b/tui_gateway/plugin_rpc.py
+@@ -52,6 +52,55 @@ class PluginRpcRegistry:
+         self._methods[method] = handler
+         return method
+ 
++    def register_batch(
++        self,
++        namespace: Any,
++        registrations: Any,
++        *,
++        enabled: bool = False,
++        reserved: set[str] | frozenset[str] = frozenset(),
++    ) -> tuple[str, ...]:
++        """Atomically register ``(name, handler)`` pairs in one namespace.
++
++        Every registration is checked before the registry changes. The complete
++        candidate mapping is built off-registry, then published by one mapping
++        reference swap, so concurrent resolvers observe either mapping but never
++        a partially registered batch.
++        """
++        if enabled is not True:
++            raise PluginRpcRegistrationError("plugin RPC registration disabled")
++
++        # Validate the namespace even for an empty batch.
++        validate_plugin_rpc(namespace, "batch")
++        try:
++            entries = tuple(registrations)
++        except TypeError as exc:
++            raise PluginRpcRegistrationError("RPC registrations must be iterable") from exc
++
++        validated: list[tuple[str, Any]] = []
++        batch_methods: set[str] = set()
++        for registration in entries:
++            if not isinstance(registration, (tuple, list)) or len(registration) != 2:
++                raise PluginRpcRegistrationError("RPC registration must be a (name, handler) pair")
++            name, handler = registration
++            method = validate_plugin_rpc(namespace, name)
++            if not callable(handler):
++                raise PluginRpcRegistrationError("RPC handler must be callable")
++            if method in reserved:
++                raise PluginRpcRegistrationError("RPC namespace collision")
++            if method in self._methods:
++                raise PluginRpcRegistrationError("duplicate plugin RPC")
++            if method in batch_methods:
++                raise PluginRpcRegistrationError("duplicate plugin RPC in batch")
++            batch_methods.add(method)
++            validated.append((method, handler))
++
++        candidate = self._methods.copy()
++        for method, handler in validated:
++            candidate[method] = handler
++        self._methods = candidate
++        return tuple(method for method, _handler in validated)
++
+     def resolve(self, method: str) -> Callable[..., dict] | None:
+         return self._methods.get(method)
+ 
+diff --git a/tui_gateway/server.py b/tui_gateway/server.py
+index 888ae83279..7ac50e63fb 100644
+--- a/tui_gateway/server.py
++++ b/tui_gateway/server.py
+@@ -910,6 +910,25 @@ def register_plugin_rpc(
+     )
+ 
+ 
++def register_plugin_rpc_batch(
++    namespace: Any,
++    registrations: Any,
++    *,
++    enabled: bool = False,
++) -> tuple[str, ...]:
++    """Atomically register host-approved ``(name, handler)`` plugin RPC pairs.
++
++    The default-off public seam reserves the ``fleet`` namespace and validates
++    the complete batch before any injected handler becomes available.
++    """
++    return _plugin_rpc_registry.register_batch(
++        namespace,
++        registrations,
++        enabled=enabled,
++        reserved=frozenset(_methods),
++    )
++
++
+ def clear_plugin_rpcs_for_tests() -> None:
+     """Clear injected handlers for isolated dispatcher tests."""
+     _plugin_rpc_registry.clear()

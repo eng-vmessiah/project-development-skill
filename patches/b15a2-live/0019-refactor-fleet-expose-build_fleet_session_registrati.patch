@@ -1,0 +1,50 @@
+From 759fe1bd73dd5b0cd8105e14227e8debe62d48d3 Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Sun, 4 Oct 2026 17:19:17 -0300
+Subject: [PATCH 5/7] refactor(fleet): expose build_fleet_session_registrations
+ for the S5 harness (b15a2-S5)
+
+Single source for the four approved (name, handler) pairs; register_fleet_session_rpcs
+now composes it. Enables the local integration harness to bind the PD
+TuiD1BatchRegistrarAdapter to the real host callable without duplicating handlers.
+- S3 suite 28 passed; ruff clean.
+---
+ tui_gateway/fleet_tui_registration.py | 19 ++++++++++++-------
+ 1 file changed, 12 insertions(+), 7 deletions(-)
+
+diff --git a/tui_gateway/fleet_tui_registration.py b/tui_gateway/fleet_tui_registration.py
+index 6d79ad5cb1..61f1aeaa94 100644
+--- a/tui_gateway/fleet_tui_registration.py
++++ b/tui_gateway/fleet_tui_registration.py
+@@ -44,19 +44,24 @@ def _make_handler(service: FleetTuiSessionService,
+     return handler
+ 
+ 
+-def register_fleet_session_rpcs(service: FleetTuiSessionService, *, enabled: bool) -> tuple[str, ...]:
+-    """Atomically register the four D4 handlers behind the host integration flag."""
+-    from . import server
+-
++def build_fleet_session_registrations(
++        service: FleetTuiSessionService) -> tuple[tuple[str, Callable[[Any, Any], dict]], ...]:
++    """The four approved ``(name, handler)`` pairs for the D4 batch (single source)."""
+     if type(service) is not FleetTuiSessionService:
+         raise TypeError("service must be an exact FleetTuiSessionService")
+-    registrations = (
++    return (
+         ("session.activate", _make_handler(service, parse_activate_request, lambda svc, req: svc.activate())),
+         ("session.status", _make_handler(service, parse_status_request, lambda svc, req: svc.status())),
+         ("session.deactivate", _make_handler(service, parse_deactivate_request, lambda svc, req: svc.deactivate())),
+         ("session.replay", _make_handler(service, parse_replay_request, lambda svc, req: svc.replay(req["cursor"]))),
+     )
+-    return server.register_plugin_rpc_batch("fleet", registrations, enabled=enabled)
+ 
+ 
+-__all__ = ["FLEET_SESSION_METHODS", "register_fleet_session_rpcs"]
++def register_fleet_session_rpcs(service: FleetTuiSessionService, *, enabled: bool) -> tuple[str, ...]:
++    """Atomically register the four D4 handlers behind the host integration flag."""
++    from . import server
++
++    return server.register_plugin_rpc_batch("fleet", build_fleet_session_registrations(service), enabled=enabled)
++
++
++__all__ = ["FLEET_SESSION_METHODS", "build_fleet_session_registrations", "register_fleet_session_rpcs"]

@@ -1,0 +1,576 @@
+From 808964e3dccbd5414f4e2807cf140b28f9948e5f Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Thu, 30 Jul 2026 15:59:36 -0300
+Subject: [PATCH 07/10] feat(fleet): bridge verified sessions into api requests
+
+---
+ gateway/platforms/api_server.py               |  56 ++++--
+ gateway/platforms/api_server_openai_routes.py |   6 +-
+ hermes_cli/fleet_session_bridge.py            | 118 +++++++++++++
+ .../gateway/test_api_server_fleet_observer.py | 164 +++++++++++++++++-
+ tests/hermes_cli/test_fleet_session_bridge.py |  96 ++++++++++
+ 5 files changed, 421 insertions(+), 19 deletions(-)
+ create mode 100644 hermes_cli/fleet_session_bridge.py
+ create mode 100644 tests/hermes_cli/test_fleet_session_bridge.py
+
+diff --git a/gateway/platforms/api_server.py b/gateway/platforms/api_server.py
+index 4f4b8990df..6aa899d702 100644
+--- a/gateway/platforms/api_server.py
++++ b/gateway/platforms/api_server.py
+@@ -168,6 +168,7 @@ from hermes_cli.fleet_activation import (
+     FleetPrincipal,
+     FleetPrincipalResolver,
+ )
++from hermes_cli.fleet_session_bridge import DashboardSessionRequestBridge
+ from hermes_cli.fleet_observer_transport import (
+     FleetObserverHTTPAdapter,
+     FleetTransportConfig,
+@@ -1314,31 +1315,65 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
+         self._fleet_transport: Optional[FleetObserverHTTPAdapter] = None
+         # B10 is a seam only. Identity is never derived from _api_key or
+         # request body/path/query claims; B8 composition remains unchanged.
++        # Deprecated compatibility attribute for non-Fleet callers only.  The
++        # Fleet identity path is cookie-only and never invokes this resolver.
+         self._fleet_principal_resolver = fleet_principal_resolver
+-        self._fleet_activation_owner = fleet_activation_owner
++        self._fleet_activation_owner: Optional[FleetActivationOwner] = None
+         self._fleet_lifecycle_publisher = fleet_lifecycle_publisher
+         self._fleet_activation_binding = fleet_activation_binding
++        self._fleet_session_bridge: Optional[DashboardSessionRequestBridge] = None
++        if fleet_activation_owner is not None:
++            self.configure_fleet_activation_owner(fleet_activation_owner)
++
++    def configure_fleet_activation_owner(self, owner: FleetActivationOwner) -> None:
++        """Inject the server's exact activation owner before connecting."""
++        if type(owner) is not FleetActivationOwner:
++            raise TypeError("fleet activation owner must be an exact FleetActivationOwner")
++        if self._app is not None or self._runner is not None or self._site is not None:
++            raise RuntimeError("fleet activation owner must be configured before connect")
++        self._fleet_activation_owner = owner
++
++    def configure_fleet_session_bridge(self, bridge: DashboardSessionRequestBridge) -> None:
++        """Inject the dashboard request bridge before the server connects."""
++        if type(bridge) is not DashboardSessionRequestBridge:
++            raise TypeError("fleet session bridge must be an exact DashboardSessionRequestBridge")
++        if type(self._fleet_activation_owner) is not FleetActivationOwner:
++            raise RuntimeError("fleet session bridge requires a configured fleet activation owner")
++        if bridge.owner is not self._fleet_activation_owner:
++            raise ValueError("fleet session bridge owner does not match the configured fleet activation owner")
++        if self._app is not None or self._runner is not None or self._site is not None:
++            raise RuntimeError("fleet session bridge must be configured before connect")
++        self._fleet_session_bridge = bridge
+ 
+     def _resolve_fleet_principal(self, request_or_context: Any) -> Optional[FleetPrincipal]:
+         """Return only an exact, owner-validated principal; otherwise None."""
+-        resolver = self._fleet_principal_resolver
+-        if not isinstance(resolver, FleetPrincipalResolver):
++        if self._pd_fleet_enabled is not True:
+             return None
+-        principal = resolver.resolve(request_or_context)
+-        if type(principal) is not FleetPrincipal:
+-            return None
+-        owner = self._fleet_activation_owner
+-        if owner is not None:
++        bridge = self._fleet_session_bridge
++        if type(bridge) is DashboardSessionRequestBridge:
++            assert bridge is not None
++            principal = bridge.resolve_request(request_or_context)
++            owner = self._fleet_activation_owner
++            if type(owner) is not FleetActivationOwner or bridge.owner is not owner:
++                return None
++            if type(principal) is not FleetPrincipal:
++                return None
+             try:
+                 owner.validate_principal(principal)
+             except Exception:
+                 return None
+-        return principal
++            return principal
++        # Fleet identity is deliberately cookie-only.  In particular, do not
++        # fall back to the legacy resolver: arbitrary request/context objects,
++        # API keys, and headers must never become a Fleet principal.
++        return None
+ 
+     def _publish_fleet_session_lifecycle(self, *, publisher: Any, principal: Any,
+                                          binding: Any, event_type: Any,
+                                          payload: Any) -> Any:
+         """Publish a bounded session event, failing closed when not ready."""
++        if self._pd_fleet_enabled is not True:
++            return None
+         allowed_events = {"session.registered", "session.status_changed",
+                           "session.heartbeat", "session.metadata_changed",
+                           "session.detached", "session.ended"}
+@@ -3520,7 +3555,8 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
+             # #98619: the client addresses this session by construction — the id is in the
+             # request path (/api/sessions/{session_id}/chat) — so a wake self-post lands where
+             # the client will read it. The audited native-session opt-in.
+-            session_history_delivery="1", **agent_overrides)
++            session_history_delivery="1",
++            fleet_context=request, **agent_overrides)
+         return {
+             "gateway_session_key": gateway_session_key, "session_id": session_id, "body": body,
+             "user_message": user_message, "runtime_request": runtime_request,
+diff --git a/gateway/platforms/api_server_openai_routes.py b/gateway/platforms/api_server_openai_routes.py
+index dcae2f9d94..11e9488790 100644
+--- a/gateway/platforms/api_server_openai_routes.py
++++ b/gateway/platforms/api_server_openai_routes.py
+@@ -737,7 +737,8 @@ class OpenAICompatRoutesMixin:
+             # and the client can resume the session by sending it again). A fingerprint-derived
+             # id from a header-less client is NOT: delegate_task keeps its forced-sync fallback
+             # there — the wake would hard-fail or land in history that client never reloads.
+-            session_history_delivery=("1" if provided_session_id else ""))
++            session_history_delivery=("1" if provided_session_id else ""),
++            fleet_context=request)
+         # This is presentation only. The ordinary API-key/session authorization
+         # above still applies; it grants no internal ingress or control authority.
+         if provided_session_id and body.get("hermes_notification_category") == "diagnostic":
+@@ -1135,7 +1136,8 @@ class OpenAICompatRoutesMixin:
+             user_message=user_message, conversation_history=conversation_history,
+             ephemeral_system_prompt=instructions, session_id=session_id,
+             gateway_session_key=gateway_session_key, bind_declared_conversation=_declared_selected,
+-            **agent_overrides, route=route, relay_metadata=relay_metadata)
++            **agent_overrides, route=route, relay_metadata=relay_metadata,
++            fleet_context=request)
+         if stream:
+             _stream_q = ThreadSafeAsyncQueue()
+ 
+diff --git a/hermes_cli/fleet_session_bridge.py b/hermes_cli/fleet_session_bridge.py
+new file mode 100644
+index 0000000000..cbcef50ec0
+--- /dev/null
++++ b/hermes_cli/fleet_session_bridge.py
+@@ -0,0 +1,118 @@
++"""Fail-closed bridge from dashboard session cookies to fleet principals.
++
++This module deliberately keeps the dashboard access token at the request
++boundary.  It is passed to the configured verifier and is never interpreted,
++stored, or included in an exception or representation here.
++"""
++from __future__ import annotations
++
++from time import time
++from typing import Any, Callable, Mapping, Optional
++
++from .dashboard_auth.base import Session
++from .dashboard_auth.registry import list_session_providers
++from .fleet_activation import (
++    DashboardSessionFleetIdentityAdapter,
++    FleetActivationError,
++    FleetActivationNotReady,
++    FleetActivationOwner,
++    FleetPrincipal,
++)
++
++COOKIE_NAMES = (
++    "__Host-hermes_session_at",
++    "__Secure-hermes_session_at",
++    "hermes_session_at",
++)
++MAX_ACCESS_TOKEN_LENGTH = 4096
++
++
++def verify_registered_dashboard_session(access_token: str) -> Optional[Session]:
++    """Verify a cookie against registered session providers.
++
++    Provider failures are intentionally indistinguishable from an invalid
++    session.  In particular, the opaque token is not logged or copied into an
++    error while handling a provider exception.
++    """
++    if type(access_token) is not str or not access_token or len(access_token) > MAX_ACCESS_TOKEN_LENGTH:
++        return None
++    try:
++        providers = list_session_providers()
++    except Exception:
++        return None
++    for provider in providers:
++        try:
++            session = provider.verify_session(access_token=access_token)
++        except Exception:
++            continue
++        if type(session) is Session:
++            return session
++    return None
++
++
++class DashboardSessionRequestBridge:
++    """Resolve an explicitly verified dashboard cookie to an owned principal."""
++
++    def __init__(self, owner: FleetActivationOwner,
++                 verify_access_token: Callable[[str], Optional[Session]],
++                 clock: Callable[[], Any] | None = None) -> None:
++        if type(owner) is not FleetActivationOwner:
++            raise FleetActivationError("dashboard request bridge requires an exact FleetActivationOwner")
++        if not callable(verify_access_token):
++            raise FleetActivationError("dashboard request bridge requires a callable verifier")
++        if not owner.ready:
++            raise FleetActivationNotReady("dashboard request bridge owner is not ready")
++        if clock is not None and not callable(clock):
++            raise FleetActivationError("dashboard request bridge clock must be callable")
++        self._owner = owner
++        self._verify_access_token = verify_access_token
++        self._identity_adapter = DashboardSessionFleetIdentityAdapter(owner, clock=clock or time)
++
++    @property
++    def owner(self) -> FleetActivationOwner:
++        return self._owner
++
++    def resolve_cookies(self, cookies: Mapping[str, str]) -> Optional[FleetPrincipal]:
++        """Resolve only the supported session-cookie names, in strict order."""
++        if not isinstance(cookies, Mapping):
++            return None
++        values = []
++        try:
++            for name in COOKIE_NAMES:
++                if name in cookies:
++                    value = cookies[name]
++                    if type(value) is not str or not value or len(value) > MAX_ACCESS_TOKEN_LENGTH:
++                        return None
++                    values.append(value)
++        except Exception:
++            return None
++        if not values or len(set(values)) != 1:
++            return None
++        access_token = values[0]
++        try:
++            session = self._verify_access_token(access_token)
++        except Exception:
++            return None
++        if type(session) is not Session:
++            return None
++        try:
++            principal = self._identity_adapter.adapt(session)
++        except Exception:
++            return None
++        return principal if type(principal) is FleetPrincipal else None
++
++    def resolve_request(self, request: Any) -> Optional[FleetPrincipal]:
++        """Resolve ``request.cookies`` without inspecting any other request data."""
++        try:
++            cookies = request.cookies
++        except Exception:
++            return None
++        return self.resolve_cookies(cookies)
++
++
++__all__ = [
++    "COOKIE_NAMES",
++    "MAX_ACCESS_TOKEN_LENGTH",
++    "DashboardSessionRequestBridge",
++    "verify_registered_dashboard_session",
++]
+diff --git a/tests/gateway/test_api_server_fleet_observer.py b/tests/gateway/test_api_server_fleet_observer.py
+index 1faba2959e..61bf2e0417 100644
+--- a/tests/gateway/test_api_server_fleet_observer.py
++++ b/tests/gateway/test_api_server_fleet_observer.py
+@@ -3,7 +3,7 @@ from __future__ import annotations
+ 
+ import asyncio
+ from types import SimpleNamespace
+-from typing import Any
++from typing import Any, cast
+ 
+ import pytest
+ from aiohttp import web
+@@ -17,6 +17,8 @@ from hermes_cli.fleet_activation import (
+     CAPABILITY_OBSERVE, FleetActivationOwner, FleetLifecyclePublisher,
+     FleetPrincipal, FleetPrincipalResolver,
+ )
++from hermes_cli.dashboard_auth.base import Session
++from hermes_cli.fleet_session_bridge import DashboardSessionRequestBridge
+ from hermes_cli.fleet_observer import FleetObserverConfig, FleetObserverHub, FleetObserverScope
+ 
+ 
+@@ -81,22 +83,40 @@ def test_flag_requires_exact_true_and_does_not_read_environment(monkeypatch):
+     assert _adapter({"pd_fleet_gateway_enabled": True})._pd_fleet_enabled is True
+ 
+ 
+-def test_principal_seam_never_turns_api_key_into_identity():
++def test_principal_seam_is_cookie_only_and_never_turns_raw_context_into_identity():
+     owner = FleetActivationOwner("server", "owner", enabled=True, wired=True)
+     assert owner.activate()
+     principal = owner.issue_principal("observer")
+     resolver = FleetPrincipalResolver(lambda context: principal, owner=owner)
+-    adapter = APIServerAdapter(PlatformConfig(extra={"key": "caller-key"}),
++    adapter = APIServerAdapter(PlatformConfig(extra={"key": "caller-key", "pd_fleet_gateway_enabled": True}),
+                                fleet_principal_resolver=resolver,
+                                fleet_activation_owner=owner)
+     assert adapter._resolve_fleet_principal("caller-key") is None
+     assert adapter._resolve_fleet_principal({"subject": "observer"}) is None
+-    assert adapter._resolve_fleet_principal(SimpleNamespace(server_verified=True)) == principal
+-    assert adapter._resolve_fleet_principal(SimpleNamespace(subject="attacker")) == principal
++    assert adapter._resolve_fleet_principal(SimpleNamespace(server_verified=True)) is None
++    assert adapter._resolve_fleet_principal(SimpleNamespace(subject="attacker")) is None
++
++
++def test_principal_seam_rejects_legacy_resolver_without_cookie_bridge():
++    owner = FleetActivationOwner("server", "owner", enabled=True, wired=True)
++    assert owner.activate()
++    principal = owner.issue_principal("observer")
++    resolver = FleetPrincipalResolver(lambda _: principal, owner=owner)
++    adapter = APIServerAdapter(
++        PlatformConfig(extra={"key": "caller-key", "pd_fleet_gateway_enabled": True}),
++        fleet_principal_resolver=resolver,
++        fleet_activation_owner=owner,
++    )
++    request = SimpleNamespace(
++        cookies={},
++        headers={"Authorization": "Bearer caller-key", "X-Fleet-Subject": "observer"},
++        body={"subject": "observer"},
++    )
++    assert adapter._resolve_fleet_principal(request) is None
+ 
+ 
+ def test_principal_seam_fails_closed_for_missing_or_malformed_resolver():
+-    adapter = _adapter({"key": "caller-key"})
++    adapter = _adapter({"key": "caller-key", "pd_fleet_gateway_enabled": True})
+     assert adapter._resolve_fleet_principal(SimpleNamespace()) is None
+     owner = FleetActivationOwner("server", "owner", enabled=True, wired=True)
+     assert owner.activate()
+@@ -107,7 +127,40 @@ def test_principal_seam_fails_closed_for_missing_or_malformed_resolver():
+     assert adapter._resolve_fleet_principal(SimpleNamespace()) is None
+ 
+ 
+-def test_lifecycle_hook_requires_typed_ready_objects_and_allowlisted_metadata():
++def test_configured_session_bridge_is_cookie_only_and_precedes_old_resolver():
++    owner = FleetActivationOwner("server", "owner", enabled=True, wired=True)
++    assert owner.activate()
++    session = Session("owner", "owner@example.test", "Owner", "", "dashboard", 2_000, "opaque", "refresh")
++    bridge = DashboardSessionRequestBridge(owner, lambda token: session, clock=lambda: 1_000)
++    adapter = _adapter({"key": "caller-key", "pd_fleet_gateway_enabled": True})
++    with pytest.raises(RuntimeError):
++        adapter.configure_fleet_session_bridge(bridge)
++    adapter.configure_fleet_activation_owner(owner)
++    adapter.configure_fleet_session_bridge(bridge)
++    request = SimpleNamespace(cookies={"hermes_session_at": "opaque"},
++                              headers={"Authorization": "Bearer caller-key"}, body={})
++    principal = adapter._resolve_fleet_principal(request)
++    assert principal is not None
++    assert principal.subject_ref == "owner"
++    assert adapter._resolve_fleet_principal("caller-key") is None
++
++
++def test_disabled_flag_blocks_configured_owner_and_session_bridge_identity():
++    owner = FleetActivationOwner("server", "owner", enabled=True, wired=True)
++    assert owner.activate()
++    session = Session("owner", "owner@example.test", "Owner", "", "dashboard", 2_000, "opaque", "refresh")
++    bridge = DashboardSessionRequestBridge(owner, lambda token: session, clock=lambda: 1_000)
++    adapter = _adapter()
++    adapter.configure_fleet_activation_owner(owner)
++    adapter.configure_fleet_session_bridge(bridge)
++    request = SimpleNamespace(cookies={"hermes_session_at": "opaque"})
++
++    assert adapter._pd_fleet_enabled is False
++    assert adapter._resolve_fleet_principal(request) is None
++
++
++@pytest.mark.asyncio
++async def test_disabled_flag_blocks_configured_lifecycle_publication():
+     owner = FleetActivationOwner("server", "owner", enabled=True, wired=True)
+     assert owner.activate()
+     hub = FleetObserverHub(FleetObserverConfig(enabled=True))
+@@ -121,6 +174,103 @@ def test_lifecycle_hook_requires_typed_ready_objects_and_allowlisted_metadata():
+     received = []
+     scope = FleetObserverScope("api_server", "observer", "observer")
+     subscription = hub.subscribe(scope, received.append)
++    try:
++        assert adapter._pd_fleet_enabled is False
++        assert adapter._publish_fleet_session_lifecycle(
++            publisher=publisher, principal=principal, binding=binding,
++            event_type="session.ended", payload={"reason": "completed"}) is None
++        assert received == []
++    finally:
++        hub.unsubscribe(subscription)
++
++
++@pytest.mark.asyncio
++async def test_real_run_agent_terminal_path_passes_request_to_configured_bridge():
++    owner = FleetActivationOwner("server", "owner", enabled=True, wired=True)
++    assert owner.activate()
++    session = Session("owner", "owner@example.test", "Owner", "", "dashboard", 2_000, "opaque", "refresh")
++    bridge = DashboardSessionRequestBridge(owner, lambda token: session, clock=lambda: 1_000)
++    requests = []
++    resolve_request = bridge.resolve_request
++
++    def spy(request):
++        requests.append(request)
++        return resolve_request(request)
++
++    bridge.resolve_request = spy
++    adapter = _adapter({"pd_fleet_gateway_enabled": True})
++    adapter.configure_fleet_activation_owner(owner)
++    adapter.configure_fleet_session_bridge(bridge)
++
++    class FakeAgent:
++        session_prompt_tokens = 1
++        session_completion_tokens = 2
++        session_total_tokens = 3
++        session_id = "session-1"
++
++        def run_conversation(self, **kwargs):
++            return {"final_response": "ok"}
++
++    cast(Any, adapter)._create_agent = lambda **kwargs: FakeAgent()
++    request = SimpleNamespace(cookies={"hermes_session_at": "opaque"})
++    result, usage = await adapter._run_agent("hello", [], session_id="session-1", fleet_context=request)
++
++    assert result["final_response"] == "ok"
++    assert usage["total_tokens"] == 3
++    assert requests == [request]
++
++
++@pytest.mark.asyncio
++async def test_run_agent_without_configured_bridge_remains_noop():
++    adapter = _adapter()
++
++    class FakeAgent:
++        session_id = "session-1"
++
++        def run_conversation(self, **kwargs):
++            return {"final_response": "ok"}
++
++    cast(Any, adapter)._create_agent = lambda **kwargs: FakeAgent()
++    request = SimpleNamespace(cookies={"hermes_session_at": "opaque"})
++    result, _ = await adapter._run_agent("hello", [], session_id="session-1", fleet_context=request)
++
++    assert result["final_response"] == "ok"
++    assert adapter._resolve_fleet_principal(request) is None
++
++
++def test_session_bridge_rejects_cross_owner_injection():
++    owner = FleetActivationOwner("server", "owner", enabled=True, wired=True)
++    other_owner = FleetActivationOwner("server", "other", enabled=True, wired=True)
++    assert owner.activate()
++    assert other_owner.activate()
++    bridge = DashboardSessionRequestBridge(other_owner, lambda token: None)
++    adapter = _adapter()
++    adapter.configure_fleet_activation_owner(owner)
++    with pytest.raises(ValueError):
++        adapter.configure_fleet_session_bridge(bridge)
++
++
++def test_activation_owner_configuration_requires_exact_owner():
++    adapter = _adapter()
++    with pytest.raises(TypeError):
++        adapter.configure_fleet_activation_owner(cast(Any, object()))
++
++
++def test_lifecycle_hook_requires_typed_ready_objects_and_allowlisted_metadata():
++    owner = FleetActivationOwner("server", "owner", enabled=True, wired=True)
++    assert owner.activate()
++    hub = FleetObserverHub(FleetObserverConfig(enabled=True))
++    assert hub.activate()
++    principal = owner.issue_principal("observer")
++    binding = owner.issue_binding("observer")
++    publisher = FleetLifecyclePublisher(hub, owner, binding)
++    adapter = APIServerAdapter(PlatformConfig(extra={"pd_fleet_gateway_enabled": True}),
++                               fleet_activation_owner=owner,
++                               fleet_lifecycle_publisher=publisher,
++                               fleet_activation_binding=binding)
++    received = []
++    scope = FleetObserverScope("api_server", "observer", "observer")
++    subscription = hub.subscribe(scope, received.append)
+     assert adapter._publish_fleet_session_lifecycle(
+         publisher=publisher, principal=principal, binding=binding,
+         event_type="session.ended", payload={"reason": "completed"})
+diff --git a/tests/hermes_cli/test_fleet_session_bridge.py b/tests/hermes_cli/test_fleet_session_bridge.py
+new file mode 100644
+index 0000000000..108fac0da9
+--- /dev/null
++++ b/tests/hermes_cli/test_fleet_session_bridge.py
+@@ -0,0 +1,96 @@
++from types import SimpleNamespace
++from typing import Any, cast
++
++import pytest
++
++from hermes_cli.dashboard_auth.base import Session, TokenPrincipal
++from hermes_cli.fleet_activation import FleetActivationError, FleetActivationNotReady, FleetActivationOwner
++from hermes_cli.fleet_session_bridge import (
++    DashboardSessionRequestBridge,
++    MAX_ACCESS_TOKEN_LENGTH,
++    verify_registered_dashboard_session,
++)
++
++
++def _session(user_id="owner", token="opaque"):
++    return Session(user_id, "owner@example.test", "Owner", "", "dashboard", 2_000, token, "refresh")
++
++
++def _bridge(verifier, clock=lambda: 1_000):
++    owner = FleetActivationOwner("api", "owner", enabled=True, wired=True)
++    owner.activate()
++    return DashboardSessionRequestBridge(owner, verifier, clock=clock)
++
++
++def test_cookie_precedence_and_session_adaptation():
++    seen = []
++    bridge = _bridge(lambda token: seen.append(token) or _session(token=token))
++    principal = bridge.resolve_cookies({"hermes_session_at": "fallback", "__Host-hermes_session_at": "preferred"})
++    assert principal is None  # conflicting aliases fail closed
++    assert seen == []
++    principal = bridge.resolve_cookies({"__Host-hermes_session_at": "preferred"})
++    assert principal is not None
++    assert principal.subject_ref == "owner"
++    assert seen == ["preferred"]
++
++
++def test_conflicting_empty_and_oversize_cookies_never_reach_verifier():
++    seen = []
++    bridge = _bridge(lambda token: seen.append(token))
++    assert bridge.resolve_cookies({"__Secure-hermes_session_at": "a", "hermes_session_at": "b"}) is None
++    assert bridge.resolve_cookies({"hermes_session_at": ""}) is None
++    assert bridge.resolve_cookies({"hermes_session_at": "x" * (MAX_ACCESS_TOKEN_LENGTH + 1)}) is None
++    assert seen == []
++
++
++def test_request_bridge_does_not_read_auth_body_or_query():
++    seen = []
++    bridge = _bridge(lambda token: seen.append(token) or _session(token=token))
++    request = SimpleNamespace(cookies={"hermes_session_at": "cookie"},
++                              headers={"Authorization": "Bearer header"},
++                              body="body", query={"token": "query"})
++    principal = bridge.resolve_request(request)
++    assert principal is not None
++    assert principal.subject_ref == "owner"
++    assert seen == ["cookie"]
++
++
++def test_token_principal_and_bad_verifier_results_fail_closed():
++    bridge = _bridge(lambda token: TokenPrincipal("service", "token"))
++    assert bridge.resolve_cookies({"hermes_session_at": "opaque"}) is None
++    bridge = _bridge(lambda token: (_ for _ in ()).throw(RuntimeError("opaque")))
++    assert bridge.resolve_cookies({"hermes_session_at": "opaque"}) is None
++
++
++def test_bridge_requires_exact_ready_owner_and_callable():
++    owner = FleetActivationOwner("api", "owner", enabled=True, wired=True)
++    with pytest.raises(FleetActivationNotReady):
++        DashboardSessionRequestBridge(owner, lambda token: None)
++    owner.activate()
++    with pytest.raises(FleetActivationError):
++        DashboardSessionRequestBridge(owner, cast(Any, None))
++
++
++def test_registered_provider_exception_fails_closed(monkeypatch):
++    class Provider:
++        def verify_session(self, *, access_token):
++            raise RuntimeError(access_token)
++
++    monkeypatch.setattr("hermes_cli.fleet_session_bridge.list_session_providers", lambda: [Provider()])
++    assert verify_registered_dashboard_session("opaque") is None
++
++
++def test_registered_provider_exception_falls_back_to_next_provider(monkeypatch):
++    class FailingProvider:
++        def verify_session(self, *, access_token):
++            raise RuntimeError("provider unavailable")
++
++    class ValidProvider:
++        def verify_session(self, *, access_token):
++            return _session(token=access_token)
++
++    monkeypatch.setattr(
++        "hermes_cli.fleet_session_bridge.list_session_providers",
++        lambda: [FailingProvider(), ValidProvider()],
++    )
++    assert verify_registered_dashboard_session("opaque") == _session(token="opaque")

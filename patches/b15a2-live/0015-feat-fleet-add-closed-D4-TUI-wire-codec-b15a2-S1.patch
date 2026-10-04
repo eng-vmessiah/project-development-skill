@@ -1,0 +1,576 @@
+From 1828ab35dd7a4126ad13f9f692bdd0c807dbdb6d Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Sun, 4 Oct 2026 16:16:25 -0300
+Subject: [PATCH 1/7] feat(fleet): add closed D4 TUI wire codec (b15a2-S1)
+
+- pd-fleet-tui:v1: closed requests (activate/status/deactivate/replay),
+  snapshot/event envelope builders, canonical bounded errors.
+- Opaque refs with sensitive-term denylist; envelope 8KiB / payload 4KiB /
+  replay <=100; candidate state+reason enums documented for approval.
+- RED-first tests: 26 passed.
+---
+ hermes_cli/fleet_tui_wire.py            | 320 ++++++++++++++++++++++++
+ tests/hermes_cli/test_fleet_tui_wire.py | 227 +++++++++++++++++
+ 2 files changed, 547 insertions(+)
+ create mode 100644 hermes_cli/fleet_tui_wire.py
+ create mode 100644 tests/hermes_cli/test_fleet_tui_wire.py
+
+diff --git a/hermes_cli/fleet_tui_wire.py b/hermes_cli/fleet_tui_wire.py
+new file mode 100644
+index 0000000000..facfad957f
+--- /dev/null
++++ b/hermes_cli/fleet_tui_wire.py
+@@ -0,0 +1,320 @@
++"""Closed wire codec for the D4 TUI Fleet protocol (``pd-fleet-tui:v1``).
++
++Pure validation/builders for the approved read-only wire in
++``B15A-TUI-WIRE-CONTRACT.md`` (D4). This module resolves nothing: no session
++identity, no host state, no transport, no external effect. Host-side services
++call these builders only after server-side authorization.
++
++Every object is closed: unknown fields/enums are denied, refs are opaque and
++bounded, payloads are redacted-by-construction (no free-form text ever enters
++the schema), and envelope/payload sizes are enforced with the approved bounds.
++"""
++from __future__ import annotations
++
++import json
++import re
++from collections.abc import Mapping
++from typing import Any
++
++WIRE_SCHEMA = "pd-fleet-tui:v1"
++
++MAX_PAYLOAD_BYTES = 4096
++MAX_ENVELOPE_BYTES = 8192
++MAX_REPLAY_EVENTS = 100
++MAX_REF_LENGTH = 128
++MAX_JSON_INTEGER = 2**53 - 1
++
++METHOD_ACTIVATE = "fleet.session.activate"
++METHOD_STATUS = "fleet.session.status"
++METHOD_DEACTIVATE = "fleet.session.deactivate"
++METHOD_REPLAY = "fleet.session.replay"
++
++EVENT_TYPES = frozenset({
++    "session.registered",
++    "session.status_changed",
++    "session.heartbeat",
++    "session.metadata_changed",
++    "session.detached",
++    "session.ended",
++})
++
++#: Association/session states carried on the wire. Candidate closed enum
++#: (G4 §3 lifecycle vocabulary); values require owner/security approval before
++#: becoming normative — adjust ONLY here.
++WIRE_STATES = frozenset({
++    "pending_activation",
++    "observing",
++    "reconnecting",
++    "stale",
++    "ended",
++    "detached",
++    "registered",
++})
++
++#: Bounded reason vocabulary for lifecycle events. Candidate closed enum.
++WIRE_REASON_CODES = frozenset({
++    "activated",
++    "registered",
++    "metadata_updated",
++    "user_deactivate",
++    "session_end",
++    "tui_exit",
++    "crash_restart",
++    "revoked",
++    "expired",
++    "heartbeat_timeout",
++    "grace_exceeded",
++})
++
++#: Canonical bounded errors from the D4 wire contract.
++ERROR_CODES = frozenset({
++    "invalid_request",
++    "unsupported_schema",
++    "observer_not_authorized",
++    "association_stale",
++    "cursor_expired",
++    "cursor_stale",
++    "replay_gap",
++    "resync_required",
++    "invalid_event",
++    "invalid_provenance",
++    "no_new_events",
++})
++
++_SNAPSHOT_FIELDS = frozenset({
++    "association_ref", "stream_epoch", "snapshot_sequence", "boundary_ref",
++    "state", "metadata_version",
++})
++_EVENT_FIELDS = frozenset({
++    "schema_version", "event_id", "event_type", "association_ref",
++    "stream_epoch", "sequence", "payload",
++})
++_PAYLOAD_FIELDS = frozenset({"status", "reason_code", "metadata_version"})
++
++_REF_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
++_FORBIDDEN = frozenset({
++    "password", "pass", "authorization", "auth", "cookie", "secret", "token",
++    "api_key", "apikey", "private_key", "privatekey", "credential", "credentials",
++    "prompt", "history", "message", "messages", "tool", "tools", "provider",
++    "terminal", "filesystem", "path", "file", "files", "dispatch", "mutation",
++    "content",
++})
++_FORBIDDEN_COMPACT = frozenset(term.replace("_", "") for term in _FORBIDDEN)
++
++
++class FleetTuiWireError(ValueError):
++    """Stable bounded wire error; ``code`` is a canonical D4 error code."""
++
++    def __init__(self, code: str):
++        self.code = code
++        super().__init__(str(code)[:128])
++
++
++def _fail(code: str) -> None:
++    raise FleetTuiWireError(code)
++
++
++def _canonical_bytes(obj: Any) -> bytes:
++    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
++
++
++def _ref(value: Any, code: str) -> str:
++    if type(value) is not str or not _REF_RE.fullmatch(value):
++        _fail(code)
++    compact = "".join(c for c in value.casefold() if c.isalnum())
++    if any(term in compact for term in _FORBIDDEN_COMPACT):
++        _fail(code)
++    return value
++
++
++def _int(value: Any, code: str, *, minimum: int = 0, maximum: int = MAX_JSON_INTEGER) -> int:
++    if type(value) is not int or value < minimum or value > maximum:
++        _fail(code)
++    return value
++
++
++def _closed(value: Any, allowed: frozenset[str], code: str) -> Mapping[str, Any]:
++    if not isinstance(value, Mapping) or set(value.keys()) != allowed:
++        _fail(code)
++    return value
++
++
++def _parse_schema_only(value: Any) -> dict[str, Any]:
++    if not isinstance(value, Mapping) or "schema_version" not in value:
++        _fail("invalid_request")
++    if value["schema_version"] != WIRE_SCHEMA:
++        _fail("unsupported_schema")
++    if set(value.keys()) != {"schema_version"}:
++        _fail("invalid_request")
++    return {"schema_version": WIRE_SCHEMA}
++
++
++def parse_activate_request(value: Any) -> dict[str, Any]:
++    return _parse_schema_only(value)
++
++
++def parse_status_request(value: Any) -> dict[str, Any]:
++    return _parse_schema_only(value)
++
++
++def parse_deactivate_request(value: Any) -> dict[str, Any]:
++    return _parse_schema_only(value)
++
++
++def parse_replay_request(value: Any) -> dict[str, Any]:
++    if not isinstance(value, Mapping) or "schema_version" not in value:
++        _fail("invalid_request")
++    if value["schema_version"] != WIRE_SCHEMA:
++        _fail("unsupported_schema")
++    if set(value.keys()) != {"schema_version", "cursor"}:
++        _fail("invalid_request")
++    return {"schema_version": WIRE_SCHEMA, "cursor": _ref(value["cursor"], "invalid_request")}
++
++
++def build_snapshot(*, association_ref: Any, stream_epoch: Any, snapshot_sequence: Any,
++                   boundary_ref: Any, state: Any, metadata_version: Any, **_extra: Any) -> dict[str, Any]:
++    if _extra:
++        _fail("invalid_request")
++    if state not in WIRE_STATES:
++        _fail("invalid_request")
++    return {
++        "association_ref": _ref(association_ref, "invalid_request"),
++        "stream_epoch": _ref(stream_epoch, "invalid_request"),
++        "snapshot_sequence": _int(snapshot_sequence, "invalid_request"),
++        "boundary_ref": _ref(boundary_ref, "invalid_request"),
++        "state": state,
++        "metadata_version": _int(metadata_version, "invalid_request"),
++    }
++
++
++def _validate_snapshot(value: Any) -> dict[str, Any]:
++    if not isinstance(value, Mapping):
++        _fail("invalid_request")
++    _closed(value, _SNAPSHOT_FIELDS, "invalid_request")
++    return build_snapshot(
++        association_ref=value["association_ref"], stream_epoch=value["stream_epoch"],
++        snapshot_sequence=value["snapshot_sequence"], boundary_ref=value["boundary_ref"],
++        state=value["state"], metadata_version=value["metadata_version"],
++    )
++
++
++def _check_envelope(obj: Any, code: str, limit: int = MAX_ENVELOPE_BYTES) -> None:
++    if len(_canonical_bytes(obj)) > limit:
++        _fail(code)
++
++
++def build_activate_response(*, association_ref: Any, subscriber_ref: Any, stream_epoch: Any,
++                            cursor: Any, snapshot: Any) -> dict[str, Any]:
++    response = {
++        "schema_version": WIRE_SCHEMA,
++        "association_ref": _ref(association_ref, "invalid_request"),
++        "subscriber_ref": _ref(subscriber_ref, "invalid_request"),
++        "stream_epoch": _ref(stream_epoch, "invalid_request"),
++        "cursor": _ref(cursor, "invalid_request"),
++        "snapshot": _validate_snapshot(snapshot),
++    }
++    _check_envelope(response, "invalid_request")
++    return response
++
++
++def build_status_response(*, snapshot: Any) -> dict[str, Any]:
++    response = {"schema_version": WIRE_SCHEMA, "snapshot": _validate_snapshot(snapshot)}
++    _check_envelope(response, "invalid_request")
++    return response
++
++
++def build_deactivate_response() -> dict[str, Any]:
++    return {"schema_version": WIRE_SCHEMA, "status": "detached"}
++
++
++def _validate_event(value: Any) -> dict[str, Any]:
++    if not isinstance(value, Mapping):
++        _fail("invalid_event")
++    _closed(value, _EVENT_FIELDS, "invalid_event")
++    if value["schema_version"] != WIRE_SCHEMA:
++        _fail("invalid_event")
++    return build_event_envelope(
++        event_id=value["event_id"], event_type=value["event_type"],
++        association_ref=value["association_ref"], stream_epoch=value["stream_epoch"],
++        sequence=value["sequence"], payload=value["payload"],
++    )
++
++
++def build_event_envelope(*, event_id: Any, event_type: Any, association_ref: Any,
++                         stream_epoch: Any, sequence: Any, payload: Any) -> dict[str, Any]:
++    if event_type not in EVENT_TYPES:
++        _fail("invalid_event")
++    if not isinstance(payload, Mapping) or not payload or not set(payload.keys()) <= _PAYLOAD_FIELDS:
++        _fail("invalid_event")
++    clean_payload: dict[str, Any] = {}
++    if "status" in payload:
++        if payload["status"] not in WIRE_STATES:
++            _fail("invalid_event")
++        clean_payload["status"] = payload["status"]
++    if "reason_code" in payload:
++        if payload["reason_code"] not in WIRE_REASON_CODES:
++            _fail("invalid_event")
++        clean_payload["reason_code"] = payload["reason_code"]
++    if "metadata_version" in payload:
++        clean_payload["metadata_version"] = _int(payload["metadata_version"], "invalid_event")
++    if len(_canonical_bytes(clean_payload)) > MAX_PAYLOAD_BYTES:
++        _fail("payload_too_large")
++    envelope = {
++        "schema_version": WIRE_SCHEMA,
++        "event_id": _ref(event_id, "invalid_event"),
++        "event_type": event_type,
++        "association_ref": _ref(association_ref, "invalid_event"),
++        "stream_epoch": _ref(stream_epoch, "invalid_event"),
++        "sequence": _int(sequence, "invalid_event"),
++        "payload": clean_payload,
++    }
++    _check_envelope(envelope, "invalid_event")
++    return envelope
++
++
++def build_replay_response(*, events: Any, next_cursor: Any = None) -> dict[str, Any]:
++    if not isinstance(events, (list, tuple)):
++        _fail("invalid_request")
++    if len(events) > MAX_REPLAY_EVENTS:
++        _fail("payload_too_large")
++    response = {
++        "schema_version": WIRE_SCHEMA,
++        "events": [_validate_event(event) for event in events],
++        "next_cursor": None if next_cursor is None else _ref(next_cursor, "invalid_request"),
++    }
++    _check_envelope(response, "payload_too_large")
++    return response
++
++
++def build_error(code: Any) -> dict[str, Any]:
++    if code not in ERROR_CODES:
++        _fail("invalid_request")
++    return {"schema_version": WIRE_SCHEMA, "error": {"code": code}}
++
++
++__all__ = [
++    "ERROR_CODES",
++    "EVENT_TYPES",
++    "FleetTuiWireError",
++    "MAX_ENVELOPE_BYTES",
++    "MAX_PAYLOAD_BYTES",
++    "MAX_REPLAY_EVENTS",
++    "METHOD_ACTIVATE",
++    "METHOD_DEACTIVATE",
++    "METHOD_REPLAY",
++    "METHOD_STATUS",
++    "WIRE_REASON_CODES",
++    "WIRE_SCHEMA",
++    "WIRE_STATES",
++    "build_activate_response",
++    "build_deactivate_response",
++    "build_error",
++    "build_event_envelope",
++    "build_replay_response",
++    "build_snapshot",
++    "build_status_response",
++    "parse_activate_request",
++    "parse_deactivate_request",
++    "parse_replay_request",
++    "parse_status_request",
++]
+diff --git a/tests/hermes_cli/test_fleet_tui_wire.py b/tests/hermes_cli/test_fleet_tui_wire.py
+new file mode 100644
+index 0000000000..4594954d82
+--- /dev/null
++++ b/tests/hermes_cli/test_fleet_tui_wire.py
+@@ -0,0 +1,227 @@
++"""Red-first tests for the closed D4 TUI Fleet wire codec (B15a.2, S1).
++
++The codec is pure validation/building for the ``pd-fleet-tui:v1`` wire defined
++in ``B15A-TUI-WIRE-CONTRACT.md`` (D4 approved). No session resolution, host
++state, transport, or external effect lives here.
++"""
++from __future__ import annotations
++
++import json
++
++import pytest
++
++from hermes_cli.fleet_tui_wire import (
++    ERROR_CODES,
++    EVENT_TYPES,
++    MAX_ENVELOPE_BYTES,
++    MAX_PAYLOAD_BYTES,
++    MAX_REPLAY_EVENTS,
++    METHOD_ACTIVATE,
++    METHOD_DEACTIVATE,
++    METHOD_REPLAY,
++    METHOD_STATUS,
++    WIRE_SCHEMA,
++    FleetTuiWireError,
++    build_activate_response,
++    build_deactivate_response,
++    build_error,
++    build_event_envelope,
++    build_replay_response,
++    build_snapshot,
++    build_status_response,
++    parse_activate_request,
++    parse_deactivate_request,
++    parse_replay_request,
++    parse_status_request,
++)
++
++REF = "assoc.a1-b2_c3"
++REF2 = "subscriber.one"
++
++
++def _code(exc: pytest.ExceptionInfo[FleetTuiWireError]) -> str:
++    return exc.value.code
++
++
++# ── constants ────────────────────────────────────────────────────────────────
++
++
++def test_wire_constants_are_the_approved_bounds():
++    assert WIRE_SCHEMA == "pd-fleet-tui:v1"
++    assert MAX_PAYLOAD_BYTES == 4096
++    assert MAX_ENVELOPE_BYTES == 8192
++    assert MAX_REPLAY_EVENTS == 100
++    assert METHOD_ACTIVATE == "fleet.session.activate"
++    assert METHOD_STATUS == "fleet.session.status"
++    assert METHOD_DEACTIVATE == "fleet.session.deactivate"
++    assert METHOD_REPLAY == "fleet.session.replay"
++    assert EVENT_TYPES == frozenset({
++        "session.registered", "session.status_changed", "session.heartbeat",
++        "session.metadata_changed", "session.detached", "session.ended",
++    })
++    assert "replay_gap" in ERROR_CODES and "invalid_request" in ERROR_CODES
++
++
++# ── request parsing: closed {schema_version} ops ─────────────────────────────
++
++
++@pytest.mark.parametrize("parse", [parse_activate_request, parse_status_request, parse_deactivate_request])
++def test_closed_single_field_requests_accept_only_schema_version(parse):
++    assert parse({"schema_version": WIRE_SCHEMA}) == {"schema_version": WIRE_SCHEMA}
++    with pytest.raises(FleetTuiWireError) as exc:
++        parse({"schema_version": WIRE_SCHEMA, "session_id": "sneaky"})
++    assert _code(exc) == "invalid_request"
++    with pytest.raises(FleetTuiWireError) as exc:
++        parse({"schema_version": WIRE_SCHEMA, "owner_ref": "sneaky"})
++    assert _code(exc) == "invalid_request"
++    with pytest.raises(FleetTuiWireError) as exc:
++        parse({})
++    assert _code(exc) == "invalid_request"
++
++
++@pytest.mark.parametrize("parse", [parse_activate_request, parse_status_request, parse_deactivate_request])
++def test_requests_reject_wrong_schema_and_non_mapping(parse):
++    with pytest.raises(FleetTuiWireError) as exc:
++        parse({"schema_version": "pd-fleet-tui:v2"})
++    assert _code(exc) == "unsupported_schema"
++    for bad in (None, "x", 7, []):
++        with pytest.raises(FleetTuiWireError) as exc:
++            parse(bad)
++        assert _code(exc) == "invalid_request"
++
++
++def test_replay_request_requires_only_opaque_cursor():
++    assert parse_replay_request({"schema_version": WIRE_SCHEMA, "cursor": "cursor.abc-1"}) == {
++        "schema_version": WIRE_SCHEMA, "cursor": "cursor.abc-1",
++    }
++    with pytest.raises(FleetTuiWireError) as exc:
++        parse_replay_request({"schema_version": WIRE_SCHEMA})
++    assert _code(exc) == "invalid_request"
++    with pytest.raises(FleetTuiWireError) as exc:
++        parse_replay_request({"schema_version": WIRE_SCHEMA, "cursor": "cursor.abc-1", "sequence": 4})
++    assert _code(exc) == "invalid_request"
++    with pytest.raises(FleetTuiWireError) as exc:
++        parse_replay_request({"schema_version": WIRE_SCHEMA, "cursor": ""})
++    assert _code(exc) == "invalid_request"
++
++
++# ── opaque ref rules (redaction escape attempts) ─────────────────────────────
++
++
++@pytest.mark.parametrize("bad_ref", [
++    "", "has space", "control\x01char", "pi\u202ebidi", "x" * 129,
++    "my-secret-ref", "access-token-1", "userapikey", "private_key_2", "session-history",
++])
++def test_refs_reject_sensitive_or_malformed_values(bad_ref):
++    with pytest.raises(FleetTuiWireError) as exc:
++        build_snapshot(association_ref=bad_ref, stream_epoch=REF2, snapshot_sequence=1,
++                       boundary_ref=REF, state="observing", metadata_version=1)
++    assert _code(exc) in {"invalid_request", "invalid_event", "invalid_provenance"}
++
++
++def test_refs_accept_bounded_opaque_values():
++    snap = build_snapshot(association_ref=REF, stream_epoch="epoch.7", snapshot_sequence=0,
++                          boundary_ref="boundary.x", state="observing", metadata_version=1)
++    assert snap == {
++        "association_ref": REF, "stream_epoch": "epoch.7", "snapshot_sequence": 0,
++        "boundary_ref": "boundary.x", "state": "observing", "metadata_version": 1,
++    }
++
++
++# ── snapshot / responses ─────────────────────────────────────────────────────
++
++
++def _snap(**over):
++    base = dict(association_ref=REF, stream_epoch="epoch.7", snapshot_sequence=3,
++                boundary_ref="boundary.x", state="observing", metadata_version=1)
++    base.update(over)
++    return build_snapshot(**base)
++
++
++def test_snapshot_is_closed_no_arbitrary_metadata():
++    with pytest.raises(FleetTuiWireError) as exc:
++        build_snapshot(association_ref=REF, stream_epoch="e", snapshot_sequence=1, boundary_ref="b",
++                       state="observing", metadata_version=1, prompt="leak me")
++    assert _code(exc) == "invalid_request"
++    with pytest.raises(FleetTuiWireError):
++        _snap(snapshot_sequence=True)
++    with pytest.raises(FleetTuiWireError):
++        _snap(metadata_version=-1)
++
++
++def test_activate_response_shape_and_bounds():
++    resp = build_activate_response(
++        association_ref=REF, subscriber_ref=REF2, stream_epoch="epoch.7",
++        cursor="cursor.1", snapshot=_snap(),
++    )
++    assert set(resp) == {"schema_version", "association_ref", "subscriber_ref", "stream_epoch", "cursor", "snapshot"}
++    assert resp["schema_version"] == WIRE_SCHEMA
++    assert len(json.dumps(resp).encode()) < MAX_ENVELOPE_BYTES
++
++
++def test_status_and_deactivate_response_shapes():
++    assert build_status_response(snapshot=_snap()) == {"schema_version": WIRE_SCHEMA, "snapshot": _snap()}
++    assert build_deactivate_response() == {"schema_version": WIRE_SCHEMA, "status": "detached"}
++
++
++def test_replay_response_bounds_and_shape():
++    event = build_event_envelope(
++        event_id="evt.1", event_type="session.heartbeat", association_ref=REF,
++        stream_epoch="epoch.7", sequence=4, payload={"status": "observing", "metadata_version": 1},
++    )
++    resp = build_replay_response(events=[event], next_cursor="cursor.2")
++    assert set(resp) == {"schema_version", "events", "next_cursor"}
++    assert resp["next_cursor"] == "cursor.2"
++    empty = build_replay_response(events=[], next_cursor=None)
++    assert empty["events"] == [] and empty["next_cursor"] is None
++    with pytest.raises(FleetTuiWireError) as exc:
++        build_replay_response(events=[event] * (MAX_REPLAY_EVENTS + 1), next_cursor=None)
++    assert _code(exc) == "payload_too_large"
++
++
++# ── event envelope ───────────────────────────────────────────────────────────
++
++
++def _event(**over):
++    base = dict(event_id="evt.1", event_type="session.status_changed", association_ref=REF,
++                stream_epoch="epoch.7", sequence=4, payload={"status": "observing", "reason_code": "heartbeat_timeout", "metadata_version": 1})
++    base.update(over)
++    return build_event_envelope(**base)
++
++
++def test_event_envelope_is_closed():
++    env = _event()
++    assert set(env) == {"schema_version", "event_id", "event_type", "association_ref", "stream_epoch", "sequence", "payload"}
++    assert env["schema_version"] == WIRE_SCHEMA
++    with pytest.raises(FleetTuiWireError) as exc:
++        _event(event_type="session.exfiltrated")
++    assert _code(exc) == "invalid_event"
++    with pytest.raises(FleetTuiWireError) as exc:
++        _event(payload={"status": "observing", "metadata_version": 1, "prompt": "leak"})
++    assert _code(exc) == "invalid_event"
++    with pytest.raises(FleetTuiWireError) as exc:
++        _event(payload={"status": "not_a_state", "metadata_version": 1})
++    assert _code(exc) == "invalid_event"
++    with pytest.raises(FleetTuiWireError) as exc:
++        _event(sequence=True)
++    assert _code(exc) == "invalid_event"
++
++
++def test_event_payload_bounds_and_redaction():
++    with pytest.raises(FleetTuiWireError) as exc:
++        _event(payload={"status": "observing", "metadata_version": 1, "nested": {"a": 1}})
++    assert _code(exc) == "invalid_event"
++    assert len(json.dumps(_event()).encode()) < MAX_PAYLOAD_BYTES
++
++
++# ── canonical errors ─────────────────────────────────────────────────────────
++
++
++def test_build_error_uses_canonical_closed_codes():
++    err = build_error("replay_gap")
++    assert err == {"schema_version": WIRE_SCHEMA, "error": {"code": "replay_gap"}}
++    for code in ERROR_CODES:
++        assert build_error(code)["error"]["code"] == code
++    with pytest.raises(FleetTuiWireError) as exc:
++        build_error("something_freeform")
++    assert _code(exc) == "invalid_request"

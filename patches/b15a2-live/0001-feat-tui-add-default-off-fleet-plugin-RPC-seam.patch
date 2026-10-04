@@ -1,0 +1,243 @@
+From bb485eba47dee47d58864c697cf565605597732a Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Fri, 31 Jul 2026 20:35:36 -0300
+Subject: [PATCH 1/4] feat(tui): add default-off fleet plugin RPC seam
+
+---
+ tests/tui_gateway/test_plugin_rpc_seam.py | 72 +++++++++++++++++++++++
+ tui_gateway/plugin_rpc.py                 | 60 +++++++++++++++++++
+ tui_gateway/rpc_dispatch.py               | 13 +++-
+ tui_gateway/server.py                     | 29 +++++++++
+ 4 files changed, 173 insertions(+), 1 deletion(-)
+ create mode 100644 tests/tui_gateway/test_plugin_rpc_seam.py
+ create mode 100644 tui_gateway/plugin_rpc.py
+
+diff --git a/tests/tui_gateway/test_plugin_rpc_seam.py b/tests/tui_gateway/test_plugin_rpc_seam.py
+new file mode 100644
+index 0000000000..ae7b04734f
+--- /dev/null
++++ b/tests/tui_gateway/test_plugin_rpc_seam.py
+@@ -0,0 +1,72 @@
++"""Red-first tests for the public, default-off plugin RPC seam."""
++from __future__ import annotations
++
++import pytest
++
++from tui_gateway import server
++
++
++@pytest.fixture(autouse=True)
++def clean_plugin_methods():
++    yield
++    server.clear_plugin_rpcs_for_tests()
++
++
++def test_plugin_rpc_registration_is_disabled_by_default():
++    def handler(rid, params):
++        return server._ok(rid, {"ok": True, "params": params})
++
++    with pytest.raises(server.PluginRpcRegistrationError, match="disabled"):
++        server.register_plugin_rpc("fleet", "probe", handler)
++    assert server.handle_request({"id": 1, "method": "fleet.probe", "params": {}})["error"]["code"] == -32601
++
++
++def test_enabled_plugin_rpc_is_namespaced_and_dispatchable():
++    def handler(rid, params):
++        return server._ok(rid, {"ok": True, "params": params})
++
++    server.register_plugin_rpc("fleet", "probe", handler, enabled=True)
++    assert server.handle_request({"id": 2, "method": "fleet.probe", "params": {"x": 1}}) == {
++        "jsonrpc": "2.0", "id": 2, "result": {"ok": True, "params": {"x": 1}},
++    }
++
++
++def test_plugin_rpc_rejects_invalid_namespace_names_and_duplicates():
++    def handler(rid, params):
++        return server._ok(rid, {})
++
++    for namespace, name in (("", "probe"), ("fleet", ""), ("Fleet", "probe"), ("fleet", "probe.bad")):
++        with pytest.raises(server.PluginRpcRegistrationError):
++            server.register_plugin_rpc(namespace, name, handler, enabled=True)
++
++    server.register_plugin_rpc("fleet", "probe", handler, enabled=True)
++    with pytest.raises(server.PluginRpcRegistrationError, match="duplicate"):
++        server.register_plugin_rpc("fleet", "probe", handler, enabled=True)
++
++
++def test_plugin_rpc_cannot_replace_core_rpc(monkeypatch):
++    def handler(rid, params):
++        return server._ok(rid, {})
++
++    monkeypatch.setitem(server._methods, "fleet.probe", handler)
++    with pytest.raises(server.PluginRpcRegistrationError, match="collision"):
++        server.register_plugin_rpc("fleet", "probe", handler, enabled=True)
++
++
++def test_plugin_rpc_handler_exception_is_bounded_and_dispatcher_survives():
++    def failing_handler(rid, params):
++        raise RuntimeError("secret provider token must not escape")
++
++    def healthy_handler(rid, params):
++        return server._ok(rid, {"healthy": True})
++
++    server.register_plugin_rpc("fleet", "boom", failing_handler, enabled=True)
++    server.register_plugin_rpc("fleet", "healthy", healthy_handler, enabled=True)
++
++    direct = server.handle_request({"id": 3, "method": "fleet.boom", "params": {}})
++    assert direct["error"] == {"code": -32000, "message": "plugin RPC handler error"}
++    assert "token" not in str(direct)
++
++    dispatched = server.dispatch({"id": 4, "method": "fleet.boom", "params": {}})
++    assert dispatched["error"] == direct["error"]
++    assert server.handle_request({"id": 5, "method": "fleet.healthy", "params": {}})["result"] == {"healthy": True}
+diff --git a/tui_gateway/plugin_rpc.py b/tui_gateway/plugin_rpc.py
+new file mode 100644
+index 0000000000..3b9e3f0bd5
+--- /dev/null
++++ b/tui_gateway/plugin_rpc.py
+@@ -0,0 +1,60 @@
++"""Default-off, namespaced RPC registration for trusted host extensions."""
++from __future__ import annotations
++
++from collections.abc import Callable
++import re
++from typing import Any
++
++
++class PluginRpcRegistrationError(ValueError):
++    """Raised when a plugin RPC violates the host registration contract."""
++
++
++_IDENTIFIER = re.compile(r"^[a-z][a-z0-9_]*$")
++
++
++def validate_plugin_rpc(namespace: Any, name: Any) -> str:
++    if not isinstance(namespace, str) or not _IDENTIFIER.fullmatch(namespace):
++        raise PluginRpcRegistrationError("invalid RPC namespace")
++    if namespace != "fleet":
++        raise PluginRpcRegistrationError("unsupported RPC namespace")
++    if not isinstance(name, str) or not _IDENTIFIER.fullmatch(name):
++        raise PluginRpcRegistrationError("invalid RPC name")
++    return f"{namespace}.{name}"
++
++
++class PluginRpcRegistry:
++    """Small registry whose caller must explicitly pass the integration flag."""
++
++    def __init__(self) -> None:
++        self._methods: dict[str, Callable[..., dict]] = {}
++
++    def register(
++        self,
++        namespace: Any,
++        name: Any,
++        handler: Any,
++        *,
++        enabled: bool = False,
++        reserved: set[str] | frozenset[str] = frozenset(),
++    ) -> str:
++        if enabled is not True:
++            raise PluginRpcRegistrationError("plugin RPC registration disabled")
++        method = validate_plugin_rpc(namespace, name)
++        if not callable(handler):
++            raise PluginRpcRegistrationError("RPC handler must be callable")
++        if method in reserved:
++            raise PluginRpcRegistrationError("RPC namespace collision")
++        if method in self._methods:
++            raise PluginRpcRegistrationError("duplicate plugin RPC")
++        self._methods[method] = handler
++        return method
++
++    def resolve(self, method: str) -> Callable[..., dict] | None:
++        return self._methods.get(method)
++
++    def clear(self) -> None:
++        self._methods.clear()
++
++
++__all__ = ["PluginRpcRegistrationError", "PluginRpcRegistry", "validate_plugin_rpc"]
+diff --git a/tui_gateway/rpc_dispatch.py b/tui_gateway/rpc_dispatch.py
+index b2a2587c42..ce7dc7da71 100644
+--- a/tui_gateway/rpc_dispatch.py
++++ b/tui_gateway/rpc_dispatch.py
+@@ -19,7 +19,14 @@ def _handle_admitted_request(req: dict) -> dict | None:
+     if isinstance(normalized, dict):
+         return normalized
+     rid, method, params = normalized
+-    if not (fn := _methods.get(method)):
++    fn = _methods.get(method)
++    plugin_handler = False
++    if fn is None:
++        # B15a plugin RPC seam: default-off, namespaced handlers kept separate from the core
++        # registry (no contract required); resolved via the host-owned registry.
++        fn = _plugin_rpc_registry.resolve(method)
++        plugin_handler = fn is not None
++    if not fn:
+         return _err(rid, -32601, f"unknown method: {method} — the client and the Hermes backend are out of sync "
+                     "(different versions); run `hermes update` and restart both")
+     # Test doubles register straight into ``_methods`` without a contract; every production
+@@ -34,6 +41,10 @@ def _handle_admitted_request(req: dict) -> dict | None:
+         response = fn(rid, params)
+     except ProfileUnavailableError as exc:
+         return _err(rid, 4064, str(exc))
++    except Exception:
++        if plugin_handler:
++            return _err(rid, -32000, "plugin RPC handler error")
++        raise
+     finally:
+         _current_rpc_method.reset(token)
+     if contract is not None and isinstance(response, dict) and isinstance(response.get("result"), dict):
+diff --git a/tui_gateway/server.py b/tui_gateway/server.py
+index 301e7d5f4d..888ae83279 100644
+--- a/tui_gateway/server.py
++++ b/tui_gateway/server.py
+@@ -46,6 +46,7 @@ from tui_gateway.user_messages import (  # noqa: F401
+     resume_failed_message, turn_error_text)
+ from tui_gateway.transport import (FanoutTransport, StdioTransport, Transport, bind_transport,
+                                    current_transport, reset_transport)
++from tui_gateway.plugin_rpc import PluginRpcRegistrationError, PluginRpcRegistry
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -91,6 +92,7 @@ from tui_gateway.render import make_stream_renderer, render_diff, render_message
+ 
+ _sessions: dict[str, dict] = {}
+ _methods: dict[str, callable] = {}
++_plugin_rpc_registry = PluginRpcRegistry()
+ _db = None
+ _db_error: str | None = None
+ _stdout_lock = threading.Lock()
+@@ -886,6 +888,33 @@ def register_method(name: str, fn) -> None:
+     _methods[name] = fn
+ 
+ 
++def register_plugin_rpc(
++    namespace: Any,
++    name: Any,
++    handler: Any,
++    *,
++    enabled: bool = False,
++) -> str:
++    """Register one host-approved plugin RPC behind an explicit flag.
++
++    Plugin RPCs are kept separate from the core decorator registry and can only
++    use the reserved ``fleet`` namespace. The public seam is default-off;
++    callers must pass the host's already-resolved integration flag.
++    """
++    return _plugin_rpc_registry.register(
++        namespace,
++        name,
++        handler,
++        enabled=enabled,
++        reserved=frozenset(_methods),
++    )
++
++
++def clear_plugin_rpcs_for_tests() -> None:
++    """Clear injected handlers for isolated dispatcher tests."""
++    _plugin_rpc_registry.clear()
++
++
+ def method(name: str):
+     def dec(fn):
+         register_method(name, fn)

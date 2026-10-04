@@ -1,0 +1,63 @@
+From d501af7a68c75b30c529e7ee225d394ef969a31e Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Sun, 4 Oct 2026 05:53:58 -0300
+Subject: [PATCH 10/10] fix(fleet): tolerate bare __new__ adapters in observer
+ lifecycle teardown
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+disconnect()/start() teardown and _compose_fleet_observer read _fleet_transport
+(and _pd_fleet_enabled) via getattr so bare __new__ fixtures keep working —
+mirrors the upstream getattr pin in disconnect() (test_api_server_run_idempotency).
+---
+ gateway/platforms/api_server.py | 20 ++++++++++++--------
+ 1 file changed, 12 insertions(+), 8 deletions(-)
+
+diff --git a/gateway/platforms/api_server.py b/gateway/platforms/api_server.py
+index e6ba70d1b8..fe33739ed6 100644
+--- a/gateway/platforms/api_server.py
++++ b/gateway/platforms/api_server.py
+@@ -1494,10 +1494,11 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
+ 
+     def _compose_fleet_observer(self, app: Any) -> None:
+         """Attach the deliberately incomplete B8 pd-fleet composition."""
+-        if not self._pd_fleet_enabled:
++        if not getattr(self, "_pd_fleet_enabled", False):
+             return
+-        if self._fleet_transport is not None:
+-            self._fleet_transport.close()
++        _fleet_transport = getattr(self, "_fleet_transport", None)
++        if _fleet_transport is not None:
++            _fleet_transport.close()
+             self._fleet_transport = None
+         # Composition only: no activation/issuer/principal seam exists yet.
+         # Keep the hub disabled and the transport unwired, so the exposed
+@@ -4784,8 +4785,9 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
+                 self.name, self._host, self._port, self._model_name)
+             return True
+         except Exception as e:
+-            if self._fleet_transport is not None:
+-                self._fleet_transport.close()
++            _fleet_transport = getattr(self, "_fleet_transport", None)
++            if _fleet_transport is not None:
++                _fleet_transport.close()
+                 self._fleet_transport = None
+             logger.error("[%s] Failed to start API server: %s", self.name, e)
+             return False
+@@ -4801,10 +4803,12 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
+         files, #37011).
+         """
+         self._mark_disconnected()
+-        if self._fleet_transport is not None:
+-            self._fleet_transport.close()
++        # getattr throughout: disconnect() tolerates bare __new__ fixtures (pinned in
++        # test_api_server_run_idempotency).
++        _fleet_transport = getattr(self, "_fleet_transport", None)
++        if _fleet_transport is not None:
++            _fleet_transport.close()
+             self._fleet_transport = None
+-        # getattr: disconnect() tolerates bare __new__ fixtures (pinned in test_api_server_run_idempotency).
+         routed = getattr(self, "_response_stores", {})
+         stores = [s for s in (getattr(self, "_response_store", None), *list(routed.values())) if s is not None]
+         routed.clear()
