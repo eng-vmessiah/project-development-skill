@@ -3,9 +3,11 @@
 Runs only when the Hermes worktree is importable (PYTHONPATH points at it); the
 live link stays deferred by design. This file is the ``Hermes-seam (local)``
 bucket of the G4 §9 negative-fixture evidence: duplicate presentation, concurrent
-duplicate, wrong observer/owner, expired, revoked, malformed, cross-scope,
-replay gap, and no session-existence disclosure — all exercised end-to-end
-through ``TuiD1BatchRegistrarAdapter`` → ``register_plugin_rpc_batch`` → dispatch.
+duplicate (lock-serialized idempotency, not a lock-free race proof), wrong
+observer/owner, expired, revoked, malformed, cross-scope, replay gap, and no
+session-existence disclosure — exercised through ``TuiD1BatchRegistrarAdapter``
+→ ``register_plugin_rpc_batch`` → dispatch (the disclosure test also compares
+the service-level gate directly).
 """
 from __future__ import annotations
 
@@ -139,12 +141,35 @@ def test_concurrent_duplicate_presentation(env):
     assert _wire(_call("fleet.session.status", {"schema_version": WIRE_SCHEMA}))["snapshot"]["association_ref"] in refs
 
 
-def test_wrong_observer_owner_is_denied(env):
+def test_wrong_observer_owner_is_denied():
     foreign = _build(resolver=lambda: _session(owner="owner.other"))
-    svc = foreign.svc
-    with pytest.raises(Exception) as exc:
-        svc.activate()
-    assert "observer_not_authorized" in str(exc.value)
+    server.clear_plugin_rpcs_for_tests()
+    adapter = TuiD1BatchRegistrarAdapter(server.register_plugin_rpc_batch)
+    adapter.register_batch("fleet", build_fleet_session_registrations(foreign.svc), enabled=True)
+    try:
+        resp = _call("fleet.session.activate", {"schema_version": WIRE_SCHEMA})
+        assert _code(resp) == "observer_not_authorized"
+    finally:
+        server.clear_plugin_rpcs_for_tests()
+
+
+def test_replay_paginates_large_backlog_end_to_end(env):
+    started = _wire(_activate())
+    for _ in range(40):
+        assert env.svc.session_status_changed("observing") is True
+    cursor = started["cursor"]
+    seen = 0
+    batches = 0
+    for _ in range(10):  # bounded loop; a 40-event backlog never needs >10 batches
+        resp = _wire(_call("fleet.session.replay", {"schema_version": WIRE_SCHEMA, "cursor": cursor}))
+        batches += 1
+        if not resp["events"]:
+            break
+        assert len(resp["events"]) < 40  # bounded batch: never the whole backlog at once
+        seen += len(resp["events"])
+        cursor = resp["next_cursor"]
+    assert seen == 40
+    assert batches >= 2
 
 
 def test_expired_cursor_fails_closed():

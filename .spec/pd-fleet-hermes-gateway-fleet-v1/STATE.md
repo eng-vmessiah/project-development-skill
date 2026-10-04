@@ -9,7 +9,7 @@
 - **External effects:** disabled
 - **Runtime/provider authorization:** none
 - **Live Hermes status:** `NOT_READY_HERMES_SEAM`
-- **Hermes implementation WIP:** `/home/vitor/.hermes/hermes-agent` on `main` at `f66d3d4b06`; local host-side seam commit, unpushed and not installed/activated
+- **Hermes implementation WIP:** B15a.2 Fase 1 (S0–S5) implemented on worktree branches (`hermes-agent-b15a2-integration` @ `feat/b15a2-integration`, plus the S0 series worktrees); unpushed, uninstalled, not activated. Closeout packet: `B15A2-EVIDENCE-PACKET.md`.
 
 ## Gate statuses
 
@@ -53,6 +53,7 @@ Hermes owns concrete session/runtime state. Fleet owns coordination state. PD Co
 - PD/Fleet B15a.1 local plugin checkpoint: `824f000`, `plugins/pd-fleet-hermes/` lifecycle-only package and tests; independent review `PASS`; not installed or discovered by Hermes runtime
 - Hermes B15a.4 packaging/discovery checkpoint: `058c3fa620`; optional closed `integration_contract` is validated by the real PluginManager before import, while PD Fleet is staged/tested standalone default-off with lifecycle hooks only. Invalid contracts are rejected before import; no installation or runtime activation occurred. Status: `LOCAL_PLUGIN_DISCOVERY_VERIFIED`, `LIVE_NOT_READY`.
 - B15a.5 runtime readiness packet: `B15A5-RUNTIME-READINESS-PACKET.md`, independently reviewed `APPROVED`; isolated temporary-home lifecycle-only canary passed enable/load/rollback with 2 hooks and zero to...[truncated]
+- B15a.2 Fase 1 host implementation (local, default-off): Hermes `feat/b15a2-integration` — S1 D4 wire codec (`1828ab35dd`), S2 session service (`df1fc55f0a`), S3 seam registration (`a2412badf6`), S4 lifecycle hooks (`0e3ac7915d`), S5 registration refactor (`759fe1bd73`) + S6 review fixes; PD `feat/b15a2-host-integration` — cross-repo harness (`f7b466a`) + S6 updates. Evidence packet: `B15A2-EVIDENCE-PACKET.md`.
 - Replayable Hermes host patch: `patches/0010-hermes-lazy-namespaced-tui-rpc-seam.patch`
 - Hermes B9 authority commit: `d3b761a99b` (typed principal, owner epoch, binding validation, lifecycle publisher)
 - Hermes B10 fail-closed seam commit: `41c17d9bc0` (typed resolver and lifecycle hook; global API key is not Fleet identity)
@@ -64,6 +65,6 @@ Hermes owns concrete session/runtime state. Fleet owns coordination state. PD Co
 
 ## Next blocker
 
-The next blocker is **B15a.2 host integration of the read-only PD Fleet RPC**. The local/injected request, host-binding, bounded capability, and redacted response contract is now covered by `scripts/pd_fleet/tui_readonly_contract.py`, but it does not implement Hermes authentication, owner/profile/workspace/observer/association binding, session resolution, transport registration, or live behavior. B15a.2 remains local-seam-only until Hermes owner/security review approves those boundaries. Live readiness remains `NOT_READY_HERMES_SEAM`.
+B15a.2 **Fase 1 (local seam implementation) is complete and locally verified** — see `B15A2-EVIDENCE-PACKET.md` (`LOCAL_SEAM_VERIFIED / LIVE_NOT_READY`). The next blockers are: **Fase 2** (isolated canary wiring, still local-only) and **Fase 3** (runtime installation into `~/.hermes/plugins/pd-fleet-hermes/` and activation), the latter requiring a **new explicit authorization** (B15A5-style runtime readiness packet). Live readiness remains `NOT_READY_HERMES_SEAM` until the open live Hermes decisions (G4 §10) are implemented, reviewed, and separately authorized.
 
 After B15a, B15b must separately solve the messaging/API Gateway seam: authenticated registration, global or multi-session subscription, opaque ticket issuance/consume/revoke and issuer verification, durable cursor/replay/association semantics, and operational rollback. Until those waves are implemented, reviewed, and separately authorized, do not start live activation, access credentials, connect to a live Gateway, or treat the local fake as a runtime fallback.
