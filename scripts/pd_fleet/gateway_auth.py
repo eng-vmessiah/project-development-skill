@@ -165,9 +165,13 @@ class ConsumeResult:
 class SingleWriterTicketStore:
     """Single-writer store (A3): every mutation is one serialized transaction.
 
-    The consume transaction (G4 §4) checks status + nonce, marks the ticket
-    consumed, creates the association and records idempotency inside a single
-    lock acquisition — either all of it persists or none of it does.
+    The consume transaction (G4 §4) validates status (nonce one-use is folded
+    into the consumed state), marks the ticket consumed, creates the
+    association and records idempotency inside a single lock acquisition, so
+    no half-created ownership record is observable. Cross-restart crash
+    atomicity is a property of the durable store implementation (deferred to
+    the live slice — B15b.3/.4); this local slice performs no crash
+    simulation.
     """
 
     _lock: threading.Lock = field(default_factory=threading.Lock)
@@ -321,7 +325,13 @@ class GatewayAuth:
         now: float,
         ttl_s: int = ACTIVATION_TTL_S,
     ) -> Ticket:
-        """Mint a one-use opaque ticket bound to the authenticated observer."""
+        """Mint a one-use opaque ticket bound to the authenticated observer.
+
+        Issuer invariant (review LOW-3): at most one live ticket per
+        association — explicit re-association after `stale` issues a fresh
+        ticket, and a fresh consume (re)creates the association record with
+        `created_at` from the new commit.
+        """
         ticket = Ticket(
             activation_ref=f"act-{secrets.token_hex(8)}",
             observer_ref=observer_ref,

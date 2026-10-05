@@ -288,3 +288,16 @@ def test_association_illegal_transition_fails_closed():
     association.transition(AssociationState.DETACHED)
     with pytest.raises(AssociationTransitionError):
         association.transition(AssociationState.OBSERVING)
+
+
+def test_replay_denied_after_retention_eviction():
+    # defensive branch (review LOW-4): if the idempotency record is evicted
+    # (retention), the exact retry must NOT be honored — replay denied.
+    auth, store = _auth()
+    ticket = _issue(auth)
+    auth.consume(_present(ticket), now=NOW + 1)
+    key = (ticket.activation_ref, "obs-1", "assoc-1", "pd_observation")
+    del store._idempotency[key]  # simulated retention eviction
+    result = auth.consume(_present(ticket), now=NOW + 2)
+    assert not result.delivered and result.external == UNIFORM
+    assert result.audit_reason == "activation_replayed"
