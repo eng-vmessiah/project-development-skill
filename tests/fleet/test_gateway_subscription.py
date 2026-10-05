@@ -18,6 +18,7 @@ from pd_fleet.gateway_subscription import (
     GRACE_S,
     IDLE_TTL_S,
     NO_NEW_EVENTS,
+    OBSERVING,
     RECONNECTING,
     REPLAY_GAP,
     STALE,
@@ -48,6 +49,17 @@ def test_subscribe_requires_explicit_association():
     assert _sub(store, association="") is None  # v1: no global/wildcard scope
     assert _sub(store, subscriber="") is None
     assert _sub(store, epoch="") is None
+    assert (
+        store.subscribe(
+            subscriber_ref="sub-1",
+            association_ref="assoc-1",
+            stream_epoch="epoch-1",
+            boundary_ref="",
+            snapshot_sequence=0,
+            now=NOW,
+        )
+        is None
+    )
     subscription = _sub(store, snapshot=7)
     assert subscription is not None and subscription.cursor_seq == 7
 
@@ -58,6 +70,14 @@ def test_ordering_contiguous_append():
     assert not store.append(4, "evt-4")  # gap: no silent advancement
     assert store.append(3, "evt-3")
     assert not store.append(3, "evt-3-dup")  # duplicate
+
+
+def test_event_id_sequence_bijection_enforced():
+    store = GatewaySubscriptionStore()
+    assert store.append(1, "evt-a")
+    assert not store.append(2, "evt-a")  # same id, new sequence: conflict
+    assert ("evt-a", "invalid_provenance") in store.audit_log()
+    assert store.append(2, "evt-b")  # advancement resumes with a fresh id
 
 
 def test_read_events_after_cursor_in_order():
@@ -95,14 +115,18 @@ def test_cursor_stale_on_epoch_mismatch():
     _sub(store)
     result = store.read("sub-1", "epoch-other", NOW + 1)
     assert result.outcome == "cursor_stale" and result.resync_required
+    assert ("sub-1", "cursor_stale") in store.audit_log()
 
 
 def test_cursor_expired_ttl():
     store = GatewaySubscriptionStore()
     _append(store, 1)
     _sub(store)
+    for i in range(1, 31):  # heartbeats every 30s keep liveness alive
+        assert store.heartbeat("sub-1", i, NOW + i * 30)
     result = store.read("sub-1", "epoch-1", NOW + CURSOR_TTL_S + 1)
     assert result.outcome == CURSOR_EXPIRED and result.resync_required
+    assert ("sub-1", CURSOR_EXPIRED) in store.audit_log()
 
 
 def test_heartbeat_ordering():
@@ -125,6 +149,24 @@ def test_liveness_transitions_and_read():
     denied = store.read("sub-1", "epoch-1", NOW + IDLE_TTL_S + GRACE_S + 2)
     assert denied.outcome == ASSOCIATION_STALE
     assert not store.heartbeat("sub-1", 9, NOW + IDLE_TTL_S + GRACE_S + 3)  # stale denies
+    assert ("sub-1", ASSOCIATION_STALE) in store.audit_log()
+
+
+def test_staleness_derived_immediately_without_evaluate():
+    store = GatewaySubscriptionStore()
+    _append(store, 1)
+    _sub(store)
+    result = store.read("sub-1", "epoch-1", NOW + IDLE_TTL_S + GRACE_S + 2)
+    assert result.outcome == ASSOCIATION_STALE  # derived inline, no external step
+    assert not store.heartbeat("sub-1", 1, NOW + IDLE_TTL_S + GRACE_S + 3)  # no revive
+
+
+def test_heartbeat_resumes_from_reconnecting():
+    store = GatewaySubscriptionStore()
+    _sub(store)
+    assert store.evaluate("sub-1", NOW + IDLE_TTL_S + 1) == RECONNECTING
+    assert store.heartbeat("sub-1", 1, NOW + IDLE_TTL_S + 2)
+    assert store.evaluate("sub-1", NOW + IDLE_TTL_S + 3) == OBSERVING
 
 
 def test_ack_flow_and_outbox_retry():
@@ -137,6 +179,7 @@ def test_ack_flow_and_outbox_retry():
     assert store.ack("sub-1", 1)
     assert store.pending("sub-1") == (2,)  # retriable from outbox
     assert not store.ack("sub-1", 1)  # already acked
+    assert ("sub-1", "invalid_request") in store.audit_log()
     assert store.ack("sub-1", 2)
     assert store.pending("sub-1") == ()
     assert store.read("sub-1", "epoch-1", NOW + 2).outcome == NO_NEW_EVENTS
@@ -166,6 +209,7 @@ def test_detach_cancels_outbox_and_tombstones():
     assert store.pending("sub-1") == ()  # cancelled, not delivered
     assert store.read("sub-1", "epoch-1", NOW + 2).outcome == ASSOCIATION_REQUIRED
     assert not store.heartbeat("sub-1", 9, NOW + 3)
+    assert _sub(store) is None  # reassociation always emits new refs
 
 
 def test_unknown_subscriber_no_disclosure():

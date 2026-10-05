@@ -6,7 +6,10 @@ Contract under matrix A4/A9/A10: order scoped to
 (persist → outbox → deliver → ACK); gaps are explicit
 (``replay_gap``/``cursor_stale``/``cursor_expired`` — never silent); TTL and
 heartbeat are liveness, not authorization. v1 = explicit association scope
-only; global/multi-session is deferred by design.
+only (one association per store instance; opaque refs are literals — no
+wildcard semantics); global/multi-session is deferred by design. Liveness
+transitions (idle/grace) are derived immediately on every read, heartbeat
+and evaluate call — never dependent on an external step.
 """
 from __future__ import annotations
 
@@ -69,6 +72,7 @@ class GatewaySubscriptionStore:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._history: list[EventRecord] = []
+        self._event_ids: dict[str, int] = {}
         self._ingestion_cursor = 0
         self._retention_floor = 0
         self._subscriptions: dict[str, Subscription] = {}
@@ -91,6 +95,8 @@ class GatewaySubscriptionStore:
         if not subscriber_ref or not association_ref or not stream_epoch or not boundary_ref:
             return None
         with self._lock:
+            if subscriber_ref in self._tombstones:
+                return None  # reassociation always emits new refs
             subscription = Subscription(
                 subscriber_ref=subscriber_ref,
                 association_ref=association_ref,
@@ -112,7 +118,12 @@ class GatewaySubscriptionStore:
                 return False  # gap or duplicate: never advance silently
             if sequence <= self._retention_floor:
                 return False
+            if event_id in self._event_ids:
+                # event_id <-> sequence bijection: conflict blocks advancement
+                self._audit.append((event_id, "invalid_provenance"))
+                return False
             self._history.append(EventRecord(sequence=sequence, event_id=event_id))
+            self._event_ids[event_id] = sequence
             self._ingestion_cursor = sequence
             return True
 
@@ -127,26 +138,36 @@ class GatewaySubscriptionStore:
         with self._lock:
             subscription = self._subscriptions.get(subscriber_ref)
             if subscription is None or subscriber_ref in self._tombstones:
+                self._audit.append((subscriber_ref, ASSOCIATION_REQUIRED))
                 return False
+            self._derive_state(subscription, now)
             if subscription.state not in (OBSERVING, RECONNECTING):
+                self._audit.append((subscriber_ref, ASSOCIATION_STALE))
                 return False
             if heartbeat_sequence <= subscription.last_heartbeat_seq:
+                self._audit.append((subscriber_ref, INVALID_REQUEST))
                 return False  # out-of-order/duplicate heartbeat
             subscription.last_heartbeat_seq = heartbeat_sequence
             subscription.last_heartbeat_at = now
+            if subscription.state == RECONNECTING:
+                subscription.state = OBSERVING  # resumed heartbeat = reconnected
             return True
+
+    def _derive_state(self, subscription: Subscription, now: float) -> str:
+        """Derive liveness from heartbeat TTLs immediately (idle → grace)."""
+        idle = now - subscription.last_heartbeat_at
+        if subscription.state == OBSERVING and idle > IDLE_TTL_S:
+            subscription.state = RECONNECTING
+        if subscription.state == RECONNECTING and idle > IDLE_TTL_S + GRACE_S:
+            subscription.state = STALE
+        return subscription.state
 
     def evaluate(self, subscriber_ref: str, now: float) -> str | None:
         with self._lock:
             subscription = self._subscriptions.get(subscriber_ref)
             if subscription is None:
                 return None
-            idle = now - subscription.last_heartbeat_at
-            if subscription.state == OBSERVING and idle > IDLE_TTL_S:
-                subscription.state = RECONNECTING
-            elif subscription.state == RECONNECTING and idle > IDLE_TTL_S + GRACE_S:
-                subscription.state = STALE
-            return subscription.state
+            return self._derive_state(subscription, now)
 
     # ── delivery ──
     def read(self, subscriber_ref: str, stream_epoch: str, now: float) -> ReadResult:
@@ -160,7 +181,7 @@ class GatewaySubscriptionStore:
                 return deny(ASSOCIATION_REQUIRED)
             if stream_epoch != subscription.stream_epoch:
                 return deny(CURSOR_STALE, resync=True)
-            if subscription.state == STALE:
+            if self._derive_state(subscription, now) == STALE:
                 return deny(ASSOCIATION_STALE)
             if now - subscription.cursor_issued_at > CURSOR_TTL_S:
                 return deny(CURSOR_EXPIRED, resync=True)
@@ -184,6 +205,7 @@ class GatewaySubscriptionStore:
             subscription = self._subscriptions.get(subscriber_ref)
             outbox = self._outbox.get(subscriber_ref)
             if subscription is None or outbox is None:
+                self._audit.append((subscriber_ref, ASSOCIATION_REQUIRED))
                 return False
             if sequence not in outbox:
                 self._audit.append((subscriber_ref, INVALID_REQUEST))
