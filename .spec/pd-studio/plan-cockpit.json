@@ -1,6 +1,6 @@
 {
   "schema": "plan-cockpit:v1",
-  "generated_at": "2026-10-05T17:40:06+00:00",
+  "generated_at": "2026-10-05T17:55:44+00:00",
   "repo": "/home/vitor/project/project-development-skill",
   "runs_root": "/home/vitor/project/project-development-skill/.pd-fleet-runs",
   "features": [
@@ -11,22 +11,22 @@
       "source": "plan-yaml",
       "tasks_done": 5,
       "tasks_total": 12,
-      "checkpoints": 16,
+      "checkpoints": 18,
       "checkpoints_log": [
-        {
-          "name": "CHECKPOINT-20261005-1431.md",
-          "ts": "2026-10-05T14:31+00:00",
-          "heading": "Checkpoint - 2026-10-05 14:31"
-        },
-        {
-          "name": "CHECKPOINT-20261005-1436.md",
-          "ts": "2026-10-05T14:36+00:00",
-          "heading": "Checkpoint - 2026-10-05 14:36"
-        },
         {
           "name": "CHECKPOINT-20261005-1440.md",
           "ts": "2026-10-05T14:40+00:00",
           "heading": "Checkpoint - 2026-10-05 14:40"
+        },
+        {
+          "name": "CHECKPOINT-20261005-1451.md",
+          "ts": "2026-10-05T14:51+00:00",
+          "heading": "Checkpoint - 2026-10-05 14:51"
+        },
+        {
+          "name": "CHECKPOINT-20261005-1455.md",
+          "ts": "2026-10-05T14:55+00:00",
+          "heading": "Checkpoint - 2026-10-05 14:55"
         }
       ],
       "waves": [
@@ -52,7 +52,7 @@
         },
         {
           "id": "wave-4",
-          "status": "pending",
+          "status": "done",
           "tasks": 1
         },
         {
@@ -177,13 +177,13 @@
         "evidence": 0
       },
       "created_at": "2026-10-05T01:16:27.231152",
-      "updated_at": "2026-10-05T14:40:06.088992",
-      "last_commit": "77b3c64 2026-10-05 chore(b15b): T-401 feedings",
+      "updated_at": "2026-10-05T14:55:44.327524",
+      "last_commit": "009d35d 2026-10-05 chore(b15b): wave-4 done",
       "pd_view": {
         "phase_name": "Setup",
         "tasks_done": 9,
         "tasks_total": 12,
-        "checkpoints": 16
+        "checkpoints": 18
       }
     },
     {
@@ -564,22 +564,22 @@
   ],
   "timeline": [
     {
+      "ts": "2026-10-05T14:55+00:00",
+      "kind": "checkpoint",
+      "feature": "b15b-gateway",
+      "detail": "Checkpoint - 2026-10-05 14:55"
+    },
+    {
+      "ts": "2026-10-05T14:51+00:00",
+      "kind": "checkpoint",
+      "feature": "b15b-gateway",
+      "detail": "Checkpoint - 2026-10-05 14:51"
+    },
+    {
       "ts": "2026-10-05T14:40+00:00",
       "kind": "checkpoint",
       "feature": "b15b-gateway",
       "detail": "Checkpoint - 2026-10-05 14:40"
-    },
-    {
-      "ts": "2026-10-05T14:36+00:00",
-      "kind": "checkpoint",
-      "feature": "b15b-gateway",
-      "detail": "Checkpoint - 2026-10-05 14:36"
-    },
-    {
-      "ts": "2026-10-05T14:31+00:00",
-      "kind": "checkpoint",
-      "feature": "b15b-gateway",
-      "detail": "Checkpoint - 2026-10-05 14:31"
     },
     {
       "ts": "2026-10-05T00:44+00:00",
@@ -618,7 +618,7 @@
   ],
   "meta": {
     "feature_count": 8,
-    "checkpoint_events": 30,
+    "checkpoint_events": 32,
     "fleet_run_count": 1,
     "warnings": []
   }

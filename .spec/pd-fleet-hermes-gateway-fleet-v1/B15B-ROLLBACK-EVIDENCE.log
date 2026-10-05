@@ -1,0 +1,8 @@
+[17:56:46] === rollback rehearsal (controlled) — unit=pd-gateway-rehearsal.service ===
+[17:56:46] scratch unit installed
+[17:56:47] start -> is-active: active
+[17:56:47] stop -> is-active: inactive
+[17:56:47] verify stopped: no active process
+[17:56:48] restart -> is-active: active
+[17:56:48] verify healthy: MainPID=1743931
+[17:56:48] === REHEARSAL PASS (controlled environment; live isis-gateway untouched) ===
