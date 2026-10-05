@@ -6,7 +6,8 @@
     "T-000 \u2014 feature init + plano cockpit-ready (FleetPlan v1 validado)",
     "T-101 \u2014 decision matrix (11 decis\u00f5es congeladas)",
     "T-102 \u2014 matriz composite-deny (8 gates)",
-    "T-103 \u2014 wire vocabulary mapping (proposta)"
+    "T-103 \u2014 wire vocabulary mapping (proposta)",
+    "T-201 \u2014 seam contract draft v0.1 (publisher + principal resolution; assinatura/namespace/isolamento/vers\u00e3o/disabled)"
   ],
   "checkpoints": [
     {
@@ -41,12 +42,24 @@
         "T-102 \u2014 matriz composite-deny (8 gates)",
         "T-103 \u2014 wire vocabulary mapping (proposta)"
       ]
+    },
+    {
+      "date": "2026-10-05 12:00",
+      "phase": 0,
+      "note": "T-201 draft entregue; review independente dispatch",
+      "tasks_snapshot": [
+        "T-000 \u2014 feature init + plano cockpit-ready (FleetPlan v1 validado)",
+        "T-101 \u2014 decision matrix (11 decis\u00f5es congeladas)",
+        "T-102 \u2014 matriz composite-deny (8 gates)",
+        "T-103 \u2014 wire vocabulary mapping (proposta)",
+        "T-201 \u2014 seam contract draft v0.1 (publisher + principal resolution; assinatura/namespace/isolamento/vers\u00e3o/disabled)"
+      ]
     }
   ],
   "created_at": "2026-10-05T01:16:27.231152",
-  "updated_at": "2026-10-05T01:42:25.101311",
+  "updated_at": "2026-10-05T12:00:25.278520",
   "fleet_state": {
-    "updated_at": "2026-10-05T01:42:25.101311",
+    "updated_at": "2026-10-05T12:00:25.278520",
     "schema_version": 1,
     "agents": [],
     "waves": [],
