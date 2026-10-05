@@ -42,6 +42,7 @@ waves:
       - T-201
       - T-202
       - T-203
+      - T-204
     status: pending
   - id: wave-3
     tasks:
@@ -234,6 +235,37 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: coder-hermes
+    status: done
+
+  - id: T-204
+    wave: 2
+    role: orchestrator
+    objective: Mission selector on mc — action-form dropdown re-publishes mc/mission.json + "Plano da missão" widget (real waves/tasks/gates per mission).
+    depends_on:
+      - T-201
+    parallel_group: null
+    allowed_paths:
+      - .spec/pd-studio/
+      - scripts/
+    forbidden_paths:
+      - .env
+    inputs:
+      - .spec/*/plan.yaml
+      - .spec/pd-studio/plan-cockpit.json
+    outputs:
+      - name: mission-detail
+        description: Selected mission's plan published for the mc tab.
+        required: true
+    acceptance_criteria:
+      - Selection in the panel refreshes the mission detail with real data only.
+    validation_commands: []
+    blocked_when:
+      - T-201 not complete.
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: orchestrator-isis
     status: pending
 
   - id: T-301
