@@ -16,13 +16,13 @@ Cockpit-ready: every task declares `id · wave · role · depends_on · allowed_
 ## Wave 2 — Mission Control (A)
 
 - [x] T-201 · orchestrator · Board tab `mc` ✅ 04/10 (5 widgets, v57 · dados reais · reconstruída pós-reset do app · payloads reproduzíveis via `--widgets` → `mc-widgets.json`) · deps: T-101 · validation: `boardstate_workspace_get` + bindings verified.
-- [ ] T-202 · coder · adopt `pd` feeding in the workflow (docs + this feature: real checkpoints per gate) · deps: G1 · validation: `pd list --json` shows this feature with real data.
+- [x] T-202 · coder · adopt `pd` feeding ✅ 04/10 (feedings reais desde 23:12: `complete-task` ×5 + 7 checkpoints; docs: `docs/PLAN-COCKPIT.md` + skill `plan-cockpit`) · deps: G1 · validation: `pd list --json` shows this feature with real data.
 - [x] T-203 · coder · automatic refresh ✅ 04/10 (cron `f9203296553a` a cada 30m · no_agent · silent-on-success · deliver local · wrapper `~/.hermes/scripts/plan_cockpit_publish.sh`; test-run manual ✓) · deps: T-101 · validation: cron fires + JSON fresh.
 - [x] T-204 · orchestrator · mission selector no `mc` ✅ 04/10 (action-form + `mc/mission.md`/`mission.json` ao vivo · 3 widgets (v65) · troca testada plan-yaml→legada→volta · 13/13 tests) · deps: T-201 · validation: seleção no painel → detalhe atualizado.
 
 ## Wave 3 — Skill + docs (A)
 
-- [ ] T-301 · orchestrator · skill `plan-cockpit` (create) + repo docs + vault · deps: T-101, T-201 · validation: skill_view + standard reviewed.
+- [x] T-301 · orchestrator · skill `plan-cockpit` ✅ 04/10 (skill criada + `docs/PLAN-COCKPIT.md` + vault `plan-cockpit.md`; lint fixes: author/When-to-Use/pointer) · deps: T-101, T-201 · validation: skill_view + standard reviewed.
 
 ## Wave 4 — Real fleet pilot (B)
 

@@ -34,7 +34,7 @@ waves:
     tasks:
       - T-101
       - T-102
-    status: pending
+    status: done
     gates:
       - G1
   - id: wave-2
@@ -43,11 +43,11 @@ waves:
       - T-202
       - T-203
       - T-204
-    status: pending
+    status: done
   - id: wave-3
     tasks:
       - T-301
-    status: pending
+    status: done
   - id: wave-4
     tasks:
       - T-401
@@ -206,7 +206,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: coder-hermes
-    status: pending
+    status: done
 
   - id: T-203
     wave: 2
@@ -296,7 +296,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: orchestrator-isis
-    status: pending
+    status: done
 
   - id: T-401
     wave: 4

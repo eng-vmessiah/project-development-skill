@@ -13,7 +13,7 @@
     "bindings": {
       "content": {
         "source": "static",
-        "value": "# Mission Control — PD (plan-cockpit v1)\n\nVisão única do PD **derivada só de fontes reais** (nunca fabricar telemetria).\n\n- **Features:** 7 · **plan-cockpit-v1:** 6/13 tasks · **Checkpoints:** 8 · **Runs:** 0\n- Snapshot: **2026-10-05 02:49**\n- Fonte: `scripts/plan_cockpit_sync.py` → `.spec/pd-studio/plan-cockpit.json`"
+        "value": "# Mission Control — PD (plan-cockpit v1)\n\nVisão única do PD **derivada só de fontes reais** (nunca fabricar telemetria).\n\n- **Features:** 7 · **plan-cockpit-v1:** 8/13 tasks · **Checkpoints:** 9 · **Runs:** 0\n- Snapshot: **2026-10-05 02:56**\n- Fonte: `scripts/plan_cockpit_sync.py` → `.spec/pd-studio/plan-cockpit.json`"
       }
     }
   },
@@ -37,8 +37,8 @@
             "fase": "0",
             "status": "initialized",
             "fonte": "plan-yaml",
-            "tasks": "6/13",
-            "cps": "7",
+            "tasks": "8/13",
+            "cps": "8",
             "gates": "G1✅ G2· G3·"
           },
           {
@@ -153,7 +153,7 @@
             "id": "T-202",
             "wave": "2",
             "role": "coder",
-            "status": "⏳ pending"
+            "status": "✅ done"
           },
           {
             "id": "T-203",
@@ -171,7 +171,7 @@
             "id": "T-301",
             "wave": "3",
             "role": "orchestrator",
-            "status": "⏳ pending"
+            "status": "✅ done"
           },
           {
             "id": "T-401",
@@ -231,17 +231,17 @@
         "source": "static",
         "value": [
           {
+            "quando": "2026-10-04 23:56",
+            "feature": "plan-cockpit-v1",
+            "detalhe": "Checkpoint"
+          },
+          {
             "quando": "2026-10-04 23:49",
             "feature": "plan-cockpit-v1",
             "detalhe": "Checkpoint"
           },
           {
             "quando": "2026-10-04 23:46",
-            "feature": "plan-cockpit-v1",
-            "detalhe": "Checkpoint"
-          },
-          {
-            "quando": "2026-10-04 23:37",
             "feature": "plan-cockpit-v1",
             "detalhe": "Checkpoint"
           },
