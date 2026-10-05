@@ -3,6 +3,7 @@
 ## Decisions
 
 - 2026-10-04 · Scope A+B (owner: Vitor): collector + Mission Control + pd feeding + real fleet pilot.
+- 2026-10-04 · **G1 APPROVED** (owner, after SPEC review). Waves 1+ unblocked. Automation clarified: refresh scheduled (T-203) + fleet self-records; transitions = skill-enforced habit.
 - 2026-10-04 · Branch `feat/plan-cockpit-v1`, base `c526b27` (tip of `feat/b15a2-host-integration`); no worktree (focused feature on the repo itself).
 - 2026-10-04 · `plan-cockpit.json` is ALWAYS derived (never hand-authored); legacy features labeled `source: state-md`; no backfill.
 - 2026-10-04 · Pilot uses the EXISTING real runtime template (`hermes chat -q … --safe-mode --max-turns 1`) with pinned provider/model; outputs to an explicit dir; G2 authorization before live dispatch.

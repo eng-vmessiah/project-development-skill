@@ -6,7 +6,7 @@ Cockpit-ready: every task declares `id · wave · role · depends_on · allowed_
 ## Wave 0 — Intake ✅ (04/10)
 
 - [x] T-000 · orchestrator · Intake + discovery (fleet machinery, docs, examples, executor templates). Evidence: this SPEC/CONTEXT + recon log.
-- [ ] **G1 — SPEC approval (owner: Vitor)** — blocks waves 1+.
+- [x] **G1 — SPEC approval (owner: Vitor)** — ✅ aprovado 04/10 (SPEC aceito; waves 1+ liberadas).
 
 ## Wave 1 — Foundation (A)
 
@@ -17,6 +17,7 @@ Cockpit-ready: every task declares `id · wave · role · depends_on · allowed_
 
 - [ ] T-201 · orchestrator · Board tab `mc` (tab + widgets) with real `plan-cockpit.json` data · deps: T-101 · validation: `boardstate_workspace_get` + bindings verified.
 - [ ] T-202 · coder · adopt `pd` feeding in the workflow (docs + this feature: real checkpoints per gate) · deps: G1 · validation: `pd list --json` shows this feature with real data.
+- [ ] T-203 · coder · automatic refresh — scheduled `plan_cockpit_sync` (cron) + documented trigger points (cron creation subject to owner approval) · deps: T-101 · validation: cron fires + JSON fresh.
 
 ## Wave 3 — Skill + docs (A)
 

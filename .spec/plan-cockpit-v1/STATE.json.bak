@@ -3,11 +3,18 @@
   "phase": 0,
   "status": "initialized",
   "tasks": [],
-  "checkpoints": [],
+  "checkpoints": [
+    {
+      "date": "2026-10-04 23:12",
+      "phase": 0,
+      "note": "SPEC+PLAN drafted (scope A+B); FleetPlan manifest; G1 pending",
+      "tasks_snapshot": []
+    }
+  ],
   "created_at": "2026-10-04T23:05:58.575354",
-  "updated_at": "2026-10-04T23:05:58.575833",
+  "updated_at": "2026-10-04T23:12:41.430287",
   "fleet_state": {
-    "updated_at": "2026-10-04T23:05:58.575833",
+    "updated_at": "2026-10-04T23:12:41.430287",
     "schema_version": 1,
     "agents": [],
     "waves": [],
