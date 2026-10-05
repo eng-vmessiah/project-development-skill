@@ -47,15 +47,16 @@ initialized
 - 2026-10-05 15:07: G-3 APPROVED — live validation autorizada (eu executo); T-601 in_progress
 - 2026-10-05 15:10: T-601 executado (G-3): instalação+restart+default-off vivo OK; evidência no spec; T-602 closeout próximo
 - 2026-10-05 15:10: T-602 closeout entregue (VERIFICATION + G4 live closure); wave-6 done; review final dispatchado
+- 2026-10-05 15:18: T-602 review final PASS_WITH_BLOCKERS → blocker mecânico corrigido; B15b FECHADA (12/12; waves 7/7; G-0→G-3 approved)
 
 ## Timestamps
 - Created: 2026-10-05T01:16:27.231152
-- Updated: 2026-10-05T15:10:56.111123
+- Updated: 2026-10-05T15:18:34.751902
 
 ## Fleet State
 ```json
 {
-  "updated_at": "2026-10-05T15:10:56.111123",
+  "updated_at": "2026-10-05T15:18:34.751902",
   "schema_version": 1,
   "agents": [],
   "waves": [],
