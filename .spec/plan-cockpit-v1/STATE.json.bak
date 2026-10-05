@@ -6,7 +6,8 @@
     "T-101 \u2014 plan_cockpit_sync.py collector (7 features reais; determinismo \u2713)",
     "T-102 \u2014 sync tests (9 passed; determinism/anti-fabrication/corrupt-skip)",
     "T-201 \u2014 Mission Control tab (5 widgets, v57; rebuild p\u00f3s-reset; payloads reproduz\u00edveis)",
-    "T-203 \u2014 refresh autom\u00e1tico (cron f9203296553a, 30m, no_agent, silent-on-success)"
+    "T-203 \u2014 refresh autom\u00e1tico (cron f9203296553a, 30m, no_agent, silent-on-success)",
+    "T-204 \u2014 mission selector (action-form + mission detail live; 3 widgets)"
   ],
   "checkpoints": [
     {
@@ -47,12 +48,23 @@
         "T-102 \u2014 sync tests (9 passed; determinism/anti-fabrication/corrupt-skip)",
         "T-201 \u2014 Mission Control tab (5 widgets, v57; rebuild p\u00f3s-reset; payloads reproduz\u00edveis)"
       ]
+    },
+    {
+      "date": "2026-10-04 23:46",
+      "phase": 0,
+      "note": "T-203 DONE \u2014 cron live (30m, no_agent); test-fire ok; +T-204 (mission selector) planned",
+      "tasks_snapshot": [
+        "T-101 \u2014 plan_cockpit_sync.py collector (7 features reais; determinismo \u2713)",
+        "T-102 \u2014 sync tests (9 passed; determinism/anti-fabrication/corrupt-skip)",
+        "T-201 \u2014 Mission Control tab (5 widgets, v57; rebuild p\u00f3s-reset; payloads reproduz\u00edveis)",
+        "T-203 \u2014 refresh autom\u00e1tico (cron f9203296553a, 30m, no_agent, silent-on-success)"
+      ]
     }
   ],
   "created_at": "2026-10-04T23:05:58.575354",
-  "updated_at": "2026-10-04T23:46:51.280062",
+  "updated_at": "2026-10-04T23:49:55.370036",
   "fleet_state": {
-    "updated_at": "2026-10-04T23:46:51.280062",
+    "updated_at": "2026-10-04T23:49:55.370036",
     "schema_version": 1,
     "agents": [],
     "waves": [],

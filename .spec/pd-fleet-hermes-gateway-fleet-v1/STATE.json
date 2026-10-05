@@ -1,0 +1,21 @@
+{
+  "feature": "pd-fleet-hermes-gateway-fleet-v1",
+  "phase": 0,
+  "status": "initialized",
+  "tasks": [],
+  "checkpoints": [],
+  "created_at": "2026-10-03T23:22:01.901001",
+  "updated_at": "2026-10-03T23:22:01.901001",
+  "fleet_state": {
+    "updated_at": "2026-10-03T23:22:01.901001",
+    "schema_version": 1,
+    "agents": [],
+    "waves": [],
+    "tasks": [],
+    "gates": [],
+    "reports": [],
+    "attempts": [],
+    "blockers": [],
+    "evidence": []
+  }
+}

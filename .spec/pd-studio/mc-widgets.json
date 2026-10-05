@@ -13,7 +13,7 @@
     "bindings": {
       "content": {
         "source": "static",
-        "value": "# Mission Control — PD (plan-cockpit v1)\n\nVisão única do PD **derivada só de fontes reais** (nunca fabricar telemetria).\n\n- **Features:** 7 · **plan-cockpit-v1:** 5/13 tasks · **Checkpoints:** 7 · **Runs:** 0\n- Snapshot: **2026-10-05 02:46**\n- Fonte: `scripts/plan_cockpit_sync.py` → `.spec/pd-studio/plan-cockpit.json`"
+        "value": "# Mission Control — PD (plan-cockpit v1)\n\nVisão única do PD **derivada só de fontes reais** (nunca fabricar telemetria).\n\n- **Features:** 7 · **plan-cockpit-v1:** 6/13 tasks · **Checkpoints:** 8 · **Runs:** 0\n- Snapshot: **2026-10-05 02:49**\n- Fonte: `scripts/plan_cockpit_sync.py` → `.spec/pd-studio/plan-cockpit.json`"
       }
     }
   },
@@ -37,8 +37,8 @@
             "fase": "0",
             "status": "initialized",
             "fonte": "plan-yaml",
-            "tasks": "5/13",
-            "cps": "6",
+            "tasks": "6/13",
+            "cps": "7",
             "gates": "G1✅ G2· G3·"
           },
           {
@@ -165,7 +165,7 @@
             "id": "T-204",
             "wave": "2",
             "role": "orchestrator",
-            "status": "⏳ pending"
+            "status": "✅ done"
           },
           {
             "id": "T-301",
@@ -231,17 +231,17 @@
         "source": "static",
         "value": [
           {
+            "quando": "2026-10-04 23:49",
+            "feature": "plan-cockpit-v1",
+            "detalhe": "Checkpoint"
+          },
+          {
             "quando": "2026-10-04 23:46",
             "feature": "plan-cockpit-v1",
             "detalhe": "Checkpoint"
           },
           {
             "quando": "2026-10-04 23:37",
-            "feature": "plan-cockpit-v1",
-            "detalhe": "Checkpoint"
-          },
-          {
-            "quando": "2026-10-04 23:23",
             "feature": "plan-cockpit-v1",
             "detalhe": "Checkpoint"
           },
@@ -277,6 +277,83 @@
         "source": "static",
         "value": "## Fleet runs\n\n**0 runs persistidos** em `.pd-fleet-runs/` — o piloto de execução real é a **wave 4** (T-401→T-404; G2 = autorização de dispatch live).\n\nMaquinaria pronta: FleetPlan v1/v2 · adapters reais (`runtime_adapters.py`) · supervisor/run_store/checkpoints. Quando um run rodar, ele **se auto-registra** e aparece aqui."
       }
+    }
+  },
+  {
+    "tab": "mc",
+    "kind": "builtin:action-form",
+    "id": "mc-selector",
+    "title": "Escolher missão",
+    "grid": {
+      "x": 0,
+      "y": 17,
+      "w": 6,
+      "h": 3
+    },
+    "props": {
+      "template": "Mission Control — seletor: publique o plano da missão {{missao}} na aba mc. Rode: cd ~/project/project-development-skill && /usr/bin/python3 scripts/plan_cockpit_sync.py --publish --mission '{{missao}}' e confirme.",
+      "fields": [
+        {
+          "name": "missao",
+          "label": "Missão",
+          "type": "select",
+          "options": [
+            "plan-cockpit-v1",
+            "pd-fleet-scope-alignment",
+            "pd-fleet-hermes-gateway-fleet-v1",
+            "pd-fleet-hermes-adapter-v0",
+            "pd-fleet-hermes-adapter-real-v1",
+            "pd-fleet-supervisor-handoff",
+            "pd-fleet-orchestration"
+          ]
+        }
+      ],
+      "buttonLabel": "Mostrar plano"
+    }
+  },
+  {
+    "tab": "mc",
+    "kind": "builtin:markdown",
+    "id": "mc-mission-info",
+    "title": "Plano da missão (selecionada)",
+    "grid": {
+      "x": 6,
+      "y": 17,
+      "w": 6,
+      "h": 3
+    },
+    "bindings": {
+      "content": {
+        "source": "file",
+        "path": "mc/mission.md"
+      }
+    }
+  },
+  {
+    "tab": "mc",
+    "kind": "builtin:table",
+    "id": "mc-mission-tasks",
+    "title": "Tasks da missão (selecionada)",
+    "grid": {
+      "x": 0,
+      "y": 20,
+      "w": 12,
+      "h": 6
+    },
+    "bindings": {
+      "rows": {
+        "source": "file",
+        "path": "mc/mission.json",
+        "pointer": "/tasks"
+      }
+    },
+    "props": {
+      "columns": [
+        "id",
+        "wave",
+        "role",
+        "status"
+      ]
     }
   }
 ]

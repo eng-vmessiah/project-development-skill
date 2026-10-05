@@ -308,6 +308,23 @@ def widget_payloads(snapshot: dict) -> list[dict]:
         {"tab": "mc", "kind": "builtin:markdown", "id": "mc-fleet", "title": "Fleet runs",
          "grid": {"x": 0, "y": 14, "w": 12, "h": 3},
          "bindings": {"content": {"source": "static", "value": fleet_md}}},
+        {"tab": "mc", "kind": "builtin:action-form", "id": "mc-selector",
+         "title": "Escolher missão", "grid": {"x": 0, "y": 17, "w": 6, "h": 3},
+         "props": {
+             "template": "Mission Control — seletor: publique o plano da missão {{missao}} na aba mc. "
+                         "Rode: cd ~/project/project-development-skill && /usr/bin/python3 "
+                         "scripts/plan_cockpit_sync.py --publish --mission '{{missao}}' e confirme.",
+             "fields": [{"name": "missao", "label": "Missão", "type": "select",
+                         "options": [f["feature"] for f in feats]}],
+             "buttonLabel": "Mostrar plano",
+         }},
+        {"tab": "mc", "kind": "builtin:markdown", "id": "mc-mission-info",
+         "title": "Plano da missão (selecionada)", "grid": {"x": 6, "y": 17, "w": 6, "h": 3},
+         "bindings": {"content": {"source": "file", "path": "mc/mission.md"}}},
+        {"tab": "mc", "kind": "builtin:table", "id": "mc-mission-tasks",
+         "title": "Tasks da missão (selecionada)", "grid": {"x": 0, "y": 20, "w": 12, "h": 6},
+         "bindings": {"rows": {"source": "file", "path": "mc/mission.json", "pointer": "/tasks"}},
+         "props": {"columns": ["id", "wave", "role", "status"]}},
     ]
 
 
@@ -326,6 +343,45 @@ def publish_files(snapshot: dict) -> dict[str, str]:
     }
 
 
+def mission_files(snapshot: dict, mission: str) -> dict[str, str]:
+    """Selected-mission detail files for the mc tab (live file bindings)."""
+    feat = next((f for f in snapshot["features"] if f["feature"] == mission), None)
+    if feat is None:
+        raise SystemExit(f"mission not found in snapshot: {mission}")
+    gates_txt = " · ".join(
+        f"{g['id']} ({g.get('kind')}) {g['status']}" for g in feat["gates"]) or "—"
+    waves_txt = " · ".join(
+        f"{w['id']}: {w['status']} ({w['tasks']})" for w in feat["waves"]) or "—"
+    info = (
+        f"## Plano da missão — `{feat['feature']}`\n\n"
+        f"- **Fase:** {feat['phase']} · **Status:** {feat['status']} · **Fonte do plano:** {feat['source']}\n"
+        f"- **Tasks:** {feat['tasks_done']}/{feat['tasks_total']} · **Checkpoints:** {feat['checkpoints']}\n"
+        f"- **Gates:** {gates_txt}\n"
+        f"- **Waves:** {waves_txt}\n"
+    )
+    if feat["source"] != "plan-yaml":
+        info += "\n*Missão legada (sem `plan.yaml`) — o detalhe reflete só o que está registrado.*\n"
+    detail = {
+        "mission": feat["feature"],
+        "phase": feat["phase"],
+        "status": feat["status"],
+        "source": feat["source"],
+        "tasks_done": feat["tasks_done"],
+        "tasks_total": feat["tasks_total"],
+        "gates": feat["gates"],
+        "waves": feat["waves"],
+        "tasks": [
+            {"id": t["id"], "wave": str(t["wave"]), "role": t["role"],
+             "status": "✅ done" if t.get("status") == "done" else "⏳ pending"}
+            for t in feat["tasks"]
+        ],
+    }
+    return {
+        "mission.md": info + "\n",
+        "mission.json": json.dumps(detail, indent=2, ensure_ascii=False) + "\n",
+    }
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--write", action="store_true",
@@ -336,6 +392,8 @@ def main() -> None:
                     help="also write .spec/pd-studio/mc-widgets.json (Mission Control re-apply payloads)")
     ap.add_argument("--publish", action="store_true",
                     help="write live-binding files to ~/.hermes/boardstate-state/dashboard/data/mc/")
+    ap.add_argument("--mission", default=None,
+                    help="mission whose detail is published (default: keep current selection, else first plan-yaml mission)")
     args = ap.parse_args()
 
     snapshot = build(Path(args.runs_root).expanduser())
@@ -356,6 +414,23 @@ def main() -> None:
         for name, content in publish_files(snapshot).items():
             (pdir / name).write_text(content, encoding="utf-8")
             print(f"wrote {pdir / name}")
+        mission = args.mission
+        if mission is None:
+            cur = pdir / "mission.json"
+            if cur.exists():
+                try:
+                    loaded = json.loads(cur.read_text(encoding="utf-8"))
+                    mission = loaded.get("mission") if isinstance(loaded, dict) else None
+                except (OSError, json.JSONDecodeError):
+                    mission = None
+        if mission is None:
+            plan_feats = [f["feature"] for f in snapshot["features"] if f["source"] == "plan-yaml"]
+            mission = plan_feats[0] if plan_feats else (
+                snapshot["features"][0]["feature"] if snapshot["features"] else None)
+        if mission:
+            for name, content in mission_files(snapshot, mission).items():
+                (pdir / name).write_text(content, encoding="utf-8")
+                print(f"wrote {pdir / name}")
     print(json.dumps(snapshot, indent=2, ensure_ascii=False))
 
 

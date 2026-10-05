@@ -180,6 +180,7 @@ def test_widget_payloads_shapes(fake_repo: Path) -> None:
     payloads = pc.widget_payloads(snap)
     assert [p["id"] for p in payloads] == [
         "mc-overview", "mc-features", "mc-tasks", "mc-timeline", "mc-fleet",
+        "mc-selector", "mc-mission-info", "mc-mission-tasks",
     ]
     assert all(p["tab"] == "mc" for p in payloads)
     assert payloads[1]["bindings"]["rows"]["value"][0]["feature"] == "feat-w"
@@ -194,3 +195,45 @@ def test_publish_files_shapes(fake_repo: Path) -> None:
     tables = json.loads(files["tables.json"])
     assert set(tables) == {"features", "tasks", "timeline"}
     assert tables["features"][0]["feature"] == "feat-p"
+
+
+def test_mission_files_plan_yaml(fake_repo: Path) -> None:
+    fdir = _feature(fake_repo, "feat-m")
+    _write(fdir / "plan.yaml", (
+        'schema_version: "1"\n'
+        "agents: []\n"
+        "waves:\n"
+        "  - id: wave-1\n"
+        "    tasks: [T-1]\n"
+        "    status: pending\n"
+        "tasks:\n"
+        "  - id: T-1\n"
+        "    wave: 1\n"
+        "    role: coder\n"
+        "    objective: x\n"
+        "    status: done\n"
+        "gates:\n"
+        "  - id: G1\n"
+        "    kind: review\n"
+        "    scope: plan\n"
+        "    owner: vitor\n"
+        "    status: approved\n"
+        "    required_evidence: [spec]\n"
+    ))
+    snap = pc.build(fake_repo / ".pd-fleet-runs")
+    files = pc.mission_files(snap, "feat-m")
+    assert set(files) == {"mission.md", "mission.json"}
+    detail = json.loads(files["mission.json"])
+    assert detail["mission"] == "feat-m"
+    assert detail["tasks"] == [{"id": "T-1", "wave": "1", "role": "coder", "status": "✅ done"}]
+    assert detail["gates"][0]["id"] == "G1"
+    assert "Plano da missão" in files["mission.md"]
+
+
+def test_mission_files_legacy_mission(fake_repo: Path) -> None:
+    _feature(fake_repo, "feat-legacy")
+    snap = pc.build(fake_repo / ".pd-fleet-runs")
+    files = pc.mission_files(snap, "feat-legacy")
+    detail = json.loads(files["mission.json"])
+    assert detail["tasks"] == []
+    assert "legada" in files["mission.md"]
