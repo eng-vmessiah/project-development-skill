@@ -19,6 +19,7 @@ initialized
 - [x] T-301 — auth+associação local: gateway_auth.py (tickets §1 / consume atômico single-writer §4 / idempotência §5 / uniformidade §6 / state machine §3) + 22 fixtures G4 §9 verdes; ruff ok
 - [x] T-302 — composite-deny (8 gates, all-pass, anti-hot-reload) + redaction validator (allowlist G-2 fechada) + fixtures nomeadas (20+29+22=71 verdes; ruff ok)
 - [x] T-401 — subscription v1: associação explícita (sem global/wildcard), ordering contígua (gap bloqueia avanço), outbox/ACK retriável (cursor só avança contíguo), TTLs liveness (30/90/60/900s), gaps explícitos (replay_gap/cursor_stale/cursor_expired+resync), detach tombstona+cancela outbox; 14 fixtures verdes; suíte fleet 1348 passed
+- [x] T-501 — rollback ensaiado em ambiente controlado (scratch unit, ciclo stop/verify/start/verify PASS; live intocado) + crash-point matrix (8 pontos, cobertura local) + doc B15B-REPLAY-ROLLBACK.md + evidência
 
 ## Checkpoints
 - 2026-10-05 01:17: B15b.0 docs drafted; G-0 review dispatch
@@ -39,15 +40,16 @@ initialized
 - 2026-10-05 14:40: T-401 entregue (14/14; suíte fleet 1348 verde c/ fix do harness bridge); review a dispatchar
 - 2026-10-05 14:51: T-401 review PASS_WITH_BLOCKERS → fixes MEDIUM-1/2 + LOWs aplicados; re-check dispatchado
 - 2026-10-05 14:55: WAVE-4 EXIT VERIFIED (re-check PASS; NIT-4 aplicado) — wave 5 (T-501) próxima
+- 2026-10-05 14:58: T-501 entregue (ensaio PASS; matriz 8/8; evidência no spec); review a dispatchar
 
 ## Timestamps
 - Created: 2026-10-05T01:16:27.231152
-- Updated: 2026-10-05T14:55:44.327524
+- Updated: 2026-10-05T14:58:00.937579
 
 ## Fleet State
 ```json
 {
-  "updated_at": "2026-10-05T14:55:44.327524",
+  "updated_at": "2026-10-05T14:58:00.937579",
   "schema_version": 1,
   "agents": [],
   "waves": [],
