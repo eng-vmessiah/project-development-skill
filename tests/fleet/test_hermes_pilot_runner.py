@@ -90,7 +90,7 @@ def test_prompt_is_metachar_free() -> None:
 
 
 def test_runner_path_roots_are_strings(tmp_path: Path) -> None:
-    """Regression: the adapter denies PATH when cwd is not a str (path_denied)."""
+    """Invariant: path_roots values are handed to the sandbox as str (it coerces anyway; keep explicit)."""
     plan = pilot.load_plan(_plan_file(tmp_path))
     profile = pilot.build_profile()
     adapter = pilot.build_adapter(profile)

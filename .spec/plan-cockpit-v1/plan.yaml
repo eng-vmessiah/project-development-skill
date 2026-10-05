@@ -414,7 +414,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: reviewer-hermes
-    status: pending
+    status: done
 
   - id: T-501
     wave: 5

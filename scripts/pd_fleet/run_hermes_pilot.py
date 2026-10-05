@@ -197,7 +197,7 @@ class AdapterDispatchShim:
             envelope = build_envelope(task, self.profile, self.model, self.mission)
             result = self.adapter.execute(envelope, runner=self.runner)
         except (RuntimeAdapterError, OSError) as exc:
-            self._log_entry({"task_id": task_id, "attempt": attempt, "ok": False,
+            self._log_entry({"task_id": task_id, "attempt": attempt, "ok": False, "model": self.model,
                              "error": f"{type(exc).__name__}: {exc}", "started_at": started_at,
                              "completed_at": datetime.now(timezone.utc).isoformat()})
             return DispatchResult(task_id, ADAPTER_NAME, "failed", attempt, None,
@@ -208,7 +208,7 @@ class AdapterDispatchShim:
         error_value = _enum_value(result.error_code)
         new_files = sorted(self._dir_snapshot() - before)
         output_text = result.output if isinstance(result.output, str) else ""
-        self._log_entry({"task_id": task_id, "attempt": attempt, "ok": ok,
+        self._log_entry({"task_id": task_id, "attempt": attempt, "ok": ok, "model": self.model,
                          "runtime_status": _enum_value(result.status),
                          "error_code": error_value, "artifacts": new_files,
                          "output": output_text[:4000], "started_at": started_at,
