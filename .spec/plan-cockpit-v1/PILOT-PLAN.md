@@ -15,6 +15,10 @@
 - **Output dir:** `.spec/pilot-runs/hermes/` — nothing written outside it; sandbox allowlist =
   the exact argv tuples; executable pinned (`/home/vitor/.local/bin/hermes` in trusted_executables).
 - **Estimated cost:** 3 flash calls × 1 turn × prompts ≤300 chars → **a few cents (< US$0.10)**.
+- **Amendment (04/10, after real run evidence):** `--max-turns` 1 → 4 → **8** and the harness prompt is
+  **write-first** (names the target file, "não leia arquivos"): with 1–4 iterations the agent only read
+  (honest "no artifacts written" outputs, recorded in `dispatch-log.jsonl`); the pilot prompt bounds the
+  agent to the single write action so the dispatch mechanics are what gets exercised. Spend stays ≈ cents.
 
 ## Safety
 

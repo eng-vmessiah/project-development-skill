@@ -1,0 +1,21 @@
+{
+  "run_id": "pilot-hermes-pd-fleet",
+  "plan": "/home/vitor/project/project-development-skill/examples/pd-fleet/plan.yaml",
+  "adapter": "hermes/opencode-go",
+  "model": "deepseek-v4.1-flash",
+  "gates": {
+    "G1": "pre-approved for the pilot run (owner G2 authorization)"
+  },
+  "statuses": {
+    "T-001": "completed",
+    "T-002": "completed",
+    "T-003": "completed"
+  },
+  "completed": [
+    "T-001",
+    "T-002",
+    "T-003"
+  ],
+  "blocked": [],
+  "failed": []
+}

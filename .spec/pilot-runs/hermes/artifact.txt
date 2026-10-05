@@ -1,0 +1,11 @@
+PD Fleet pilot — T-003 final artifact (hermes lane)
+
+Status: produced by the hermes pilot runner during the T-003 smoke run,
+under the fail-closed / exact-argv allowlist policy.
+Scope: placeholder artifact only. It was written WITHOUT reading the
+upstream requirement/design tasks (per the task instruction), so it does
+NOT itself demonstrate conformance to those requirements or to the
+approved design.
+Honest position: this file verifies the write path end-to-end, not the
+product. Real conformance must be judged by a run that reads T-001/T-002
+outputs and checks this artifact against them.

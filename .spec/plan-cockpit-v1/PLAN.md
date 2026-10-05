@@ -28,7 +28,7 @@ Cockpit-ready: every task declares `id · wave · role · depends_on · allowed_
 
 - [x] T-401 · coder · wire real adapter ✅ 04/10 (thin runner `run_hermes_pilot.py`: profile READY + envelope + exact-argv allowlist + smoke fail-closed ✓ 3 tasks; live atrás de `--live --authorized` (G2); 6/6 tests) · deps: T-101 · paths: `scripts/pd_fleet/` · validation: dry-run with fake adapter + template smoke (no real dispatch).
 - [x] T-402 · orchestrator · pilot plan ✅ 04/10 (PILOT-PLAN.md: 3 invocações flash ≈ centavos, caps declarados, output `.spec/pilot-runs/hermes`; **G2 aprovado pelo owner** — "autorizado") · deps: T-401 · validation: plan validated + cost declared.
-- [ ] T-403 · coder · pilot RUN (3 tasks via pinned hermes runtime) · deps: T-402 + G2 · validation: reports/evidence/gates/summary + cockpit presence.
+- [x] T-403 · coder · pilot RUN ✅ 04/10 (run #4: T-001/T-002/T-003 **completed** — 3 dispatchs reais hermes/opencode-go, artefatos em `.spec/pilot-runs/hermes/`, `dispatch-log.jsonl` como evidência, summary + cockpit `3/3 completed`; 3 iterações de calibração registradas: path_roots str → max-turns → write-first) · deps: T-402 + G2 · validation: reports/evidence/gates/summary + cockpit presence.
 - [ ] T-404 · reviewer · pilot review (real evidence vs claims; limits) · deps: T-403.
 
 ## Wave 5 — Closeout

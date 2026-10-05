@@ -1,6 +1,6 @@
 {
   "schema": "plan-cockpit:v1",
-  "generated_at": "2026-10-05T03:11:43+00:00",
+  "generated_at": "2026-10-05T03:22:50+00:00",
   "repo": "/home/vitor/project/project-development-skill",
   "runs_root": "/home/vitor/project/project-development-skill/.pd-fleet-runs",
   "features": [
@@ -9,15 +9,10 @@
       "phase": 0,
       "status": "initialized",
       "source": "plan-yaml",
-      "tasks_done": 10,
+      "tasks_done": 11,
       "tasks_total": 13,
-      "checkpoints": 10,
+      "checkpoints": 11,
       "checkpoints_log": [
-        {
-          "name": "CHECKPOINT-20261004-2356.md",
-          "ts": "2026-10-04T23:56+00:00",
-          "heading": "Checkpoint - 2026-10-04 23:56"
-        },
         {
           "name": "CHECKPOINT-20261005-0004.md",
           "ts": "2026-10-05T00:04+00:00",
@@ -27,6 +22,11 @@
           "name": "CHECKPOINT-20261005-0011.md",
           "ts": "2026-10-05T00:11+00:00",
           "heading": "Checkpoint - 2026-10-05 00:11"
+        },
+        {
+          "name": "CHECKPOINT-20261005-0022.md",
+          "ts": "2026-10-05T00:22+00:00",
+          "heading": "Checkpoint - 2026-10-05 00:22"
         }
       ],
       "waves": [
@@ -126,7 +126,7 @@
           "id": "T-403",
           "wave": 4,
           "role": "coder",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": "T-404",
@@ -172,13 +172,13 @@
         "evidence": 0
       },
       "created_at": "2026-10-04T23:05:58.575354",
-      "updated_at": "2026-10-05T00:11:32.438009",
-      "last_commit": "43a7dee 2026-10-05 feat(plan-cockpit): T-402 — pilot plan + G2 owner authorization; pilot provider pinned to opencode-go",
+      "updated_at": "2026-10-05T00:22:49.912335",
+      "last_commit": "c9faaa0 2026-10-05 fix(plan-cockpit): T-402 status in plan.yaml (flip script matched on '- id:')",
       "pd_view": {
         "phase_name": "Setup",
-        "tasks_done": 9,
+        "tasks_done": 10,
         "tasks_total": 14,
-        "checkpoints": 10
+        "checkpoints": 11
       }
     },
     {
@@ -382,6 +382,12 @@
   ],
   "timeline": [
     {
+      "ts": "2026-10-05T00:22+00:00",
+      "kind": "checkpoint",
+      "feature": "plan-cockpit-v1",
+      "detail": "Checkpoint - 2026-10-05 00:22"
+    },
+    {
       "ts": "2026-10-05T00:11+00:00",
       "kind": "checkpoint",
       "feature": "plan-cockpit-v1",
@@ -394,23 +400,26 @@
       "detail": "Checkpoint - 2026-10-05 00:04"
     },
     {
-      "ts": "2026-10-04T23:56+00:00",
-      "kind": "checkpoint",
-      "feature": "plan-cockpit-v1",
-      "detail": "Checkpoint - 2026-10-04 23:56"
-    },
-    {
       "ts": "2026-07-27T14:58+00:00",
       "kind": "checkpoint",
       "feature": "pd-fleet-supervisor-handoff",
       "detail": "Checkpoint - 2026-07-27 14:58"
     }
   ],
-  "fleet_runs": [],
+  "fleet_runs": [
+    {
+      "run_id": "pilot-hermes-pd-fleet",
+      "source": "pilot",
+      "status": "3/3 completed",
+      "updated_at": "2026-10-05T03:20:51+00:00",
+      "owner": "hermes-pilot",
+      "dir": ".spec/pilot-runs/hermes"
+    }
+  ],
   "meta": {
     "feature_count": 7,
-    "checkpoint_events": 11,
-    "fleet_run_count": 0,
+    "checkpoint_events": 12,
+    "fleet_run_count": 1,
     "warnings": []
   }
 }

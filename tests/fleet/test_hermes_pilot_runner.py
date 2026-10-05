@@ -89,6 +89,36 @@ def test_prompt_is_metachar_free() -> None:
     assert "\n" not in prompt
 
 
+def test_runner_path_roots_are_strings(tmp_path: Path) -> None:
+    """Regression: the adapter denies PATH when cwd is not a str (path_denied)."""
+    plan = pilot.load_plan(_plan_file(tmp_path))
+    profile = pilot.build_profile()
+    adapter = pilot.build_adapter(profile)
+    runner = pilot.build_runner(plan, profile, adapter, "model-x", "pilot",
+                                tmp_path / "out", tool_root=tmp_path)
+    assert runner.path_roots[pilot.PILOT_NAMESPACE] == str(tmp_path / "out")
+    assert type(runner.path_roots[pilot.PILOT_NAMESPACE]) is str
+
+
+def test_sandbox_executes_echo(tmp_path: Path) -> None:
+    """End-to-end sandbox machinery check with a harmless binary (no provider)."""
+    out = tmp_path / "out"
+    out.mkdir()
+    runner = LocalSandboxRunner(
+        tmp_path,
+        allowlist=[("/bin/echo", "probe-ok")],
+        env={"PATH": "/usr/bin:/bin", "HOME": str(tmp_path), "LANG": "C.UTF-8"},
+        network=False,
+        path_roots={"workspace": str(out)},
+        trusted_executables=["/bin/echo"],
+    )
+    value = runner.run(("/bin/echo", "probe-ok"), cwd=str(out),
+                       env={"PATH": "/usr/bin:/bin", "HOME": str(tmp_path), "LANG": "C.UTF-8"},
+                       timeout=10, output_limits=(65536, 65536))
+    assert value["status"] == "passed"
+    assert "probe-ok" in value["stdout"]
+
+
 def test_live_requires_authorization(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     rc = pilot.main(["--live", "--plan", str(_plan_file(tmp_path))])
     out = capsys.readouterr().out

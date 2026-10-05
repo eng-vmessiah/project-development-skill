@@ -13,7 +13,7 @@
     "bindings": {
       "content": {
         "source": "static",
-        "value": "# Mission Control — PD (plan-cockpit v1)\n\nVisão única do PD **derivada só de fontes reais** (nunca fabricar telemetria).\n\n- **Features:** 7 · **plan-cockpit-v1:** 10/13 tasks · **Checkpoints:** 11 · **Runs:** 0\n- Snapshot: **2026-10-05 03:11**\n- Fonte: `scripts/plan_cockpit_sync.py` → `.spec/pd-studio/plan-cockpit.json`"
+        "value": "# Mission Control — PD (plan-cockpit v1)\n\nVisão única do PD **derivada só de fontes reais** (nunca fabricar telemetria).\n\n- **Features:** 7 · **plan-cockpit-v1:** 11/13 tasks · **Checkpoints:** 12 · **Runs:** 1\n- Snapshot: **2026-10-05 03:22**\n- Fonte: `scripts/plan_cockpit_sync.py` → `.spec/pd-studio/plan-cockpit.json`"
       }
     }
   },
@@ -37,8 +37,8 @@
             "fase": "0",
             "status": "initialized",
             "fonte": "plan-yaml",
-            "tasks": "10/13",
-            "cps": "10",
+            "tasks": "11/13",
+            "cps": "11",
             "gates": "G1✅ G2· G3·"
           },
           {
@@ -189,7 +189,7 @@
             "id": "T-403",
             "wave": "4",
             "role": "coder",
-            "status": "⏳ pending"
+            "status": "✅ done"
           },
           {
             "id": "T-404",
@@ -231,17 +231,17 @@
         "source": "static",
         "value": [
           {
+            "quando": "2026-10-05 00:22",
+            "feature": "plan-cockpit-v1",
+            "detalhe": "Checkpoint"
+          },
+          {
             "quando": "2026-10-05 00:11",
             "feature": "plan-cockpit-v1",
             "detalhe": "Checkpoint"
           },
           {
             "quando": "2026-10-05 00:04",
-            "feature": "plan-cockpit-v1",
-            "detalhe": "Checkpoint"
-          },
-          {
-            "quando": "2026-10-04 23:56",
             "feature": "plan-cockpit-v1",
             "detalhe": "Checkpoint"
           },
@@ -275,7 +275,7 @@
     "bindings": {
       "content": {
         "source": "static",
-        "value": "## Fleet runs\n\n**0 runs persistidos** em `.pd-fleet-runs/` — o piloto de execução real é a **wave 4** (T-401→T-404; G2 = autorização de dispatch live).\n\nMaquinaria pronta: FleetPlan v1/v2 · adapters reais (`runtime_adapters.py`) · supervisor/run_store/checkpoints. Quando um run rodar, ele **se auto-registra** e aparece aqui."
+        "value": "## Fleet runs\n\n**1 runs** (`.pd-fleet-runs/` + `.spec/pilot-runs/`). Wave 4: T-401→T-404; G2 = autorização de dispatch live.\n\n**Piloto hermes:**\n- `pilot-hermes-pd-fleet` — 3/3 completed · `.spec/pilot-runs/hermes`\n"
       }
     }
   },

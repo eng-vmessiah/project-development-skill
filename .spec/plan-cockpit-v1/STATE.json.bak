@@ -11,7 +11,8 @@
     "T-202 \u2014 pd feeding adotado (feedings reais + docs)",
     "T-301 \u2014 skill plan-cockpit + docs/PLAN-COCKPIT.md + vault plan-cockpit.md",
     "T-401 \u2014 thin hermes pilot runner (smoke fail-closed + exact-argv allowlist + live gated)",
-    "T-402 \u2014 pilot plan + G2 (owner approved: 'autorizado')"
+    "T-402 \u2014 pilot plan + G2 (owner approved: 'autorizado')",
+    "T-403 \u2014 pilot RUN: 3/3 completed via real hermes dispatch (evidence in .spec/pilot-runs/hermes/)"
   ],
   "checkpoints": [
     {
@@ -104,12 +105,28 @@
         "T-301 \u2014 skill plan-cockpit + docs/PLAN-COCKPIT.md + vault plan-cockpit.md",
         "T-401 \u2014 thin hermes pilot runner (smoke fail-closed + exact-argv allowlist + live gated)"
       ]
+    },
+    {
+      "date": "2026-10-05 00:11",
+      "phase": 0,
+      "note": "T-402 DONE \u2014 G2 approved; pilot ready to run",
+      "tasks_snapshot": [
+        "T-101 \u2014 plan_cockpit_sync.py collector (7 features reais; determinismo \u2713)",
+        "T-102 \u2014 sync tests (9 passed; determinism/anti-fabrication/corrupt-skip)",
+        "T-201 \u2014 Mission Control tab (5 widgets, v57; rebuild p\u00f3s-reset; payloads reproduz\u00edveis)",
+        "T-203 \u2014 refresh autom\u00e1tico (cron f9203296553a, 30m, no_agent, silent-on-success)",
+        "T-204 \u2014 mission selector (action-form + mission detail live; 3 widgets)",
+        "T-202 \u2014 pd feeding adotado (feedings reais + docs)",
+        "T-301 \u2014 skill plan-cockpit + docs/PLAN-COCKPIT.md + vault plan-cockpit.md",
+        "T-401 \u2014 thin hermes pilot runner (smoke fail-closed + exact-argv allowlist + live gated)",
+        "T-402 \u2014 pilot plan + G2 (owner approved: 'autorizado')"
+      ]
     }
   ],
   "created_at": "2026-10-04T23:05:58.575354",
-  "updated_at": "2026-10-05T00:11:32.337923",
+  "updated_at": "2026-10-05T00:22:49.809027",
   "fleet_state": {
-    "updated_at": "2026-10-05T00:11:32.337923",
+    "updated_at": "2026-10-05T00:22:49.809027",
     "schema_version": 1,
     "agents": [],
     "waves": [],

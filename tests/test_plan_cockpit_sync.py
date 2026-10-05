@@ -131,6 +131,22 @@ def test_fleet_runs_scanned_and_corrupt_skipped(fake_repo: Path) -> None:
     assert snap["fleet_runs"][0]["status"] == "completed"
 
 
+def test_fleet_runs_includes_pilot_summaries(fake_repo: Path) -> None:
+    pilot = fake_repo / ".spec" / "pilot-runs" / "hermes"
+    pilot.mkdir(parents=True)
+    (pilot / "summary.json").write_text(json.dumps({
+        "run_id": "pilot-hermes-pd-fleet",
+        "adapter": "hermes/opencode-go",
+        "statuses": {"T-001": "completed", "T-002": "failed", "T-003": "completed"},
+    }), encoding="utf-8")
+    rows = pc.fleet_runs(fake_repo / ".pd-fleet-runs")
+    pilot_rows = [row for row in rows if row.get("source") == "pilot"]
+    assert len(pilot_rows) == 1
+    assert pilot_rows[0]["run_id"] == "pilot-hermes-pd-fleet"
+    assert pilot_rows[0]["status"] == "2/3 completed"
+    assert pilot_rows[0]["dir"] == ".spec/pilot-runs/hermes"
+
+
 def test_determinism(fake_repo: Path) -> None:
     _feature(fake_repo, "feat-e")
     a = pc.build(fake_repo / ".pd-fleet-runs")

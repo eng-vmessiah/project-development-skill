@@ -19,6 +19,7 @@ initialized
 - [x] T-301 — skill plan-cockpit + docs/PLAN-COCKPIT.md + vault plan-cockpit.md
 - [x] T-401 — thin hermes pilot runner (smoke fail-closed + exact-argv allowlist + live gated)
 - [x] T-402 — pilot plan + G2 (owner approved: 'autorizado')
+- [x] T-403 — pilot RUN: 3/3 completed via real hermes dispatch (evidence in .spec/pilot-runs/hermes/)
 
 ## Checkpoints
 - 2026-10-04 23:12: SPEC+PLAN drafted (scope A+B); FleetPlan manifest; G1 pending
@@ -31,15 +32,16 @@ initialized
 - 2026-10-04 23:56: T-202 + T-301 DONE — skill criada (author/When-to-Use/pointer OK); waves 1-3 done; PARTE A FECHADA
 - 2026-10-05 00:04: T-401 DONE — runner + 6/6 tests; live aguarda G2 (T-402)
 - 2026-10-05 00:11: T-402 DONE — G2 approved; pilot ready to run
+- 2026-10-05 00:22: T-403 DONE — pilot run #4: 3/3 completed; cockpit shows pilot-hermes-pd-fleet
 
 ## Timestamps
 - Created: 2026-10-04T23:05:58.575354
-- Updated: 2026-10-05T00:11:32.438009
+- Updated: 2026-10-05T00:22:49.912335
 
 ## Fleet State
 ```json
 {
-  "updated_at": "2026-10-05T00:11:32.438009",
+  "updated_at": "2026-10-05T00:22:49.912335",
   "schema_version": 1,
   "agents": [],
   "waves": [],

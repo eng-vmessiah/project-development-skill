@@ -201,24 +201,47 @@ def timeline(feature_rows: list[dict]) -> list[dict]:
 
 def fleet_runs(runs_root: Path) -> list[dict]:
     rows = []
-    if not runs_root.exists():
-        return rows
-    for snap in sorted(runs_root.glob("*/snapshot.json")):
-        data: dict | None = None
-        try:
-            loaded = json.loads(snap.read_text(encoding="utf-8"))
-            data = loaded if isinstance(loaded, dict) else None
-        except (OSError, json.JSONDecodeError):
+    if runs_root.exists():
+        for snap in sorted(runs_root.glob("*/snapshot.json")):
+            data: dict | None = None
+            try:
+                loaded = json.loads(snap.read_text(encoding="utf-8"))
+                data = loaded if isinstance(loaded, dict) else None
+            except (OSError, json.JSONDecodeError):
+                data = None
+            if data is None:
+                continue
+            rows.append({
+                "run_id": data.get("run_id", snap.parent.name),
+                "status": data.get("status"),
+                "updated_at": data.get("updated_at"),
+                "owner": data.get("owner"),
+                "dir": str(snap.parent.relative_to(REPO)) if str(snap.parent).startswith(str(REPO)) else str(snap.parent),
+            })
+    pilot_root = REPO / ".spec" / "pilot-runs"
+    if pilot_root.exists():
+        for summary in sorted(pilot_root.glob("*/summary.json")):
             data = None
-        if data is None:
-            continue
-        rows.append({
-            "run_id": data.get("run_id", snap.parent.name),
-            "status": data.get("status"),
-            "updated_at": data.get("updated_at"),
-            "owner": data.get("owner"),
-            "dir": str(snap.parent.relative_to(REPO)) if str(snap.parent).startswith(str(REPO)) else str(snap.parent),
-        })
+            updated = None
+            try:
+                loaded = json.loads(summary.read_text(encoding="utf-8"))
+                data = loaded if isinstance(loaded, dict) else None
+                updated = datetime.fromtimestamp(summary.stat().st_mtime,
+                                                 tz=timezone.utc).isoformat(timespec="seconds")
+            except (OSError, json.JSONDecodeError):
+                data = None
+            if data is None:
+                continue
+            statuses = data.get("statuses") or {}
+            completed = sum(1 for value in statuses.values() if value == "completed")
+            rows.append({
+                "run_id": str(data.get("run_id") or summary.parent.name),
+                "source": "pilot",
+                "status": f"{completed}/{len(statuses)} completed" if statuses else None,
+                "updated_at": updated,
+                "owner": "hermes-pilot",
+                "dir": str(summary.parent.relative_to(REPO)) if str(summary.parent).startswith(str(REPO)) else str(summary.parent),
+            })
     rows.sort(key=lambda r: (r.get("updated_at") or "", r["run_id"]), reverse=True)
     return rows
 
@@ -279,12 +302,17 @@ def widget_payloads(snapshot: dict) -> list[dict]:
     timeline_rows = [{"quando": e["ts"][:16].replace("T", " "),
                       "feature": e["feature"], "detalhe": "Checkpoint"}
                      for e in snapshot["timeline"]]
+    pilot_runs = [row for row in snapshot.get("fleet_runs", []) if row.get("source") == "pilot"]
+    run_lines = "\n".join(
+        f"- `{row['run_id']}` — {row.get('status') or '?'} · `{row.get('dir')}`"
+        for row in pilot_runs[:3]
+    )
     fleet_md = (
         "## Fleet runs\n\n"
-        f"**{meta['fleet_run_count']} runs persistidos** em `.pd-fleet-runs/` — "
-        "o piloto de execução real é a **wave 4** (T-401→T-404; G2 = autorização de dispatch live).\n\n"
-        "Maquinaria pronta: FleetPlan v1/v2 · adapters reais (`runtime_adapters.py`) · "
-        "supervisor/run_store/checkpoints. Quando um run rodar, ele **se auto-registra** e aparece aqui."
+        f"**{meta['fleet_run_count']} runs** (`.pd-fleet-runs/` + `.spec/pilot-runs/`). "
+        "Wave 4: T-401→T-404; G2 = autorização de dispatch live.\n\n"
+        + (f"**Piloto hermes:**\n{run_lines}\n" if run_lines else
+           "Nenhum run do piloto registrado ainda — `--live --authorized` auto-registra.\n")
     )
     return [
         {"tab": "mc", "kind": "builtin:markdown", "id": "mc-overview", "title": "Overview",
