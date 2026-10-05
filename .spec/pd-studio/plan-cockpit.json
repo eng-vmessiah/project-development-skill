@@ -1,6 +1,6 @@
 {
   "schema": "plan-cockpit:v1",
-  "generated_at": "2026-10-05T02:22:05+00:00",
+  "generated_at": "2026-10-05T02:23:27+00:00",
   "repo": "/home/vitor/project/project-development-skill",
   "runs_root": "/home/vitor/project/project-development-skill/.pd-fleet-runs",
   "features": [
@@ -9,7 +9,7 @@
       "phase": 0,
       "status": "initialized",
       "source": "plan-yaml",
-      "tasks_done": 2,
+      "tasks_done": 3,
       "tasks_total": 12,
       "checkpoints": 3,
       "checkpoints_log": [

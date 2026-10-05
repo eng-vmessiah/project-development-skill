@@ -149,7 +149,7 @@ tasks:
       backoff_seconds: 1
       retryable_errors: []
     owner: tester-hermes
-    status: pending
+    status: done
 
   - id: T-201
     wave: 2

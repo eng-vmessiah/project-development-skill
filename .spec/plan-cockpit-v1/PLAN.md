@@ -11,7 +11,7 @@ Cockpit-ready: every task declares `id · wave · role · depends_on · allowed_
 ## Wave 1 — Foundation (A)
 
 - [x] T-101 · coder · `scripts/plan_cockpit_sync.py` aggregator ✅ 04/10 (7 features reais; determinismo ✓; G1/T-000 refletidos; py_compile ✓) · deps: G1 · paths: `scripts/`, `.spec/pd-studio/` · acceptance: R1 shape from real sources; empty ≠ fabricated · validation: `python3 scripts/plan_cockpit_sync.py --write` + fixtures.
-- [ ] T-102 · test-engineer · sync tests (fake features + fake pd json → expected aggregate; determinism; anti-fabrication) · deps: T-101 · paths: `tests/` · validation: focused pytest.
+- [x] T-102 · test-engineer · sync tests ✅ 04/10 (9 passed: fixtures→agregado, determinismo, anti-fabricação, corrupt-skip, pd_view, timeline desc; ruff ✓) · deps: T-101 · paths: `tests/` · validation: focused pytest.
 
 ## Wave 2 — Mission Control (A)
 
