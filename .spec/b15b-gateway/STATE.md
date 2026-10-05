@@ -20,6 +20,7 @@ initialized
 - [x] T-302 — composite-deny (8 gates, all-pass, anti-hot-reload) + redaction validator (allowlist G-2 fechada) + fixtures nomeadas (20+29+22=71 verdes; ruff ok)
 - [x] T-401 — subscription v1: associação explícita (sem global/wildcard), ordering contígua (gap bloqueia avanço), outbox/ACK retriável (cursor só avança contíguo), TTLs liveness (30/90/60/900s), gaps explícitos (replay_gap/cursor_stale/cursor_expired+resync), detach tombstona+cancela outbox; 14 fixtures verdes; suíte fleet 1348 passed
 - [x] T-501 — rollback ensaiado em ambiente controlado (scratch unit, ciclo stop/verify/start/verify PASS; live intocado) + crash-point matrix (8 pontos, cobertura local) + doc B15B-REPLAY-ROLLBACK.md + evidência
+- [x] T-601 — live validation: série instalada no checkout vivo (966a079d9c; rollback dc50153faf), sanidade 7/7, restart stop/verify/start/verify (~3s downtime), default-off vivo OK (env real), serve intocado (1534474), gateway saudável; evidence packet com buckets + log bruto
 
 ## Checkpoints
 - 2026-10-05 01:17: B15b.0 docs drafted; G-0 review dispatch
@@ -43,15 +44,16 @@ initialized
 - 2026-10-05 14:58: T-501 entregue (ensaio PASS; matriz 8/8; evidência no spec); review a dispatchar
 - 2026-10-05 15:02: WAVE-5 EXIT VERIFIED (review PASS; NITs aplicados) — wave 6 (T-601/T-602) aguarda G-3 (live)
 - 2026-10-05 15:07: G-3 APPROVED — live validation autorizada (eu executo); T-601 in_progress
+- 2026-10-05 15:10: T-601 executado (G-3): instalação+restart+default-off vivo OK; evidência no spec; T-602 closeout próximo
 
 ## Timestamps
 - Created: 2026-10-05T01:16:27.231152
-- Updated: 2026-10-05T15:07:50.167347
+- Updated: 2026-10-05T15:10:25.941050
 
 ## Fleet State
 ```json
 {
-  "updated_at": "2026-10-05T15:07:50.167347",
+  "updated_at": "2026-10-05T15:10:25.941050",
   "schema_version": 1,
   "agents": [],
   "waves": [],
