@@ -61,7 +61,7 @@ waves:
     tasks:
       - T-601
       - T-602
-    status: pending
+    status: done
     gates:
       - G-3
 
