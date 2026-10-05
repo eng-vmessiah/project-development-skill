@@ -18,7 +18,7 @@ from scripts.pd_fleet.gateway_bridge_contracts import (
 )
 
 
-def setup(retention=32):
+def _setup(retention=32):
     observer = ObserverIdentity("observer-1", "owner-1", "profile-1")
     gateway = FakeGateway(retention=retention)
     gateway.connect(observer)
@@ -29,7 +29,7 @@ def setup(retention=32):
 
 
 def test_attach_rejects_unknown_and_malicious_binding_without_forwarding():
-    gateway, observer, binding, ticket = setup()
+    gateway, observer, binding, ticket = _setup()
     bridge = FleetGatewayBridge(gateway, observer, in_memory=True).connect()
     original = bridge._connection
     calls = []
@@ -57,7 +57,7 @@ def test_attach_rejects_unknown_and_malicious_binding_without_forwarding():
 
 
 def test_attach_normalizes_injected_errors_to_bounded_text():
-    gateway, observer, binding, ticket = setup()
+    gateway, observer, binding, ticket = _setup()
     bridge = FleetGatewayBridge(gateway, observer, in_memory=True).connect()
 
     class ExplodingConnection:
@@ -74,7 +74,7 @@ def test_attach_normalizes_injected_errors_to_bounded_text():
 
 
 def test_attach_snapshot_subscribe_and_bounded_outbox():
-    gateway, observer, binding, ticket = setup()
+    gateway, observer, binding, ticket = _setup()
     bridge = FleetGatewayBridge(gateway, observer, in_memory=True).connect()
     association = bridge.attach(ticket, binding)
     assert bridge.snapshot(association).ownership_mode is OwnershipMode.USER_OWNED_SESSION
@@ -87,7 +87,7 @@ def test_attach_snapshot_subscribe_and_bounded_outbox():
 
 
 def test_replay_pagination_persists_cursor_and_duplicate_delivery_is_idempotent():
-    gateway, observer, binding, ticket = setup()
+    gateway, observer, binding, ticket = _setup()
     bridge = FleetGatewayBridge(gateway, observer, in_memory=True).connect()
     association = bridge.attach(ticket, binding)
     bridge.heartbeat(association)
@@ -102,7 +102,7 @@ def test_replay_pagination_persists_cursor_and_duplicate_delivery_is_idempotent(
 
 
 def test_failure_does_not_advance_cursor_and_fleet_owned_is_denied():
-    gateway, observer, binding, ticket = setup()
+    gateway, observer, binding, ticket = _setup()
     bridge = FleetGatewayBridge(gateway, observer, in_memory=True).connect()
     with pytest.raises(BridgeValidationError) as exc:
         bridge.attach(ticket, {**binding, "ownership_mode": "fleet_owned_task"})
@@ -115,7 +115,7 @@ def test_failure_does_not_advance_cursor_and_fleet_owned_is_denied():
 
 
 def test_forged_returned_cursor_subscriber_is_rejected_before_persistence():
-    gateway, observer, binding, ticket = setup()
+    gateway, observer, binding, ticket = _setup()
     bridge = FleetGatewayBridge(gateway, observer, in_memory=True).connect()
     association = bridge.attach(ticket, binding)
     original = bridge._connection
@@ -139,7 +139,7 @@ def test_forged_returned_cursor_subscriber_is_rejected_before_persistence():
 
 @pytest.mark.parametrize("field", ["association_ref", "stream_epoch", "subscriber_ref"])
 def test_supplied_cursor_binding_is_rejected_before_permissive_upstream(field):
-    gateway, observer, binding, ticket = setup()
+    gateway, observer, binding, ticket = _setup()
     bridge = FleetGatewayBridge(gateway, observer, in_memory=True).connect()
     association = bridge.attach(ticket, binding)
     stream = bridge.subscribe(association)
@@ -181,7 +181,7 @@ def test_supplied_cursor_binding_is_rejected_before_permissive_upstream(field):
 
 
 def test_expired_supplied_cursor_is_rejected_before_permissive_upstream():
-    gateway, observer, binding, ticket = setup()
+    gateway, observer, binding, ticket = _setup()
     bridge = FleetGatewayBridge(gateway, observer, in_memory=True).connect()
     association = bridge.attach(ticket, binding)
     stream = bridge.subscribe(association)
@@ -212,7 +212,7 @@ def test_expired_supplied_cursor_is_rejected_before_permissive_upstream():
 
 
 def test_reopen_sqlite_store_and_corruption_fails_closed():
-    gateway, observer, binding, ticket = setup()
+    gateway, observer, binding, ticket = _setup()
     with tempfile.TemporaryDirectory() as directory:
         path = str(Path(directory) / "bridge.sqlite")
         first = FleetGatewayBridge(gateway, observer, store_path=path).connect()
@@ -253,7 +253,7 @@ def test_no_hermes_state_db_or_control_surface():
 
 
 def test_detach_persists_terminal_event_and_local_detached_state():
-    gateway, observer, binding, ticket = setup()
+    gateway, observer, binding, ticket = _setup()
     bridge = FleetGatewayBridge(gateway, observer, in_memory=True).connect()
     association = bridge.attach(ticket, binding)
     bridge.detach(association)
@@ -268,7 +268,7 @@ def test_detach_persists_terminal_event_and_local_detached_state():
 
 @pytest.mark.parametrize("field", ["association_ref", "session_ref", "stream_epoch", "sequence"])
 def test_detach_rejects_terminal_provenance_mismatch_before_local_writes(field):
-    gateway, observer, binding, ticket = setup()
+    gateway, observer, binding, ticket = _setup()
     bridge = FleetGatewayBridge(gateway, observer, in_memory=True).connect()
     association = bridge.attach(ticket, binding)
     original = bridge._connection
@@ -306,7 +306,7 @@ def test_detach_rejects_terminal_provenance_mismatch_before_local_writes(field):
 
 
 def test_subscribe_always_transmits_conservative_bound():
-    gateway, observer, binding, ticket = setup()
+    gateway, observer, binding, ticket = _setup()
     bridge = FleetGatewayBridge(gateway, observer, in_memory=True).connect()
     association = bridge.attach(ticket, binding)
     original = bridge._connection
@@ -330,7 +330,7 @@ def test_subscribe_always_transmits_conservative_bound():
 
 
 def test_replay_always_transmits_and_enforces_conservative_bound():
-    gateway, observer, binding, ticket = setup()
+    gateway, observer, binding, ticket = _setup()
     bridge = FleetGatewayBridge(gateway, observer, in_memory=True).connect()
     association = bridge.attach(ticket, binding)
     epoch = bridge.snapshot(association).stream_epoch
@@ -356,7 +356,7 @@ def test_replay_always_transmits_and_enforces_conservative_bound():
 
 
 def test_malformed_upstream_results_are_normalized_and_not_persisted():
-    gateway, observer, binding, ticket = setup()
+    gateway, observer, binding, ticket = _setup()
     bridge = FleetGatewayBridge(gateway, observer, in_memory=True).connect()
     association = bridge.attach(ticket, binding)
     epoch = bridge.snapshot(association).stream_epoch
@@ -393,7 +393,7 @@ def test_malformed_upstream_results_are_normalized_and_not_persisted():
 
 
 def test_event_identity_conflicts_are_invalid_provenance():
-    gateway, observer, binding, ticket = setup()
+    gateway, observer, binding, ticket = _setup()
     bridge = FleetGatewayBridge(gateway, observer, in_memory=True).connect()
     association = bridge.attach(ticket, binding)
     event = bridge.subscribe(association).events[0]
@@ -415,7 +415,7 @@ def test_event_identity_conflicts_are_invalid_provenance():
 
 
 def test_malformed_heartbeat_result_is_bounded_and_not_persisted():
-    gateway, observer, binding, ticket = setup()
+    gateway, observer, binding, ticket = _setup()
     bridge = FleetGatewayBridge(gateway, observer, in_memory=True).connect()
     association = bridge.attach(ticket, binding)
     original = bridge._connection
@@ -437,7 +437,7 @@ def test_malformed_heartbeat_result_is_bounded_and_not_persisted():
 
 @pytest.mark.parametrize("event_source", [None, object()])
 def test_malformed_detach_event_source_is_rejected_before_persistence(event_source):
-    gateway, observer, binding, ticket = setup()
+    gateway, observer, binding, ticket = _setup()
     bridge = FleetGatewayBridge(gateway, observer, in_memory=True).connect()
     association = bridge.attach(ticket, binding)
     original = bridge._connection
@@ -461,7 +461,7 @@ def test_malformed_detach_event_source_is_rejected_before_persistence(event_sour
 
 
 def test_legacy_detach_event_source_failure_is_normalized_before_persistence():
-    gateway, observer, binding, ticket = setup()
+    gateway, observer, binding, ticket = _setup()
     bridge = FleetGatewayBridge(gateway, observer, in_memory=True).connect()
     association = bridge.attach(ticket, binding)
     original = bridge._connection
@@ -485,7 +485,7 @@ def test_legacy_detach_event_source_failure_is_normalized_before_persistence():
 
 
 def test_requested_binding_mismatch_is_rejected_before_persistence():
-    gateway, observer, binding, ticket = setup()
+    gateway, observer, binding, ticket = _setup()
     bridge = FleetGatewayBridge(gateway, observer, in_memory=True).connect()
     original = bridge._connection
     class ForgedSnapshot:
@@ -501,7 +501,7 @@ def test_requested_binding_mismatch_is_rejected_before_persistence():
 
 
 def test_journal_event_limit_fails_closed_before_unbounded_growth():
-    gateway, observer, binding, ticket = setup()
+    gateway, observer, binding, ticket = _setup()
     bridge = FleetGatewayBridge(
         gateway, observer, in_memory=True, journal_event_limit=1, journal_pending_limit=1,
     ).connect()
@@ -515,7 +515,7 @@ def test_journal_event_limit_fails_closed_before_unbounded_growth():
 
 
 def test_terminal_state_is_sticky_against_late_observing_snapshot():
-    gateway, observer, binding, ticket = setup()
+    gateway, observer, binding, ticket = _setup()
     bridge = FleetGatewayBridge(gateway, observer, in_memory=True).connect()
     association = bridge.attach(ticket, binding)
     prior = bridge.snapshot(association)
@@ -532,7 +532,7 @@ def test_terminal_state_is_sticky_against_late_observing_snapshot():
 
 
 def test_duplicate_detach_event_is_idempotent():
-    gateway, observer, binding, ticket = setup()
+    gateway, observer, binding, ticket = _setup()
     bridge = FleetGatewayBridge(gateway, observer, in_memory=True).connect()
     association = bridge.attach(ticket, binding)
     event = bridge._connection.revoke(association)
