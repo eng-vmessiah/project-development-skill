@@ -1,6 +1,6 @@
 # B15B — Decision Matrix (B15b.0)
 
-**Status:** `b15b0_draft_for_review` — propostas congeladas para sign-off (owner/security). Nada implementado; canário TUI B15a.2 segue live e autorizado; readiness live do Fleet segue `NOT_READY_HERMES_SEAM`.
+**Status:** `b15b0_fixes_applied` — propostas congeladas para sign-off. Review B15b.0: `PASS_WITH_BLOCKERS` (H1 §C/D4 · M1 A5 · M2 freeze · L1–L3 — **aplicados**); re-review focado a dispatchar. Nada implementado; canário TUI B15a.2 segue live e autorizado; readiness live do Fleet segue `NOT_READY_HERMES_SEAM`.
 **Data:** 2026-10-05 · **Fonte:** `B15B-PLAN.md` v0.3 (§3 · §3.1 · §4) + corpus `G1-CONTRACT` / `G4-AUTH-LIFECYCLE` / `G4-CLOSURE` / `G4-SECURITY`.
 **Aprovação:** pendente — owner (Vitor) + papéis de security conforme coluna "Conta".
 
@@ -11,14 +11,16 @@
 | A1 | Transport auth | Option B (direção aprovada): ticket one-use emitido pelo Gateway. Identidade do caller **server-side** por canal — Discord/Telegram: identidade do adapter; API: token de sessão apenas como **boundary** de autenticação (API key global **não** é identidade Fleet; `TokenPrincipal` **não** é identidade humana); binding owner/profile/workspace **Hermes-owned**. Nonce one-use ≥128-bit. Nunca claims do caller. | Hermes Gateway owner + security |
 | A2 | Issuance/consume API | Capability **internal-only** no processo gateway (Python); sem rota HTTP até os gates do parked (10 pontos). Emissão vinculada a principal autenticado + associação. | Hermes Gateway owner |
 | A3 | Storage + boundary atômico | Transação **single-writer** no state store do gateway (`hermes_state_gateway.py`); consume+association commit atômicos (base: regras locais G4 §4). | Hermes Gateway owner |
-| A4 | TTLs/clock-skew/tombstone | Candidatos G4-CLOSURE §2 normativos: 5min ativação · 90s idle · 30s heartbeat · 15min cursor · 60s grace · 4KiB payload · 8KiB envelope · 100 replay. Novos: clock-skew ±30s · tombstone ≥ TTL ativo + skew · retenção 24h. | PD Fleet owner + security |
-| A5 | Revogação | Via deactivation/control-plane do gateway (mecanismo Gateway-side — G4-AUTH-LIFECYCLE §7); propagação ≤ 1 heartbeat (30s); fail-closed em estado stale/desconhecido. | PD Fleet owner + PD Core governance owner |
+| A4 | TTLs/clock-skew/tombstone | Candidatos G4-CLOSURE §2 **propostos como normativos** (não embutir em runtime antes da aprovação — §2): 5min ativação · 90s idle · 30s heartbeat · 15min cursor · 60s grace · 4KiB payload · 8KiB envelope · 100 replay. **Novos:** clock-skew ±30s · tombstone ≥ TTL ativo + skew · retenção 24h. Bounds restantes (depth/Unicode/control/diagnostic/retry + fixtures nomeadas) congelados no contrato do seam (B15b.1). | PD Fleet owner + security |
+| A5 | Revogação | Via deactivation/control-plane do gateway (mecanismo Gateway-side — G4-AUTH-LIFECYCLE §7); **proposta nova:** propagação ≤ 1 heartbeat (30s); fail-closed em estado stale/desconhecido. | PD Fleet owner + PD Core governance owner + security (revoke exige revisão Gateway/security — G4-CLOSURE §1; atribuição de fonte — G4-SECURITY §8) |
 | A6 | Retry idempotente | Mesma idempotency key ⇒ mesmo resultado terminal; reuso conflitante ⇒ deny (semântica local G4 §5 carregada ao seam). | PD Fleet owner |
 | A7 | Security review + fixtures live | Matriz G4 §9 (do `B15A2-EVIDENCE-PACKET`) adaptada ao gateway real; execução **somente** no slice live (B15b.5); buckets separados: contract / fake / TUI / seam / live. | security reviewer |
-| A8 | Rotação de chave/token | Mecanismo Hermes-owned com grace window; verificação aceita N e N-1 durante rotação. | Hermes Gateway owner + security |
+| A8 | Rotação de chave/token | Mecanismo Hermes-owned com grace window (**proposta nova:** verificação aceita N e N-1 durante rotação). | Hermes Gateway owner + security |
 | A9 | Sequence persistence/retention | Persistência no store do gateway; retenção ≥ cursor TTL + tombstones (dependente de G3). | Hermes Gateway owner + PD Fleet owner |
 | A10 | Cursor epoch/restart | Epoch novo por restart; gap **explícito** (`replay_gap`/`cursor_stale` — taxonomia G1 §7; `resync_required` só quando snapshot/boundary não comprovável); nunca silencioso. | Hermes Gateway owner + PD Fleet owner |
 | A11 | Redaction allowlist/denylist | Allowlist metadata-only conforme G4-SECURITY §5; fixtures nomeadas por campo; aprovação security antes de B15b.2. | security reviewer |
+
+**Mapeamento G4-CLOSURE §7 (11 linhas → disposição):** A8–A11 cobrem rotação / sequence-retention / cursor-epoch / redação; "atomic snapshot/boundary" e "cursor/outbox/ack ordering" têm disposição em `B15B-PLAN.md` §3.1.5 (B15b.3/.4); "approve durable ack ordering" = critério de saída de B15b.3; "approve cursor/activation verification" = A8 + B15b.2. Sem linhas órfãs.
 
 ## B. Matriz composite-deny (all-gates-pass)
 
@@ -45,21 +47,22 @@
 
 | Camada | Vocabulário | Significado | Autoridade |
 |---|---|---|---|
-| TUI control plane (B15a) | `activate` / `status` / `deactivate` | operações locais na ÚNICA sessão TUI ativa | B15a (canário local) |
-| Bridge transport (G1/B15b) | `fleet.connect` / `fleet.subscribe` / `fleet.disconnect` | ciclo de vida do observer no boundary do bridge | B15b (a implementar) |
+| TUI control plane (B15a) | `fleet.session.activate` / `fleet.session.status` / `fleet.session.deactivate` / `fleet.session.replay` | operações locais na ÚNICA sessão TUI ativa | **D4 APROVADO** (02/08/2026 — Hermes/TUI owner); wire `pd-fleet-tui:v1` |
+| Bridge transport (G1/B15b) | `fleet.connect` / `fleet.subscribe` / `fleet.disconnect` | ciclo de vida do observer no boundary do bridge | propostos (G1); **internos** até a seleção do Hermes owner (D4: bridge transport names are internal — MUST NOT be public aliases) |
 
 **Regras de tradução (proposta — seleção formal pelo Hermes owner, G1 §3):**
-- Um vocabulário autoritativo por camada; **sem alias silencioso** (nenhum mapeamento implícito `activate`→`fleet.subscribe`).
-- Uma associação TUI ativa PODE ser a sessão referenciada por `fleet.subscribe` — via referência opaca da associação, nunca por reuso do comando.
-- Colisão de namespace: proibida (prefixos distintos; `fleet.*` vs controle local).
-- Erros não cruzam camadas: cada camada mantém sua taxonomia (G1 §7 no bridge); sem tradução de erro entre camadas.
-- Default-off: a seleção do vocabulário não habilita nada; ambas as camadas seguem default-off até autorização própria.
+- **Root compartilhado:** ambas as superfícies vivem sob o root `fleet.*` (`fleet.session.*` = TUI; `fleet.connect/subscribe/disconnect` = bridge). A política é de **registro sem colisão** sob o mesmo root (D1 rejeita colisões; nenhuma operação é servida por duas camadas) — não "prefixos distintos".
+- **Um vocabulário autoritativo** (G1 §3): cada operação pertence a exatamente uma camada; nenhum alias silencioso entre camadas (nem `fleet.session.*`→bridge, nem o inverso).
+- **Translation explícita:** uma associação TUI ativa pode ser a sessão referenciada por `fleet.subscribe` — via referência opaca da associação, nunca por reuso do comando; a tradução é documentada.
+- **Authentication context:** por camada — TUI: caller local stdio/JSON-RPC (cadeia de identidade B15a); bridge: caller autenticado por canal (A1). O contexto de auth de uma camada NÃO satisfaz a outra (sem herança).
+- **Error/version behavior:** taxonomias e versões por camada (bridge: G1 §7 + envelope `pd-fleet-gateway-bridge:v1`; TUI: wire `pd-fleet-tui:v1`); erros não cruzam camadas.
+- **Default-off:** a seleção do vocabulário não habilita nada; ambas as camadas seguem default-off até autorização própria.
 
 ## D. Sign-off checklist (gate G-0)
 
 - [x] Owner (Vitor): A1–A11 + mapping C — **"autorizado"** (05/10). Papéis de security e Hermes Gateway owner acumulados no owner neste contexto solo (registrado).
 - [x] Security (papéis da tabela): A1, A4, A5, A7, A8, A11 — cobertos pela autorização do owner (acumulado).
-- [x] Hermes Gateway owner: A1–A3, A8–A10 + **seleção formal do vocabulário autoritativo** (C) — cobertos pela autorização do owner (acumulado).
+- [x] Hermes Gateway owner: A1–A3, A8–A10 + **seleção formal do vocabulário autoritativo** (C — incl. authentication context/version behavior) — cobertos pela autorização do owner (acumulado).
 - [ ] Review independente sem BLOCKER/HIGH — **em curso** (G-0 fecha quando retornar limpo).
 - [ ] Feeding `pd`: complete-task do B15b.0 + gate G-0 — parcial (checkpoint 01:17; completa no fechamento do G-0).
 

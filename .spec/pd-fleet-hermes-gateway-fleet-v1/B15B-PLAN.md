@@ -1,7 +1,7 @@
 # B15B — Gateway de mensagens/API (draft plan v0.3)
 
-**Status:** `draft_v0_3_reviewed` — B15b **não iniciado**; o canário TUI B15a.2 **segue live e autorizado** (desde 04/10 22:41, drop-in `HERMES_FLEET_TUI_CANARY=1`); live readiness do Fleet segue `NOT_READY_HERMES_SEAM`.
-**Data:** 2026-10-05 · **Autoria:** ISIS (orchestrator) · **Aprovação do owner (Vitor):** pendente · **Review independente:** v0.1 → `PASS_WITH_BLOCKERS`; v0.2 → **`PASS`** (sem BLOCKER/HIGH — gate atendido); v0.3 = v0.2 + L2 residual + 2 NITs aplicados.
+**Status:** `draft_v0_3` — B15b **não iniciado**; o canário TUI B15a.2 **segue live e autorizado** (desde 04/10 22:41, drop-in `HERMES_FLEET_TUI_CANARY=1`); live readiness do Fleet segue `NOT_READY_HERMES_SEAM`.
+**Data:** 2026-10-05 · **Autoria:** ISIS (orchestrator) · **Aprovação do owner (Vitor):** aprovado (05/10) · **Review independente:** v0.1 → `PASS_WITH_BLOCKERS`; v0.2 → `PASS` (sem BLOCKER/HIGH); v0.3 = v0.2 + LOW/NITs (sem review próprio).
 **Base documental:** `G1-CONTRACT.md` · `G4-AUTH-LIFECYCLE.md` (§10) · `G4-CLOSURE.md` (§1–3, §7–8) · `G4-SECURITY.md` · `B15-TUI-SEAM.md` (§B15b · não-objetivos · risco) · `B15A-EXECUTION-PLANS.md` (§B15b · planning gates · reconciliation) · `transport-wave-parked.md` (§4).
 
 ## 1. Escopo
@@ -51,12 +51,12 @@ Contrato base já desenhado no G1: vocabulário `fleet.connect` / `fleet.subscri
 
 ### 3.1 Blockers de reconciliação B15a→B15b (disposição explícita)
 
-Os 6 blockers do `B15A-EXECUTION-PLANS.md` (Reconciliation) permanecem portões de design; disposição no B15b:
+Os blockers de reconciliação (6 do `B15A-EXECUTION-PLANS.md` + 1 adicional do `G4-CLOSURE` §8 — item 7) permanecem portões de design; disposição no B15b:
 
 1. **Hermes seam (contrato de registration/dispatch)** → B15b.1 especifica o contrato do seam (event publisher + principal resolution) ANTES de qualquer patch; sem contrato revisado, B15b.1 não inicia.
 2. **Identidade (cadeia confiável conexão↔processo↔profile↔workspace↔sessão↔observer)** → B15b.0 congela a cadeia; B15b.2 implementa; deny-by-default em ambiguidade.
 3. **Composite deny (all-gates-pass: plugin allow-list + flag + seam + caller + sessão + associação + capability + lifecycle; config malformada/hot-reload não amplia acesso)** → **entregável explícito do B15b.0** (matriz) + fixtures nomeadas em B15b.2 e B15b.5.
-4. **Wire contract fechado (allow-lists, bounds byte/depth/cardinalidade, control-chars, normalização, redaction antes de buffer/persistência/replay/log/métrica/entrega)** → B15b.0 (freeze do schema) + evidência em B15b.2/.5.
+4. **Wire contract fechado (allow-lists, bounds byte/depth/cardinalidade, control-chars, normalização, redaction antes de buffer/persistência/replay/log/métrica/entrega)** → **B15b.1** (freeze do schema no contrato do seam, antes de qualquer patch) + evidência em B15b.2/.5; B15b.0 congela os bounds de decisão (A4) e a allowlist de redação (A11).
 5. **Delivery/recovery (snapshot-before-stream, boundary atômico, cursor issuer/binding, epoch restart, retention/tombstones, outbox/ack, heartbeat/TTL/grace, crash points)** → B15b.3 (ordering/TTL) + B15b.4 (epoch/restart/crash), com critérios de aceite.
 6. **Naming (um vocabulário autoritativo; sem alias silencioso)** → B15b.0 (mapping TUI↔bridge), com a seleção do vocabulário autoritativo pelo **Hermes owner** (G1 §3).
 7. **Lifecycle authority (G4-CLOSURE §8: reconnect, duplicate attach, session end, normal exit, crash, restart epoch, in-flight)** → state machine em B15b.2; crash/restart em B15b.4 (paridade com o §8 fechada).
@@ -88,7 +88,7 @@ Os 6 blockers do `B15A-EXECUTION-PLANS.md` (Reconciliation) permanecem portões 
 
 ## 7. Próximos passos
 
-1. **Re-review focado** da v0.2 (B1/H1/M1–M5/L1–L7) — a dispatchar.
-2. **Aprovação do owner** (Vitor) sobre a direção.
-3. B15b.0: decision matrix + composite-deny + wire vocabulary mapping congelados.
-4. Feature cockpit-ready para trackear B15b (padrão plan-cockpit) + feedings no `pd`.
+1. **Correções do review do B15b.0** (H1 §C/D4 · M1 A5 · M2 freeze · L1–L3) — aplicadas; re-review focado a dispatchar.
+2. **Aprovação do owner:** ✅ (05/10) — plano v0.3 + sign-offs A1–A11/mapping C + G-1 (edição do checkout).
+3. B15b.0: ✅ entregues (decision matrix + composite-deny + wire mapping) — G-0 fecha no re-review limpo.
+4. Feature cockpit-ready: ✅ `b15b-gateway` (12 tasks / 7 waves / 4 gates) com feedings no `pd`.
