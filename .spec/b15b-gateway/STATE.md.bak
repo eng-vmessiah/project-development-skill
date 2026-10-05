@@ -17,6 +17,7 @@ initialized
 - [x] T-201 — seam contract draft v0.1 (publisher + principal resolution; assinatura/namespace/isolamento/versão/disabled)
 - [x] T-202 — série replayable: observer seam default-off (registry+publish+7 fixtures; git am limpo, tree idêntico)
 - [x] T-301 — auth+associação local: gateway_auth.py (tickets §1 / consume atômico single-writer §4 / idempotência §5 / uniformidade §6 / state machine §3) + 22 fixtures G4 §9 verdes; ruff ok
+- [x] T-302 — composite-deny (8 gates, all-pass, anti-hot-reload) + redaction validator (allowlist G-2 fechada) + fixtures nomeadas (20+29+22=71 verdes; ruff ok)
 
 ## Checkpoints
 - 2026-10-05 01:17: B15b.0 docs drafted; G-0 review dispatch
@@ -29,15 +30,16 @@ initialized
 - 2026-10-05 13:59: G-2 draft (redaction allowlist) entregue; review independente dispatch
 - 2026-10-05 14:11: G-2 pacote review PASS; aguardando aprovação do owner
 - 2026-10-05 14:13: G-2 APPROVED — allowlist/denylist/fixtures congelados; wave 3 desbloqueada (T-301)
+- 2026-10-05 14:17: T-301 entregue (22/22; ruff ok); review independente dispatch
 
 ## Timestamps
 - Created: 2026-10-05T01:16:27.231152
-- Updated: 2026-10-05T14:17:42.270436
+- Updated: 2026-10-05T14:22:07.654961
 
 ## Fleet State
 ```json
 {
-  "updated_at": "2026-10-05T14:17:42.270436",
+  "updated_at": "2026-10-05T14:22:07.654961",
   "schema_version": 1,
   "agents": [],
   "waves": [],

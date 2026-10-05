@@ -46,7 +46,7 @@ waves:
     tasks:
       - T-301
       - T-302
-    status: pending
+    status: done
     gates:
       - G-2
   - id: wave-4
