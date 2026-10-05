@@ -34,15 +34,16 @@ initialized
 - 2026-10-05 14:22: T-302 entregue (71/71; ruff ok); wave-3 tasks completas; reviews (T-301/T-302) em curso
 - 2026-10-05 14:25: T-301 review PASS; fixes LOW aplicados
 - 2026-10-05 14:31: T-302 review PASS_WITH_BLOCKERS → fixes aplicados (duplicate_path/ts-bound/defensive/per-field); wave-3 exit pendente de re-check
+- 2026-10-05 14:36: WAVE-3 EXIT VERIFIED (re-check PASS; MEDIUM-1 closed) — wave 4 (T-401) desbloqueada
 
 ## Timestamps
 - Created: 2026-10-05T01:16:27.231152
-- Updated: 2026-10-05T14:31:59.489637
+- Updated: 2026-10-05T14:36:22.107055
 
 ## Fleet State
 ```json
 {
-  "updated_at": "2026-10-05T14:31:59.489637",
+  "updated_at": "2026-10-05T14:36:22.107055",
   "schema_version": 1,
   "agents": [],
   "waves": [],

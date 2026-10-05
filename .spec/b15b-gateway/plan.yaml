@@ -334,7 +334,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: coder-hermes
-    status: pending
+    status: in_progress
 
   - id: T-501
     wave: 5
