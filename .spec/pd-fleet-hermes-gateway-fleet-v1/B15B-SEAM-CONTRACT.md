@@ -1,8 +1,8 @@
 # B15B — Seam Contract (B15b.1) — event publisher + principal resolution
 
-**Status:** `draft_v0_2` — **nenhum patch aplicado**; a série replayable é o T-202 (G-1 aprovado). Canário TUI B15a.2 segue live; readiness live do Fleet segue `NOT_READY_HERMES_SEAM`.
+**Status:** `draft_v0_3` — **nenhum patch aplicado**; a série replayable é o T-202 (G-1 aprovado; **desbloqueado**). Canário TUI B15a.2 segue live; readiness live do Fleet segue `NOT_READY_HERMES_SEAM`.
 **Data:** 2026-10-05 · **Autoria:** ISIS (orchestrator) · **Fonte:** `B15B-DECISION-MATRIX.md` (A1–A11/B/C) · `G1-CONTRACT.md` (§3–§9) · `G4-SECURITY` · `G4-CLOSURE` · `B15A-TUI-WIRE-CONTRACT.md` · `B15A-DELIVERY-RECOVERY-CONTRACT.md` · **mecanismo vivo:** `tui_gateway/plugin_rpc.py` + `tui_gateway/fleet_tui_registration.py` (checkout `dc50153faf`).
-**Review independente:** v0.1 → `PASS_WITH_BLOCKERS` (H1 namespace · H2 mecanismo/base · M1–M3 · L1–L4 — **aplicados nesta v0.2**); re-review focado a dispatchar (critério: sem BLOCKER/HIGH → T-202 desbloqueado).
+**Review independente:** v0.1 → `PASS_WITH_BLOCKERS`; v0.2 → **`PASS`** (H1/H2/M1–M3/L1–L4 resolvidos; zero regressões; **T-202 desbloqueado**); v0.3 = registro do congelamento dos bounds (instrução do review).
 
 ## 1. Escopo e fronteira
 
@@ -39,7 +39,7 @@ O seam B15b.1 = **duas capacidades host-side no processo gateway**, **default-of
 - **Envelope:** `pd-fleet-gateway-bridge:v1` (G1 §4) — campos required; IDs/refs opacos e limitados; `event_origin` = `gateway_native` (nunca republicar derivado como nativo).
 - **Allowlist v1 (G1 §5):** `session.registered` · `session.status_changed` · `session.heartbeat` · `session.metadata_changed` · `session.detached` · `session.ended` — payloads **fechados** (tabela G1 §5); unknown keys/values fail-closed.
 - **Redaction ANTES de** buffer/persistência/outbox/replay/log/métrica/entrega (G4-SECURITY §5; allowlist por campo = A11). Deny-list: prompts, histórico, tool args/results, provider material, credenciais, tokens, terminal, paths, URLs, valores de identidade, **approval payloads, env vars**.
-- **Bounds (blocker #4 — 4KiB/8KiB/100 normativos; demais candidatos a congelar na revisão):** payload ≤4KiB · envelope ≤8KiB · replay ≤100 eventos (G4-CLOSURE §2); depth ≤8 · cardinalidade ≤32 · strings ≤512 · opaque refs ≤128 · **diagnóstico ≤512** · **retry: sem retry automático no seam** (política do caller via taxonomia §5) · **normalização:** Unicode NFC; rejeitar control/bidi, binário, NaN/∞; sem mapas arbitrários.
+- **Bounds (blocker #4 — CONGELADOS pelo review `PASS` da v0.2, 05/10; base 4KiB/8KiB/100 = candidatos G4-CLOSURE §2, propostos como normativos — não embutir em runtime antes da ativação autorizada):** payload ≤4KiB · envelope ≤8KiB · replay ≤100 eventos · depth ≤8 · cardinalidade ≤32 · strings ≤512 · opaque refs ≤128 · diagnóstico ≤512 · sem retry automático no seam (política do caller via taxonomia §5) · normalização: Unicode NFC; rejeitar control/bidi, binário, NaN/∞; sem mapas arbitrários.
 - **Ordering/epoch/sequence:** conforme `B15A-DELIVERY-RECOVERY-CONTRACT` (associação/epoch/sequence contíguo; snapshot-before-stream; gap explícito `replay_gap`/`cursor_stale`; `resync_required` só quando boundary não comprovável). **Partição explícita:** cursor/retention/tombstones/outbox/ack/heartbeat/restart → B15b.3/.4.
 
 ## 5. Error taxonomy (referência normativa)
