@@ -2,7 +2,7 @@
 
 **Status:** `draft_v0_3` — **nenhum patch aplicado**; a série replayable é o T-202 (G-1 aprovado; **desbloqueado**). Canário TUI B15a.2 segue live; readiness live do Fleet segue `NOT_READY_HERMES_SEAM`.
 **Data:** 2026-10-05 · **Autoria:** ISIS (orchestrator) · **Fonte:** `B15B-DECISION-MATRIX.md` (A1–A11/B/C) · `G1-CONTRACT.md` (§3–§9) · `G4-SECURITY` · `G4-CLOSURE` · `B15A-TUI-WIRE-CONTRACT.md` · `B15A-DELIVERY-RECOVERY-CONTRACT.md` · **mecanismo vivo:** `tui_gateway/plugin_rpc.py` + `tui_gateway/fleet_tui_registration.py` (checkout `dc50153faf`).
-**Review independente:** v0.1 → `PASS_WITH_BLOCKERS`; v0.2 → **`PASS`** (H1/H2/M1–M3/L1–L4 resolvidos; zero regressões; **T-202 desbloqueado**); v0.3 = registro do congelamento dos bounds (instrução do review).
+**Review independente:** v0.1 → `PASS_WITH_BLOCKERS`; v0.2 → **`PASS`**; v0.3 = congelamento dos bounds. **T-202 review: `PASS`** (zero BLOCKER/HIGH/MEDIUM; replay reproduzido independentemente; LOW-1/LOW-3 adjudicados nesta revisão; LOW-2/LOW-4 aceitos p/ B15b.1).
 
 ## 1. Escopo e fronteira
 
@@ -55,8 +55,8 @@ O seam B15b.1 = **duas capacidades host-side no processo gateway**, **default-of
 | `golden_non_fleet` | plugins/handlers não-Fleet inalterados (sem regressão) |
 | `handler_exception_isolated` | handler que levanta ⇒ gateway continua; diagnóstico interno contido; log redigido |
 | `namespace_rejections` | §2: namespace exato, charset, `reserved`/duplicata — rejeitados no registro |
-| `version_unsupported` | envelope v1 aceito; não suportada ⇒ `unsupported_schema` |
-| `bounds_frozen` | cada bound do §4 tem fixture nomeada (incl. diagnóstico/normalização) |
+| `version_unsupported` | envelope v1 aceito; não suportada ⇒ deny silencioso no seam (0 entregas); **código canônico `unsupported_schema` no publisher real (B15b.3/.4)** |
+| `bounds_frozen` | cada bound do §4 tem fixture nomeada (incl. diagnóstico/normalização) — **executada quando os bounds forem embutidos (B15b.3/.4); §4 proíbe pré-ativação** |
 | `redaction_by_field` | fixtures por campo da allowlist (A11) — executadas no B15b.2 |
 | `replay_epoch_crash_matrix` | matriz da delivery-recovery contract — executada no B15b.4 |
 
