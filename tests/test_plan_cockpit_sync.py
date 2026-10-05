@@ -172,3 +172,15 @@ def test_pd_view_absent_without_pd(fake_repo: Path, monkeypatch: pytest.MonkeyPa
     snap = pc.build(fake_repo / ".pd-fleet-runs")
     assert snap["features"][0]["pd_view"] is None
     assert any("pd list" in w for w in snap["meta"]["warnings"])
+
+
+def test_widget_payloads_shapes(fake_repo: Path) -> None:
+    _feature(fake_repo, "feat-w")
+    snap = pc.build(fake_repo / ".pd-fleet-runs")
+    payloads = pc.widget_payloads(snap)
+    assert [p["id"] for p in payloads] == [
+        "mc-overview", "mc-features", "mc-tasks", "mc-timeline", "mc-fleet",
+    ]
+    assert all(p["tab"] == "mc" for p in payloads)
+    assert payloads[1]["bindings"]["rows"]["value"][0]["feature"] == "feat-w"
+    assert payloads[0]["bindings"]["content"]["value"].startswith("# Mission Control")

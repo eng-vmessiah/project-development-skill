@@ -1,0 +1,276 @@
+[
+  {
+    "tab": "mc",
+    "kind": "builtin:markdown",
+    "id": "mc-overview",
+    "title": "Overview",
+    "grid": {
+      "x": 0,
+      "y": 0,
+      "w": 12,
+      "h": 3
+    },
+    "bindings": {
+      "content": {
+        "source": "static",
+        "value": "# Mission Control — PD (plan-cockpit v1)\n\nVisão única do PD **derivada só de fontes reais** (nunca fabricar telemetria).\n\n- **Features:** 7 · **plan-cockpit-v1:** 4/12 tasks · **Checkpoints:** 5 · **Runs:** 0\n- Snapshot: **2026-10-05 02:37**\n- Fonte: `scripts/plan_cockpit_sync.py` → `.spec/pd-studio/plan-cockpit.json`"
+      }
+    }
+  },
+  {
+    "tab": "mc",
+    "kind": "builtin:table",
+    "id": "mc-features",
+    "title": "Features (estado real)",
+    "grid": {
+      "x": 0,
+      "y": 3,
+      "w": 12,
+      "h": 5
+    },
+    "bindings": {
+      "rows": {
+        "source": "static",
+        "value": [
+          {
+            "feature": "plan-cockpit-v1",
+            "fase": "0",
+            "status": "initialized",
+            "fonte": "plan-yaml",
+            "tasks": "4/12",
+            "cps": "4",
+            "gates": "G1✅ G2· G3·"
+          },
+          {
+            "feature": "pd-fleet-scope-alignment",
+            "fase": "0",
+            "status": "initialized",
+            "fonte": "plan-md",
+            "tasks": "0/0",
+            "cps": "0",
+            "gates": "—"
+          },
+          {
+            "feature": "pd-fleet-hermes-gateway-fleet-v1",
+            "fase": "0",
+            "status": "initialized",
+            "fonte": "plan-md",
+            "tasks": "0/0",
+            "cps": "0",
+            "gates": "—"
+          },
+          {
+            "feature": "pd-fleet-hermes-adapter-v0",
+            "fase": "0",
+            "status": "initialized",
+            "fonte": "plan-md",
+            "tasks": "0/0",
+            "cps": "0",
+            "gates": "—"
+          },
+          {
+            "feature": "pd-fleet-hermes-adapter-real-v1",
+            "fase": "0",
+            "status": "initialized",
+            "fonte": "plan-md",
+            "tasks": "0/0",
+            "cps": "0",
+            "gates": "—"
+          },
+          {
+            "feature": "pd-fleet-supervisor-handoff",
+            "fase": "0",
+            "status": "initialized",
+            "fonte": "plan-md",
+            "tasks": "3/3",
+            "cps": "1",
+            "gates": "—"
+          },
+          {
+            "feature": "pd-fleet-orchestration",
+            "fase": "0",
+            "status": "initialized",
+            "fonte": "plan-md",
+            "tasks": "0/0",
+            "cps": "0",
+            "gates": "—"
+          }
+        ]
+      }
+    },
+    "props": {
+      "columns": [
+        "feature",
+        "fase",
+        "status",
+        "fonte",
+        "tasks",
+        "cps",
+        "gates"
+      ]
+    }
+  },
+  {
+    "tab": "mc",
+    "kind": "builtin:table",
+    "id": "mc-tasks",
+    "title": "Tasks — plan-cockpit-v1",
+    "grid": {
+      "x": 0,
+      "y": 8,
+      "w": 6,
+      "h": 6
+    },
+    "bindings": {
+      "rows": {
+        "source": "static",
+        "value": [
+          {
+            "id": "T-000",
+            "wave": "0",
+            "role": "orchestrator",
+            "status": "✅ done"
+          },
+          {
+            "id": "T-101",
+            "wave": "1",
+            "role": "coder",
+            "status": "✅ done"
+          },
+          {
+            "id": "T-102",
+            "wave": "1",
+            "role": "test-engineer",
+            "status": "✅ done"
+          },
+          {
+            "id": "T-201",
+            "wave": "2",
+            "role": "orchestrator",
+            "status": "✅ done"
+          },
+          {
+            "id": "T-202",
+            "wave": "2",
+            "role": "coder",
+            "status": "⏳ pending"
+          },
+          {
+            "id": "T-203",
+            "wave": "2",
+            "role": "coder",
+            "status": "⏳ pending"
+          },
+          {
+            "id": "T-301",
+            "wave": "3",
+            "role": "orchestrator",
+            "status": "⏳ pending"
+          },
+          {
+            "id": "T-401",
+            "wave": "4",
+            "role": "coder",
+            "status": "⏳ pending"
+          },
+          {
+            "id": "T-402",
+            "wave": "4",
+            "role": "orchestrator",
+            "status": "⏳ pending"
+          },
+          {
+            "id": "T-403",
+            "wave": "4",
+            "role": "coder",
+            "status": "⏳ pending"
+          },
+          {
+            "id": "T-404",
+            "wave": "4",
+            "role": "reviewer",
+            "status": "⏳ pending"
+          },
+          {
+            "id": "T-501",
+            "wave": "5",
+            "role": "orchestrator",
+            "status": "⏳ pending"
+          }
+        ]
+      }
+    },
+    "props": {
+      "columns": [
+        "id",
+        "wave",
+        "role",
+        "status"
+      ]
+    }
+  },
+  {
+    "tab": "mc",
+    "kind": "builtin:table",
+    "id": "mc-timeline",
+    "title": "Timeline — checkpoints (reais)",
+    "grid": {
+      "x": 6,
+      "y": 8,
+      "w": 6,
+      "h": 6
+    },
+    "bindings": {
+      "rows": {
+        "source": "static",
+        "value": [
+          {
+            "quando": "2026-10-04 23:23",
+            "feature": "plan-cockpit-v1",
+            "detalhe": "Checkpoint"
+          },
+          {
+            "quando": "2026-10-04 23:21",
+            "feature": "plan-cockpit-v1",
+            "detalhe": "Checkpoint"
+          },
+          {
+            "quando": "2026-10-04 23:18",
+            "feature": "plan-cockpit-v1",
+            "detalhe": "Checkpoint"
+          },
+          {
+            "quando": "2026-07-27 14:58",
+            "feature": "pd-fleet-supervisor-handoff",
+            "detalhe": "Checkpoint"
+          }
+        ]
+      }
+    },
+    "props": {
+      "columns": [
+        "quando",
+        "feature",
+        "detalhe"
+      ]
+    }
+  },
+  {
+    "tab": "mc",
+    "kind": "builtin:markdown",
+    "id": "mc-fleet",
+    "title": "Fleet runs",
+    "grid": {
+      "x": 0,
+      "y": 14,
+      "w": 12,
+      "h": 3
+    },
+    "bindings": {
+      "content": {
+        "source": "static",
+        "value": "## Fleet runs\n\n**0 runs persistidos** em `.pd-fleet-runs/` — o piloto de execução real é a **wave 4** (T-401→T-404; G2 = autorização de dispatch live).\n\nMaquinaria pronta: FleetPlan v1/v2 · adapters reais (`runtime_adapters.py`) · supervisor/run_store/checkpoints. Quando um run rodar, ele **se auto-registra** e aparece aqui."
+      }
+    }
+  }
+]

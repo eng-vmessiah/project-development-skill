@@ -176,7 +176,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: orchestrator-isis
-    status: pending
+    status: done
 
   - id: T-202
     wave: 2

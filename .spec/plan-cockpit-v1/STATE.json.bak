@@ -4,7 +4,8 @@
   "status": "initialized",
   "tasks": [
     "T-101 \u2014 plan_cockpit_sync.py collector (7 features reais; determinismo \u2713)",
-    "T-102 \u2014 sync tests (9 passed; determinism/anti-fabrication/corrupt-skip)"
+    "T-102 \u2014 sync tests (9 passed; determinism/anti-fabrication/corrupt-skip)",
+    "T-201 \u2014 Mission Control tab (5 widgets, v57; rebuild p\u00f3s-reset; payloads reproduz\u00edveis)"
   ],
   "checkpoints": [
     {
@@ -26,12 +27,21 @@
       "tasks_snapshot": [
         "T-101 \u2014 plan_cockpit_sync.py collector (7 features reais; determinismo \u2713)"
       ]
+    },
+    {
+      "date": "2026-10-04 23:23",
+      "phase": 0,
+      "note": "T-102 DONE \u2014 9/9 tests; ruff clean on both files; wave 1 complete",
+      "tasks_snapshot": [
+        "T-101 \u2014 plan_cockpit_sync.py collector (7 features reais; determinismo \u2713)",
+        "T-102 \u2014 sync tests (9 passed; determinism/anti-fabrication/corrupt-skip)"
+      ]
     }
   ],
   "created_at": "2026-10-04T23:05:58.575354",
-  "updated_at": "2026-10-04T23:23:28.047953",
+  "updated_at": "2026-10-04T23:37:35.339070",
   "fleet_state": {
-    "updated_at": "2026-10-04T23:23:28.047953",
+    "updated_at": "2026-10-04T23:37:35.339070",
     "schema_version": 1,
     "agents": [],
     "waves": [],

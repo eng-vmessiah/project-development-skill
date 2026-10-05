@@ -15,7 +15,7 @@ Cockpit-ready: every task declares `id · wave · role · depends_on · allowed_
 
 ## Wave 2 — Mission Control (A)
 
-- [ ] T-201 · orchestrator · Board tab `mc` (tab + widgets) with real `plan-cockpit.json` data · deps: T-101 · validation: `boardstate_workspace_get` + bindings verified.
+- [x] T-201 · orchestrator · Board tab `mc` ✅ 04/10 (5 widgets, v57 · dados reais · reconstruída pós-reset do app · payloads reproduzíveis via `--widgets` → `mc-widgets.json`) · deps: T-101 · validation: `boardstate_workspace_get` + bindings verified.
 - [ ] T-202 · coder · adopt `pd` feeding in the workflow (docs + this feature: real checkpoints per gate) · deps: G1 · validation: `pd list --json` shows this feature with real data.
 - [ ] T-203 · coder · automatic refresh — scheduled `plan_cockpit_sync` (cron) + documented trigger points (cron creation subject to owner approval) · deps: T-101 · validation: cron fires + JSON fresh.
 

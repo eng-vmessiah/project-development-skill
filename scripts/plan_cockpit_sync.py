@@ -124,11 +124,15 @@ def features() -> list[dict]:
         tasks_done = tasks_total = 0
         waves: list[dict] = []
         gates: list[dict] = []
+        task_rows: list[dict] = []
         if plan:
             source = "plan-yaml"
             tasks = [t for t in (plan.get("tasks") or []) if isinstance(t, dict)]
             tasks_total = len(tasks)
             tasks_done = sum(1 for t in tasks if t.get("status") == "done")
+            task_rows = [{"id": t.get("id"), "wave": t.get("wave"),
+                          "role": t.get("role"), "status": t.get("status")}
+                         for t in tasks]
             waves = [{"id": w.get("id"), "status": w.get("status"),
                       "tasks": len(w.get("tasks") or [])}
                      for w in (plan.get("waves") or []) if isinstance(w, dict)]
@@ -153,6 +157,7 @@ def features() -> list[dict]:
             "checkpoints": len(cps),
             "checkpoints_log": [c for c in cps[-3:]],
             "waves": waves,
+            "tasks": task_rows,
             "gates": gates,
             "fleet_state": _fleet_state_summary(state),
             "created_at": state.get("created_at"),
@@ -245,12 +250,75 @@ def build(runs_root: Path) -> dict:
     }
 
 
+def widget_payloads(snapshot: dict) -> list[dict]:
+    """Mission Control tab payloads — reproducible re-apply after app workspace resets."""
+    feats = snapshot["features"]
+
+    def _gates_txt(gates: list[dict]) -> str:
+        txt = " ".join(f"{g['id']}{'✅' if g['status'] == 'approved' else '·'}" for g in gates)
+        return txt or "—"
+
+    def _feat_row(f: dict) -> dict:
+        return {"feature": f["feature"], "fase": str(f["phase"]), "status": f["status"],
+                "fonte": f["source"], "tasks": f"{f['tasks_done']}/{f['tasks_total']}",
+                "cps": str(f["checkpoints"]), "gates": _gates_txt(f["gates"])}
+
+    pc = next((f for f in feats if f["feature"] == "plan-cockpit-v1"), None)
+    pc_tasks = pc["tasks"] if pc else []
+    pc_done = sum(1 for t in pc_tasks if t.get("status") == "done")
+    ts = snapshot.get("generated_at", "")[:16].replace("T", " ")
+    meta = snapshot["meta"]
+    overview = (
+        "# Mission Control — PD (plan-cockpit v1)\n\n"
+        "Visão única do PD **derivada só de fontes reais** (nunca fabricar telemetria).\n\n"
+        f"- **Features:** {len(feats)} · **plan-cockpit-v1:** {pc_done}/{len(pc_tasks)} tasks · "
+        f"**Checkpoints:** {meta['checkpoint_events']} · **Runs:** {meta['fleet_run_count']}\n"
+        f"- Snapshot: **{ts}**\n"
+        "- Fonte: `scripts/plan_cockpit_sync.py` → `.spec/pd-studio/plan-cockpit.json`"
+    )
+    timeline_rows = [{"quando": e["ts"][:16].replace("T", " "),
+                      "feature": e["feature"], "detalhe": "Checkpoint"}
+                     for e in snapshot["timeline"]]
+    fleet_md = (
+        "## Fleet runs\n\n"
+        f"**{meta['fleet_run_count']} runs persistidos** em `.pd-fleet-runs/` — "
+        "o piloto de execução real é a **wave 4** (T-401→T-404; G2 = autorização de dispatch live).\n\n"
+        "Maquinaria pronta: FleetPlan v1/v2 · adapters reais (`runtime_adapters.py`) · "
+        "supervisor/run_store/checkpoints. Quando um run rodar, ele **se auto-registra** e aparece aqui."
+    )
+    return [
+        {"tab": "mc", "kind": "builtin:markdown", "id": "mc-overview", "title": "Overview",
+         "grid": {"x": 0, "y": 0, "w": 12, "h": 3},
+         "bindings": {"content": {"source": "static", "value": overview}}},
+        {"tab": "mc", "kind": "builtin:table", "id": "mc-features", "title": "Features (estado real)",
+         "grid": {"x": 0, "y": 3, "w": 12, "h": 5},
+         "bindings": {"rows": {"source": "static", "value": [_feat_row(f) for f in feats]}},
+         "props": {"columns": ["feature", "fase", "status", "fonte", "tasks", "cps", "gates"]}},
+        {"tab": "mc", "kind": "builtin:table", "id": "mc-tasks", "title": "Tasks — plan-cockpit-v1",
+         "grid": {"x": 0, "y": 8, "w": 6, "h": 6},
+         "bindings": {"rows": {"source": "static", "value": [
+             {"id": t["id"], "wave": str(t["wave"]), "role": t["role"],
+              "status": "✅ done" if t.get("status") == "done" else "⏳ pending"}
+             for t in pc_tasks]}},
+         "props": {"columns": ["id", "wave", "role", "status"]}},
+        {"tab": "mc", "kind": "builtin:table", "id": "mc-timeline", "title": "Timeline — checkpoints (reais)",
+         "grid": {"x": 6, "y": 8, "w": 6, "h": 6},
+         "bindings": {"rows": {"source": "static", "value": timeline_rows}},
+         "props": {"columns": ["quando", "feature", "detalhe"]}},
+        {"tab": "mc", "kind": "builtin:markdown", "id": "mc-fleet", "title": "Fleet runs",
+         "grid": {"x": 0, "y": 14, "w": 12, "h": 3},
+         "bindings": {"content": {"source": "static", "value": fleet_md}}},
+    ]
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--write", action="store_true",
                     help="save .spec/pd-studio/plan-cockpit.json")
     ap.add_argument("--runs-root", default=str(DEFAULT_RUNS_ROOT),
                     help="root directory of FleetRunStore runs")
+    ap.add_argument("--widgets", action="store_true",
+                    help="also write .spec/pd-studio/mc-widgets.json (Mission Control re-apply payloads)")
     args = ap.parse_args()
 
     snapshot = build(Path(args.runs_root).expanduser())
@@ -260,6 +328,11 @@ def main() -> None:
         out.write_text(json.dumps(snapshot, indent=2, ensure_ascii=False) + "\n",
                        encoding="utf-8")
         print(f"wrote {out}")
+    if args.widgets:
+        wout = REPO / ".spec/pd-studio/mc-widgets.json"
+        wout.write_text(json.dumps(widget_payloads(snapshot), indent=2, ensure_ascii=False) + "\n",
+                        encoding="utf-8")
+        print(f"wrote {wout}")
     print(json.dumps(snapshot, indent=2, ensure_ascii=False))
 
 
