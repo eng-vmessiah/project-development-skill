@@ -117,19 +117,29 @@ def _depth(value: object) -> int:
     return 0
 
 
+class _PathCollision(Exception):
+    """Two representations of the same envelope path in one event."""
+
+
 def _flatten(value: Mapping, prefix: str = "") -> dict[str, object]:
     flat: dict[str, object] = {}
     for key, child in value.items():
         path = f"{prefix}{key}"
         if isinstance(child, Mapping):
-            flat.update(_flatten(child, prefix=f"{path}."))
+            nested = _flatten(child, prefix=f"{path}.")
+            for nested_path in nested:
+                if nested_path in flat:
+                    raise _PathCollision(nested_path)
+            flat.update(nested)
         else:
+            if path in flat:
+                raise _PathCollision(path)
             flat[path] = child
     return flat
 
 
 def _valid_ts(value: object) -> bool:
-    if not isinstance(value, str) or not value.endswith("Z"):
+    if not isinstance(value, str) or len(value) > STRING_MAX or not value.endswith("Z"):
         return False
     try:
         datetime.fromisoformat(value.replace("Z", "+00:00"))
@@ -151,7 +161,10 @@ def validate_event(event: object) -> RedactionVerdict:
     if _depth(event) > DEPTH_MAX:
         return RedactionVerdict(False, "nested_beyond_depth")
 
-    flat = _flatten({key: value for key, value in event.items() if key != "payload"})
+    try:
+        flat = _flatten({key: value for key, value in event.items() if key != "payload"})
+    except _PathCollision:
+        return RedactionVerdict(False, "duplicate_path")
     flat["payload"] = event.get("payload")
     unknown = set(flat) - ENVELOPE_FIELDS
     if unknown:

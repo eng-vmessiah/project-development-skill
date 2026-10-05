@@ -65,3 +65,14 @@ def test_partial_map_and_empty_map_deny():
     assert not decision.allowed and decision.denied_by == ("B8",)
     decision = evaluate_gates({})
     assert not decision.allowed and decision.denied_by == GATE_IDS
+
+
+def test_non_contract_input_denies():
+    # defensive: out-of-contract input denies instead of raising (review NIT-1)
+    assert not evaluate_gates(None).allowed
+    decision = evaluate_gates({"B1": "not-a-gate-value"})
+    assert not decision.allowed and "B1" in decision.denied_by
+    gates = _all_pass()
+    gates["B7"] = GateValue(present=True, valid=True, capability=["not", "hashable"])
+    decision = evaluate_gates(gates)
+    assert not decision.allowed and decision.denied_by == ("B7",)

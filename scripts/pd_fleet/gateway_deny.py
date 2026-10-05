@@ -44,12 +44,16 @@ class GateDecision:
 
 def evaluate_gates(gates: Mapping[str, GateValue]) -> GateDecision:
     """All-gates-pass evaluation; re-run for every use (anti-hot-reload)."""
+    if not isinstance(gates, Mapping):
+        return GateDecision(allowed=False, denied_by=GATE_IDS)
     denied: list[str] = []
     for gate_id in GATE_IDS:
         value = gates.get(gate_id)
-        if value is None or not value.present or not value.valid:
+        if not isinstance(value, GateValue) or not value.present or not value.valid:
             denied.append(gate_id)
             continue
-        if gate_id == "B7" and value.capability not in CAPABILITIES_V1:
+        if gate_id == "B7" and (
+            not isinstance(value.capability, str) or value.capability not in CAPABILITIES_V1
+        ):
             denied.append(gate_id)
     return GateDecision(allowed=not denied, denied_by=tuple(denied))

@@ -13,6 +13,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 from pd_fleet.gateway_redaction import (
+    ENVELOPE_FIELDS,
     OWNERSHIP_MODE,
     SOURCE_SYSTEM,
     TRANSPORT,
@@ -43,6 +44,14 @@ def _event(event_type="session.status_changed", payload=None, **overrides):
     }
     base.update(overrides)
     return base
+
+
+def _drop(event, path):
+    parts = path.split(".")
+    target = event
+    for part in parts[:-1]:
+        target = target[part]
+    del target[parts[-1]]
 
 
 # ── per-field allowed (passa íntegro) ────────────────────────────────────────
@@ -204,3 +213,26 @@ def test_redaction_envelope_closed_fields():
     extra = _event()
     extra["surprise"] = 1
     assert validate_event(extra).reason == "unknown_field"
+
+
+@pytest.mark.parametrize("field", sorted(ENVELOPE_FIELDS))
+def test_redaction_envelope_field_required(field):
+    # 1:1 per-field coverage (review NIT-2): each of the 15 fields is required
+    event = _event()
+    _drop(event, field)
+    verdict = validate_event(event)
+    assert not verdict.ok
+    expected = {"schema_version": "unsupported_schema", "payload": "invalid_field"}
+    assert verdict.reason == expected.get(field, "malformed_envelope")
+
+
+def test_redaction_duplicate_path_rejected():
+    # MEDIUM-1: a literal shadow of a nested path must be rejected, never
+    # passed through unvalidated (round-trip JSON preserves both).
+    event = _event()
+    event["source.system"] = "Bearer SECRET-leak"  # shadow literal
+    verdict = validate_event(event)
+    assert not verdict.ok and verdict.reason == "duplicate_path"
+    event2 = _event()
+    event2["session.session_ref"] = "x" * 100_000  # oversized shadow
+    assert not validate_event(event2).ok
