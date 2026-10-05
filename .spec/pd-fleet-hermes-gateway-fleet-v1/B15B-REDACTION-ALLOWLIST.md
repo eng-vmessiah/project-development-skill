@@ -1,6 +1,6 @@
 # B15B — Redaction Allowlist/Denylist (pacote G-2)
 
-**Status:** `draft_v0_1_for_approval` — G-2 (owner: security; papel acumulado no owner neste contexto solo). Nada embutido em runtime; o seam B15b.1 tem 0 call sites e não embute bounds pré-ativação.
+**Status:** `draft_v0_2_for_approval` — G-2 (owner: security; papel acumulado no owner neste contexto solo). Nada embutido em runtime; o seam B15b.1 tem 0 call sites e não embute bounds pré-ativação. **Review:** v0.1 → `PASS_WITH_BLOCKERS` (fixture message_content · ttl sem lastro · malformed provenance/schema · envelope por campo · tool_material · ownership_mode — **aplicados na v0.2**); re-review focado a dispatchar.
 **Data:** 2026-10-05 · **Autoria:** ISIS (orchestrator) · **Fonte:** `G4-SECURITY.md` (§5 · §8) · `G4-CLOSURE.md` (§4) · `G1-CONTRACT.md` (§4 · §5) · `B15B-SEAM-CONTRACT.md` v0.3 (§4 — bounds congelados).
 **Evidência de fechamento (G4-SECURITY §8):** "denylist/allowlist tests with sensitive fixtures" — §4 abaixo.
 
@@ -36,12 +36,12 @@
 |---|---|---|
 | `session.registered` | `runtime_surface`, `metadata_version` | enum* + int ≥0 |
 | `session.status_changed` | `status`, `reason_code`, `metadata_version` | enums* + int |
-| `session.heartbeat` | `heartbeat_sequence`, `observed_at`, `ttl_ms` | ints ≥0 (ttl ≤300000) + timestamp |
+| `session.heartbeat` | `heartbeat_sequence`, `observed_at`, `ttl_ms` | ints ≥0 + timestamp; **`ttl_ms` ≤300000 = novo candidato a aprovar** (rationale: liveness ≤5min — mesma escala do TTL de ativação candidato em G4-CLOSURE §2) |
 | `session.metadata_changed` | `metadata_version`, `changed_fields` | int + **lista de enum fechado** (sem mapa/valores) |
 | `session.detached` | `reason_code`, `metadata_version` | enum* + int |
 | `session.ended` | `terminal_state`, `reason_code`, `metadata_version` | enums* + int |
 
-\* **Enums candidatos a aprovar** (conjunto final congelado neste documento na aprovação): `runtime_surface` ∈ {`cli`, `gateway`, `api`, `tui`} · `status` ∈ {`active`, `idle`, `stale`, `ended`} · `reason_code` ∈ {`none`, `timeout`, `detached`, `error`, `closed`} · `terminal_state` ∈ {`ended`, `error`} · `changed_fields` ⊆ {`status`, `metadata_version`, `ownership_mode`}.
+\* **Enums candidatos a aprovar** (conjunto final congelado neste documento na aprovação): `runtime_surface` ∈ {`cli`, `gateway`, `api`, `tui`} · `status` ∈ {`active`, `idle`, `stale`, `ended`} · `reason_code` ∈ {`none`, `timeout`, `detached`, `error`, `closed`} · `terminal_state` ∈ {`ended`, `error`} · `changed_fields` ⊆ {`status`, `metadata_version`} (v1: `ownership_mode` é single-value — transição impossível, fora do conjunto).
 
 ## 3. Denylist (deny-by-default mesmo se a fonte contiver)
 
@@ -52,9 +52,9 @@
 Convenção `redaction_<alvo>_<caso>`; execução: unit no **B15b.2** + buckets live no **B15b.5**.
 
 - **Por campo permitido (passa íntegro):** `redaction_<evento>_<campo>_allowed` — ex.: `redaction_status_changed_status_allowed`, `redaction_heartbeat_ttl_ms_allowed`, `redaction_metadata_changed_changed_fields_allowed`.
-- **Por categoria negada (fixtures sensíveis):** `redaction_deny_prompt`, `redaction_deny_history`, `redaction_deny_tool_args`, `redaction_deny_provider_response`, `redaction_deny_approval_payload`, `redaction_deny_credentials`, `redaction_deny_paths`, `redaction_deny_terminal_frames`, `redaction_deny_env_vars`, `redaction_deny_network_address`.
-- **Estruturais (fail-closed):** `redaction_unknown_field_fail_closed`, `redaction_unknown_enum_fail_closed`, `redaction_oversized_payload_rejected`, `redaction_arbitrary_map_rejected`, `redaction_binary_rejected`, `redaction_nested_beyond_depth_rejected`.
-- **Envelope:** `redaction_envelope_closed_fields` (todo campo do envelope coberto; unknown ⇒ reject).
+- **Por categoria negada (fixtures sensíveis):** `redaction_deny_prompt`, `redaction_deny_history`, `redaction_deny_message_content`, `redaction_deny_tool_material` (name/arguments/results), `redaction_deny_provider_response`, `redaction_deny_approval_payload`, `redaction_deny_credentials`, `redaction_deny_paths`, `redaction_deny_terminal_frames`, `redaction_deny_env_vars`, `redaction_deny_network_address`.
+- **Estruturais (fail-closed):** `redaction_unknown_field_fail_closed`, `redaction_unknown_enum_fail_closed`, `redaction_oversized_payload_rejected`, `redaction_arbitrary_map_rejected`, `redaction_binary_rejected`, `redaction_nested_beyond_depth_rejected`, `redaction_malformed_provenance_fail_closed`, `redaction_unsupported_schema_fail_closed` (espelha `version_unsupported` do seam).
+- **Envelope:** `redaction_envelope_closed_fields` — cobre explicitamente os **15 campos-folha** do §2.1 (um por um); unknown/extra ⇒ reject.
 
 ## 5. Aprovação (gate G-2)
 
