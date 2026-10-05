@@ -18,6 +18,7 @@ initialized
 - [x] T-202 — série replayable: observer seam default-off (registry+publish+7 fixtures; git am limpo, tree idêntico)
 - [x] T-301 — auth+associação local: gateway_auth.py (tickets §1 / consume atômico single-writer §4 / idempotência §5 / uniformidade §6 / state machine §3) + 22 fixtures G4 §9 verdes; ruff ok
 - [x] T-302 — composite-deny (8 gates, all-pass, anti-hot-reload) + redaction validator (allowlist G-2 fechada) + fixtures nomeadas (20+29+22=71 verdes; ruff ok)
+- [x] T-401 — subscription v1: associação explícita (sem global/wildcard), ordering contígua (gap bloqueia avanço), outbox/ACK retriável (cursor só avança contíguo), TTLs liveness (30/90/60/900s), gaps explícitos (replay_gap/cursor_stale/cursor_expired+resync), detach tombstona+cancela outbox; 14 fixtures verdes; suíte fleet 1348 passed
 
 ## Checkpoints
 - 2026-10-05 01:17: B15b.0 docs drafted; G-0 review dispatch
@@ -35,15 +36,16 @@ initialized
 - 2026-10-05 14:25: T-301 review PASS; fixes LOW aplicados
 - 2026-10-05 14:31: T-302 review PASS_WITH_BLOCKERS → fixes aplicados (duplicate_path/ts-bound/defensive/per-field); wave-3 exit pendente de re-check
 - 2026-10-05 14:36: WAVE-3 EXIT VERIFIED (re-check PASS; MEDIUM-1 closed) — wave 4 (T-401) desbloqueada
+- 2026-10-05 14:40: T-401 entregue (14/14; suíte fleet 1348 verde c/ fix do harness bridge); review a dispatchar
 
 ## Timestamps
 - Created: 2026-10-05T01:16:27.231152
-- Updated: 2026-10-05T14:36:22.107055
+- Updated: 2026-10-05T14:40:06.088992
 
 ## Fleet State
 ```json
 {
-  "updated_at": "2026-10-05T14:36:22.107055",
+  "updated_at": "2026-10-05T14:40:06.088992",
   "schema_version": 1,
   "agents": [],
   "waves": [],
