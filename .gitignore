@@ -8,6 +8,9 @@ Thumbs.db
 
 # Temp
 *.tmp
+
+# pd-studio: cursor efêmero do fleet (TTL ~15min; estado local, não versionar)
+.spec/pd-studio/fleet-cursor.json
 *.swp
 *~
 

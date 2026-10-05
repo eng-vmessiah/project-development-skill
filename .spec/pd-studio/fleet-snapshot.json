@@ -1,0 +1,37 @@
+{
+  "generated_at": "2026-10-05T01:51:04+00:00",
+  "source": "fleet.session.* via /api/ws (serve vivo :9119)",
+  "wire": "pd-fleet-tui:v1",
+  "activate": {
+    "schema_version": "pd-fleet-tui:v1",
+    "association_ref": "assoc.6df294d9c61d8d4c",
+    "subscriber_ref": "3e58109a5a60412884d5f30ce36066d7",
+    "stream_epoch": "c5b68788fdd64fcd89778890ed494a54",
+    "cursor": "cur.NTkxMGVmMDMzOWJmNjA5ZC1lY2Y0OTBhMC1jNWI2ODc4OGZkZDY0ZmNkODk3Nzg4OTBlZDQ5NGE1NC0zLTE3OTExNjUwNjQtMTc5MTE2NTk2NA",
+    "snapshot": {
+      "association_ref": "assoc.6df294d9c61d8d4c",
+      "stream_epoch": "c5b68788fdd64fcd89778890ed494a54",
+      "snapshot_sequence": 3,
+      "boundary_ref": "bnd.c5b68788fdd6.3",
+      "state": "observing",
+      "metadata_version": 1
+    }
+  },
+  "status": {
+    "schema_version": "pd-fleet-tui:v1",
+    "snapshot": {
+      "association_ref": "assoc.6df294d9c61d8d4c",
+      "stream_epoch": "c5b68788fdd64fcd89778890ed494a54",
+      "snapshot_sequence": 3,
+      "boundary_ref": "bnd.c5b68788fdd6.3",
+      "state": "observing",
+      "metadata_version": 1
+    }
+  },
+  "replay": {
+    "schema_version": "pd-fleet-tui:v1",
+    "events": [],
+    "next_cursor": "cur.Y2M4YmU3NzMxYjM4ZjBkMy1lY2Y0OTBhMC1jNWI2ODc4OGZkZDY0ZmNkODk3Nzg4OTBlZDQ5NGE1NC0zLTE3OTExNjQ5ODUtMTc5MTE2NTg4NQ"
+  },
+  "events_observed": []
+}

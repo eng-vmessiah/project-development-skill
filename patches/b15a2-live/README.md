@@ -25,6 +25,7 @@
 - **Ativação**: `run-3bii.sh` (backup dir `~/backups/b15a2-3bii-20261004-2238/` + esta pasta) — stop → `git am` 0022 → drop-in systemd `Environment=HERMES_FLEET_TUI_CANARY=1` **só no `hermes-serve`** → daemon-reload → start → smoke (`[fleet-canary] enabled` no journal).
 - **Rollback**: **R1** (fleet off, código fica): `rm` do drop-in + daemon-reload + restart serve · **R2**: R1 + `git reset --hard 6b5d888382` + restart.
 - **Evidências da árvore**: boot tests 4✓; grupo fleet 77✓; lifespan sanity 39✓; ruff ✓; canônica `tests/tui_gateway` em execução no fechamento (comparar com o baseline 93 falhas conhecidas).
+- **✅ Executado 04/10 22:41** — `[fleet-canary] enabled` no journal às 22:41:53; tip vivo `dc50153faf`; observação real (eventos `session.detached`/`session.registered` via wire) + aba Fleet: `B15A2-3BII-EXECUTION-RESULT.md`; `run.log` no backup dir.
 
 ## Regenerar esta série
 
