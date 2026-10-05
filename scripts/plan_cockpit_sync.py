@@ -311,6 +311,21 @@ def widget_payloads(snapshot: dict) -> list[dict]:
     ]
 
 
+def publish_files(snapshot: dict) -> dict[str, str]:
+    """Live-binding files for the dashboard data dir (file bindings, no cache on read)."""
+    payloads = {p["id"]: p for p in widget_payloads(snapshot)}
+    tables = {
+        "features": payloads["mc-features"]["bindings"]["rows"]["value"],
+        "tasks": payloads["mc-tasks"]["bindings"]["rows"]["value"],
+        "timeline": payloads["mc-timeline"]["bindings"]["rows"]["value"],
+    }
+    return {
+        "overview.md": payloads["mc-overview"]["bindings"]["content"]["value"] + "\n",
+        "fleet.md": payloads["mc-fleet"]["bindings"]["content"]["value"] + "\n",
+        "tables.json": json.dumps(tables, indent=2, ensure_ascii=False) + "\n",
+    }
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--write", action="store_true",
@@ -319,6 +334,8 @@ def main() -> None:
                     help="root directory of FleetRunStore runs")
     ap.add_argument("--widgets", action="store_true",
                     help="also write .spec/pd-studio/mc-widgets.json (Mission Control re-apply payloads)")
+    ap.add_argument("--publish", action="store_true",
+                    help="write live-binding files to ~/.hermes/boardstate-state/dashboard/data/mc/")
     args = ap.parse_args()
 
     snapshot = build(Path(args.runs_root).expanduser())
@@ -333,6 +350,12 @@ def main() -> None:
         wout.write_text(json.dumps(widget_payloads(snapshot), indent=2, ensure_ascii=False) + "\n",
                         encoding="utf-8")
         print(f"wrote {wout}")
+    if args.publish:
+        pdir = Path.home() / ".hermes/boardstate-state/dashboard/data/mc"
+        pdir.mkdir(parents=True, exist_ok=True)
+        for name, content in publish_files(snapshot).items():
+            (pdir / name).write_text(content, encoding="utf-8")
+            print(f"wrote {pdir / name}")
     print(json.dumps(snapshot, indent=2, ensure_ascii=False))
 
 

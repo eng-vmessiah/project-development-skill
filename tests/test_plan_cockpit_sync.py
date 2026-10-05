@@ -184,3 +184,13 @@ def test_widget_payloads_shapes(fake_repo: Path) -> None:
     assert all(p["tab"] == "mc" for p in payloads)
     assert payloads[1]["bindings"]["rows"]["value"][0]["feature"] == "feat-w"
     assert payloads[0]["bindings"]["content"]["value"].startswith("# Mission Control")
+
+
+def test_publish_files_shapes(fake_repo: Path) -> None:
+    _feature(fake_repo, "feat-p")
+    snap = pc.build(fake_repo / ".pd-fleet-runs")
+    files = pc.publish_files(snap)
+    assert set(files) == {"overview.md", "fleet.md", "tables.json"}
+    tables = json.loads(files["tables.json"])
+    assert set(tables) == {"features", "tasks", "timeline"}
+    assert tables["features"][0]["feature"] == "feat-p"
