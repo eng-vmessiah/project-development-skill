@@ -119,7 +119,7 @@ tasks:
       backoff_seconds: 1
       retryable_errors: []
     owner: coder-hermes
-    status: pending
+    status: done
 
   - id: T-102
     wave: 1
