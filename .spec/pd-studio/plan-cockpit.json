@@ -1,9 +1,181 @@
 {
   "schema": "plan-cockpit:v1",
-  "generated_at": "2026-10-05T03:44:09+00:00",
+  "generated_at": "2026-10-05T04:17:41+00:00",
   "repo": "/home/vitor/project/project-development-skill",
   "runs_root": "/home/vitor/project/project-development-skill/.pd-fleet-runs",
   "features": [
+    {
+      "feature": "b15b-gateway",
+      "phase": 0,
+      "status": "initialized",
+      "source": "plan-yaml",
+      "tasks_done": 4,
+      "tasks_total": 12,
+      "checkpoints": 1,
+      "checkpoints_log": [
+        {
+          "name": "CHECKPOINT-20261005-0117.md",
+          "ts": "2026-10-05T01:17+00:00",
+          "heading": "Checkpoint - 2026-10-05 01:17"
+        }
+      ],
+      "waves": [
+        {
+          "id": "wave-0",
+          "status": "done",
+          "tasks": 1
+        },
+        {
+          "id": "wave-1",
+          "status": "pending",
+          "tasks": 3
+        },
+        {
+          "id": "wave-2",
+          "status": "pending",
+          "tasks": 2
+        },
+        {
+          "id": "wave-3",
+          "status": "pending",
+          "tasks": 2
+        },
+        {
+          "id": "wave-4",
+          "status": "pending",
+          "tasks": 1
+        },
+        {
+          "id": "wave-5",
+          "status": "pending",
+          "tasks": 1
+        },
+        {
+          "id": "wave-6",
+          "status": "pending",
+          "tasks": 2
+        }
+      ],
+      "tasks": [
+        {
+          "id": "T-000",
+          "wave": 0,
+          "role": "orchestrator",
+          "status": "done"
+        },
+        {
+          "id": "T-101",
+          "wave": 1,
+          "role": "orchestrator",
+          "status": "done"
+        },
+        {
+          "id": "T-102",
+          "wave": 1,
+          "role": "orchestrator",
+          "status": "done"
+        },
+        {
+          "id": "T-103",
+          "wave": 1,
+          "role": "orchestrator",
+          "status": "done"
+        },
+        {
+          "id": "T-201",
+          "wave": 2,
+          "role": "coder",
+          "status": "pending"
+        },
+        {
+          "id": "T-202",
+          "wave": 2,
+          "role": "coder",
+          "status": "pending"
+        },
+        {
+          "id": "T-301",
+          "wave": 3,
+          "role": "coder",
+          "status": "pending"
+        },
+        {
+          "id": "T-302",
+          "wave": 3,
+          "role": "coder",
+          "status": "pending"
+        },
+        {
+          "id": "T-401",
+          "wave": 4,
+          "role": "coder",
+          "status": "pending"
+        },
+        {
+          "id": "T-501",
+          "wave": 5,
+          "role": "coder",
+          "status": "pending"
+        },
+        {
+          "id": "T-601",
+          "wave": 6,
+          "role": "coder",
+          "status": "pending"
+        },
+        {
+          "id": "T-602",
+          "wave": 6,
+          "role": "reviewer",
+          "status": "pending"
+        }
+      ],
+      "gates": [
+        {
+          "id": "G-0",
+          "kind": "review",
+          "status": "pending",
+          "owner": "vitor"
+        },
+        {
+          "id": "G-1",
+          "kind": "authorization",
+          "status": "pending",
+          "owner": "vitor"
+        },
+        {
+          "id": "G-2",
+          "kind": "approval",
+          "status": "pending",
+          "owner": "security"
+        },
+        {
+          "id": "G-3",
+          "kind": "authorization",
+          "status": "pending",
+          "owner": "vitor"
+        }
+      ],
+      "fleet_state": {
+        "agents": 0,
+        "waves": 0,
+        "tasks": 0,
+        "gates": 0,
+        "reports": 0,
+        "attempts": 0,
+        "blockers": 0,
+        "evidence": 0
+      },
+      "created_at": "2026-10-05T01:16:27.231152",
+      "updated_at": "2026-10-05T01:17:41.591632",
+      "last_commit": null,
+      "pd_view": {
+        "phase_name": "Setup",
+        "tasks_done": 4,
+        "tasks_total": 12,
+        "checkpoints": 1
+      }
+    },
     {
       "feature": "plan-cockpit-v1",
       "phase": 0,
@@ -173,7 +345,7 @@
       },
       "created_at": "2026-10-04T23:05:58.575354",
       "updated_at": "2026-10-05T00:44:08.902208",
-      "last_commit": "711d9fd 2026-10-05 fix(plan-cockpit): T-404 review applied — correct run-1 narrative (4 runs/9 dispatches; PATH_DENIED diagnosis was wrong), limits documented, log records model",
+      "last_commit": "03bbb74 2026-10-05 chore(plan-cockpit): T-501 closeout — VERIFICATION.md, G3 approved, records synced; feature CLOSED (13/13)",
       "pd_view": {
         "phase_name": "Setup",
         "tasks_done": 12,
@@ -237,7 +409,7 @@
       },
       "created_at": "2026-10-03T23:22:01.901001",
       "updated_at": "2026-10-03T23:22:01.901001",
-      "last_commit": "9f7cc3d 2026-10-04 feat(plan-cockpit): T-204 — mission selector (action-form + live mission detail; --mission) + tests",
+      "last_commit": "0de5dcf 2026-10-05 docs(b15b): plan v0.3 — review PASS (v0.1 PASS_WITH_BLOCKERS → v0.2 PASS); L2/NIT fixes; awaiting owner approval",
       "pd_view": {
         "phase_name": "Setup",
         "tasks_done": 0,
@@ -382,6 +554,12 @@
   ],
   "timeline": [
     {
+      "ts": "2026-10-05T01:17+00:00",
+      "kind": "checkpoint",
+      "feature": "b15b-gateway",
+      "detail": "Checkpoint - 2026-10-05 01:17"
+    },
+    {
       "ts": "2026-10-05T00:44+00:00",
       "kind": "checkpoint",
       "feature": "plan-cockpit-v1",
@@ -411,14 +589,14 @@
       "run_id": "pilot-hermes-pd-fleet",
       "source": "pilot",
       "status": "3/3 completed",
-      "updated_at": "2026-10-05T03:20:51+00:00",
+      "updated_at": "2026-10-05T03:46:08+00:00",
       "owner": "hermes-pilot",
       "dir": ".spec/pilot-runs/hermes"
     }
   ],
   "meta": {
-    "feature_count": 7,
-    "checkpoint_events": 14,
+    "feature_count": 8,
+    "checkpoint_events": 15,
     "fleet_run_count": 1,
     "warnings": []
   }

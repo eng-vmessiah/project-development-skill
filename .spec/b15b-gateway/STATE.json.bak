@@ -1,0 +1,26 @@
+{
+  "feature": "b15b-gateway",
+  "phase": 0,
+  "status": "initialized",
+  "tasks": [
+    "T-000 \u2014 feature init + plano cockpit-ready (FleetPlan v1 validado)",
+    "T-101 \u2014 decision matrix (11 decis\u00f5es congeladas)",
+    "T-102 \u2014 matriz composite-deny (8 gates)",
+    "T-103 \u2014 wire vocabulary mapping (proposta)"
+  ],
+  "checkpoints": [],
+  "created_at": "2026-10-05T01:16:27.231152",
+  "updated_at": "2026-10-05T01:17:41.493015",
+  "fleet_state": {
+    "updated_at": "2026-10-05T01:17:41.493015",
+    "schema_version": 1,
+    "agents": [],
+    "waves": [],
+    "tasks": [],
+    "gates": [],
+    "reports": [],
+    "attempts": [],
+    "blockers": [],
+    "evidence": []
+  }
+}

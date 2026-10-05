@@ -1,0 +1,458 @@
+schema_version: "1"
+
+agents:
+  - id: orchestrator-isis
+    role: orchestrator
+    capabilities:
+      - planning
+      - docs
+      - integration
+    status: available
+  - id: coder-hermes
+    role: coder
+    capabilities:
+      - python
+      - tests
+      - fixtures
+    status: available
+  - id: reviewer
+    role: reviewer
+    capabilities:
+      - review
+      - security
+    status: available
+
+waves:
+  - id: wave-0
+    tasks:
+      - T-000
+    status: done
+  - id: wave-1
+    tasks:
+      - T-101
+      - T-102
+      - T-103
+    status: pending
+    gates:
+      - G-0
+  - id: wave-2
+    tasks:
+      - T-201
+      - T-202
+    status: pending
+    gates:
+      - G-1
+  - id: wave-3
+    tasks:
+      - T-301
+      - T-302
+    status: pending
+    gates:
+      - G-2
+  - id: wave-4
+    tasks:
+      - T-401
+    status: pending
+  - id: wave-5
+    tasks:
+      - T-501
+    status: pending
+  - id: wave-6
+    tasks:
+      - T-601
+      - T-602
+    status: pending
+    gates:
+      - G-3
+
+tasks:
+  - id: T-000
+    wave: 0
+    role: orchestrator
+    objective: Feature init + plano cockpit-ready (FleetPlan v1) + B15B-PLAN aprovado.
+    depends_on: []
+    parallel_group: null
+    allowed_paths:
+      - .spec/b15b-gateway/
+      - .spec/pd-fleet-hermes-gateway-fleet-v1/
+    forbidden_paths:
+      - .env
+    inputs:
+      - .spec/pd-fleet-hermes-gateway-fleet-v1/B15B-PLAN.md
+    outputs:
+      - name: plan
+        description: plan.yaml cockpit-ready validado + PLAN.md/CONTEXT.md.
+        required: true
+    acceptance_criteria:
+      - FleetPlan.from_dict aceita o plan.yaml; PLAN.md reflete as waves.
+    validation_commands:
+      - python3 -c "import sys,yaml; sys.path.insert(0,'scripts'); from pd_fleet.models import FleetPlan; FleetPlan.from_dict(yaml.safe_load(open('.spec/b15b-gateway/plan.yaml')))"
+    blocked_when: []
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: orchestrator-isis
+    status: done
+
+  - id: T-101
+    wave: 1
+    role: orchestrator
+    objective: Decision matrix — 11 decisões congeladas (G4 §10 + G4-CLOSURE §7) para sign-off.
+    depends_on:
+      - T-000
+    parallel_group: b15b0
+    allowed_paths:
+      - .spec/pd-fleet-hermes-gateway-fleet-v1/
+    forbidden_paths:
+      - .env
+    inputs:
+      - B15B-PLAN.md
+    outputs:
+      - name: decision-matrix
+        description: B15B-DECISION-MATRIX.md §A (11 decisões).
+        required: true
+    acceptance_criteria:
+      - As 11 decisões cobrem G4 §10 (7) + G4-CLOSURE §7 (4) com conta e proposta.
+    validation_commands:
+      - grep -c "| A" .spec/pd-fleet-hermes-gateway-fleet-v1/B15B-DECISION-MATRIX.md
+    blocked_when: []
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: orchestrator-isis
+    status: done
+
+  - id: T-102
+    wave: 1
+    role: orchestrator
+    objective: Matriz composite-deny (all-gates-pass, 8 gates, hot-reload/malformed/direct-call).
+    depends_on:
+      - T-101
+    parallel_group: b15b0
+    allowed_paths:
+      - .spec/pd-fleet-hermes-gateway-fleet-v1/
+    forbidden_paths:
+      - .env
+    inputs:
+      - B15A-EXECUTION-PLANS.md
+    outputs:
+      - name: composite-deny
+        description: B15B-DECISION-MATRIX.md §B.
+        required: true
+    acceptance_criteria:
+      - Os 8 gates do blocker #3 presentes; deny fail-closed em ausência/malformidade.
+    validation_commands:
+      - grep -c "| B" .spec/pd-fleet-hermes-gateway-fleet-v1/B15B-DECISION-MATRIX.md
+    blocked_when: []
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: orchestrator-isis
+    status: done
+
+  - id: T-103
+    wave: 1
+    role: orchestrator
+    objective: Wire vocabulary mapping TUI↔bridge (proposta; seleção formal pelo Hermes owner).
+    depends_on:
+      - T-101
+    parallel_group: b15b0
+    allowed_paths:
+      - .spec/pd-fleet-hermes-gateway-fleet-v1/
+    forbidden_paths:
+      - .env
+    inputs:
+      - G1-CONTRACT.md
+    outputs:
+      - name: wire-mapping
+        description: B15B-DECISION-MATRIX.md §C.
+        required: true
+    acceptance_criteria:
+      - Sem alias silencioso; colisão proibida; erro/versão por camada; default-off.
+    validation_commands:
+      - grep -c "fleet.connect" .spec/pd-fleet-hermes-gateway-fleet-v1/B15B-DECISION-MATRIX.md
+    blocked_when: []
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: orchestrator-isis
+    status: done
+
+  - id: T-201
+    wave: 2
+    role: coder
+    objective: Contrato do seam (event publisher + principal resolution) ANTES de qualquer patch.
+    depends_on:
+      - T-103
+    parallel_group: null
+    allowed_paths:
+      - .spec/pd-fleet-hermes-gateway-fleet-v1/
+      - patches/
+    forbidden_paths:
+      - .env
+    inputs:
+      - B15B-DECISION-MATRIX.md
+    outputs:
+      - name: seam-contract
+        description: Contrato versionado do seam B15b.1 (spec, não código).
+        required: true
+    acceptance_criteria:
+      - Contrato revisado (assinatura, namespace, isolamento de exceção, versão, disabled).
+    validation_commands:
+      - pd validate --deep -f b15b-gateway
+    blocked_when:
+      - Gate G-1 (autorização de edição do checkout Hermes) não aprovado.
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: coder-hermes
+    status: pending
+
+  - id: T-202
+    wave: 2
+    role: coder
+    objective: Série replayable read-only em patches/ + fixtures default-off/absent/disabled + golden non-Fleet + 0 call sites.
+    depends_on:
+      - T-201
+    parallel_group: null
+    allowed_paths:
+      - patches/
+      - .spec/pd-fleet-hermes-gateway-fleet-v1/
+    forbidden_paths:
+      - .env
+    inputs:
+      - T-201 seam-contract
+    outputs:
+      - name: patch-series
+        description: Série replayable (git am limpo) sem instalação.
+        required: true
+    acceptance_criteria:
+      - Default-off/absent/disabled fixtures; golden non-Fleet; 0 call sites; série aplica limpo em cópia.
+    validation_commands:
+      - pd validate --deep -f b15b-gateway
+    blocked_when:
+      - G-1 não aprovado.
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: coder-hermes
+    status: pending
+
+  - id: T-301
+    wave: 3
+    role: coder
+    objective: Auth + associação local (issuance/consume internal-only, state machine G4, store durável, idempotência) — fixtures locais apenas.
+    depends_on:
+      - T-202
+    parallel_group: null
+    allowed_paths:
+      - scripts/
+      - tests/
+    forbidden_paths:
+      - .env
+    inputs:
+      - B15B-DECISION-MATRIX.md
+    outputs:
+      - name: auth-local
+        description: Implementação local com fixtures (sem ativação).
+        required: true
+    acceptance_criteria:
+      - Fixtures locais verdes (consume/associação/idempotência).
+    validation_commands:
+      - pd validate --deep -f b15b-gateway
+    blocked_when:
+      - G-2 (allowlist de redação) não aprovado para as fixtures de redaction.
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: coder-hermes
+    status: pending
+
+  - id: T-302
+    wave: 3
+    role: coder
+    objective: Fixtures composite-deny/redaction nomeadas (8 gates + allowlist por campo).
+    depends_on:
+      - T-301
+    parallel_group: null
+    allowed_paths:
+      - tests/
+    forbidden_paths:
+      - .env
+    inputs:
+      - B15B-DECISION-MATRIX.md
+    outputs:
+      - name: deny-fixtures
+        description: Fixtures nomeadas por gate/campo.
+        required: true
+    acceptance_criteria:
+      - Cada gate da matriz B tem fixture nomeada; redaction por campo.
+    validation_commands:
+      - pd validate --deep -f b15b-gateway
+    blocked_when:
+      - G-2 não aprovado.
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: coder-hermes
+    status: pending
+
+  - id: T-401
+    wave: 4
+    role: coder
+    objective: Subscription v1 (associação explícita) + ordering/ack + heartbeat/TTLs + gap explícito.
+    depends_on:
+      - T-302
+    parallel_group: null
+    allowed_paths:
+      - scripts/
+      - tests/
+    forbidden_paths:
+      - .env
+    inputs:
+      - B15B-DECISION-MATRIX.md
+    outputs:
+      - name: subscription-v1
+        description: Escopo v1 implementado localmente com fixtures.
+        required: true
+    acceptance_criteria:
+      - Fixtures ordering/TTL/heartbeat; gap explícito (replay_gap/cursor_stale).
+    validation_commands:
+      - pd validate --deep -f b15b-gateway
+    blocked_when: []
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: coder-hermes
+    status: pending
+
+  - id: T-501
+    wave: 5
+    role: coder
+    objective: Replay/rollback operacional + crash-point matrix + rollback do isis-gateway.service ensaiado.
+    depends_on:
+      - T-401
+    parallel_group: null
+    allowed_paths:
+      - scripts/
+      - tests/
+      - .spec/pd-fleet-hermes-gateway-fleet-v1/
+    forbidden_paths:
+      - .env
+    inputs:
+      - B15B-DECISION-MATRIX.md
+    outputs:
+      - name: replay-rollback
+        description: Procedimento de rollback + crash points documentados.
+        required: true
+    acceptance_criteria:
+      - Rollback ensaiado em ambiente controlado; crash points documentados.
+    validation_commands:
+      - pd validate --deep -f b15b-gateway
+    blocked_when: []
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: coder-hermes
+    status: pending
+
+  - id: T-601
+    wave: 6
+    role: coder
+    objective: Live validation (slice separadamente autorizado; downtime declarado ~10-20min).
+    depends_on:
+      - T-501
+    parallel_group: null
+    allowed_paths:
+      - .spec/pd-fleet-hermes-gateway-fleet-v1/
+    forbidden_paths:
+      - .env
+    inputs:
+      - B15B-DECISION-MATRIX.md
+    outputs:
+      - name: live-evidence
+        description: Evidência live com buckets separados.
+        required: true
+    acceptance_criteria:
+      - Fixtures negativas live executadas; buckets separados; rollback pronto.
+    validation_commands:
+      - pd validate --deep -f b15b-gateway
+    blocked_when:
+      - G-3 (autorização de live validation) não aprovado.
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: coder-hermes
+    status: pending
+
+  - id: T-602
+    wave: 6
+    role: reviewer
+    objective: Closeout — evidence buckets + G4 live closure + review independente final.
+    depends_on:
+      - T-601
+    parallel_group: null
+    allowed_paths:
+      - .spec/pd-fleet-hermes-gateway-fleet-v1/
+    forbidden_paths:
+      - .env
+    inputs:
+      - T-601 live-evidence
+    outputs:
+      - name: closeout
+        description: VERIFICATION + G4 live closure documentado.
+        required: true
+    acceptance_criteria:
+      - local_verified nunca substitui NOT_READY_HERMES_SEAM; buckets separados no veredito.
+    validation_commands:
+      - pd validate --deep -f b15b-gateway
+    blocked_when:
+      - G-3 não aprovado.
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: reviewer
+    status: pending
+
+gates:
+  - id: G-0
+    kind: review
+    scope: wave-1
+    owner: vitor
+    status: pending
+    required_evidence:
+      - Review independente sem BLOCKER/HIGH (B15B-DECISION-MATRIX A/B/C).
+      - Sign-offs owner/security conforme B15B-DECISION-MATRIX §D.
+  - id: G-1
+    kind: authorization
+    scope: wave-2
+    owner: vitor
+    status: pending
+    required_evidence:
+      - Autorização explícita para editar o checkout Hermes (série replayable, sem instalação).
+  - id: G-2
+    kind: approval
+    scope: wave-3
+    owner: security
+    status: pending
+    required_evidence:
+      - Aprovação da allowlist/denylist de redação (A11) com fixtures nomeadas.
+  - id: G-3
+    kind: authorization
+    scope: wave-6
+    owner: vitor
+    status: pending
+    required_evidence:
+      - Autorização de live validation (escopo + rollback + downtime declarados).
