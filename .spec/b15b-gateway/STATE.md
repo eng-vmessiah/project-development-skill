@@ -26,15 +26,16 @@ initialized
 - 2026-10-05 13:44: T-202 DONE — série exportada + replay provado (tree 39dd54e4be); review independente dispatch
 - 2026-10-05 13:50: T-202 review PASS (independente; replay reproduzido; LOW-1/3 adjudicados, LOW-2/4 aceitos) — wave-2 exit VERIFIED
 - 2026-10-05 13:59: G-2 draft (redaction allowlist) entregue; review independente dispatch
+- 2026-10-05 14:11: G-2 pacote review PASS; aguardando aprovação do owner
 
 ## Timestamps
 - Created: 2026-10-05T01:16:27.231152
-- Updated: 2026-10-05T13:59:27.201934
+- Updated: 2026-10-05T14:11:49.046970
 
 ## Fleet State
 ```json
 {
-  "updated_at": "2026-10-05T13:59:27.201934",
+  "updated_at": "2026-10-05T14:11:49.046970",
   "schema_version": 1,
   "agents": [],
   "waves": [],

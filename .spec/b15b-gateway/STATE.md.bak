@@ -25,15 +25,16 @@ initialized
 - 2026-10-05 12:23: T-201 CLOSED (review PASS); T-202 in_progress — worktree setup
 - 2026-10-05 13:44: T-202 DONE — série exportada + replay provado (tree 39dd54e4be); review independente dispatch
 - 2026-10-05 13:50: T-202 review PASS (independente; replay reproduzido; LOW-1/3 adjudicados, LOW-2/4 aceitos) — wave-2 exit VERIFIED
+- 2026-10-05 13:59: G-2 draft (redaction allowlist) entregue; review independente dispatch
 
 ## Timestamps
 - Created: 2026-10-05T01:16:27.231152
-- Updated: 2026-10-05T13:50:30.040087
+- Updated: 2026-10-05T13:59:27.201934
 
 ## Fleet State
 ```json
 {
-  "updated_at": "2026-10-05T13:50:30.040087",
+  "updated_at": "2026-10-05T13:59:27.201934",
   "schema_version": 1,
   "agents": [],
   "waves": [],

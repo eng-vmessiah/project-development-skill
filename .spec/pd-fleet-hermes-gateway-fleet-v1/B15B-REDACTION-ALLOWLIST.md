@@ -1,6 +1,6 @@
 # B15B — Redaction Allowlist/Denylist (pacote G-2)
 
-**Status:** `draft_v0_2_for_approval` — G-2 (owner: security; papel acumulado no owner neste contexto solo). Nada embutido em runtime; o seam B15b.1 tem 0 call sites e não embute bounds pré-ativação. **Review:** v0.1 → `PASS_WITH_BLOCKERS` (6 achados — aplicados na v0.2); v0.2 → **`PASS`** (zero regressões; pronto para aprovação G-2).
+**Status:** `APPROVED` (G-2 — 2026-10-05) — G-2 (owner: security; papel acumulado no owner neste contexto solo). Nada embutido em runtime; o seam B15b.1 tem 0 call sites e não embute bounds pré-ativação. **Review:** v0.1 → `PASS_WITH_BLOCKERS` (6 achados — aplicados na v0.2); v0.2 → **`PASS`** (zero regressões; pronto para aprovação G-2).
 **Data:** 2026-10-05 · **Autoria:** ISIS (orchestrator) · **Fonte:** `G4-SECURITY.md` (§5 · §8) · `G4-CLOSURE.md` (§4) · `G1-CONTRACT.md` (§4 · §5) · `B15B-SEAM-CONTRACT.md` v0.3 (§4 — bounds congelados).
 **Evidência de fechamento (G4-SECURITY §8):** "denylist/allowlist tests with sensitive fixtures" — §4 abaixo.
 
@@ -58,6 +58,6 @@ Convenção `redaction_<alvo>_<caso>`; execução: unit no **B15b.2** + buckets 
 
 ## 5. Aprovação (gate G-2)
 
-- [ ] **Security (owner acumulado):** aprovar §2 (allowlist + enums candidatos + bound candidato `ttl_ms`) · §3 (denylist) · §4 (fixtures).
-- [ ] Review independente do pacote (dispatchado).
+- [x] **Security (owner acumulado):** APROVADO (2026-10-05) — §2 (allowlist + enums candidatos + bound candidato `ttl_ms`) · §3 (denylist) · §4 (fixtures).
+- [x] Review independente do pacote: v0.2 → **`PASS`** (zero regressões).
 - Evidência final: este documento aprovado + fixtures executadas no B15b.2 (e re-verificadas nos buckets live no B15b.5).

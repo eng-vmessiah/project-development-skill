@@ -446,7 +446,7 @@ gates:
     kind: approval
     scope: wave-3
     owner: security
-    status: pending
+    status: approved
     required_evidence:
       - Aprovação da allowlist/denylist de redação (A11) com fixtures nomeadas.
   - id: G-3

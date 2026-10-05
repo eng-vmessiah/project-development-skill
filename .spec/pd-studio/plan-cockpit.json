@@ -1,6 +1,6 @@
 {
   "schema": "plan-cockpit:v1",
-  "generated_at": "2026-10-05T16:50:30+00:00",
+  "generated_at": "2026-10-05T17:11:49+00:00",
   "repo": "/home/vitor/project/project-development-skill",
   "runs_root": "/home/vitor/project/project-development-skill/.pd-fleet-runs",
   "features": [
@@ -11,22 +11,22 @@
       "source": "plan-yaml",
       "tasks_done": 5,
       "tasks_total": 12,
-      "checkpoints": 7,
+      "checkpoints": 9,
       "checkpoints_log": [
-        {
-          "name": "CHECKPOINT-20261005-1223.md",
-          "ts": "2026-10-05T12:23+00:00",
-          "heading": "Checkpoint - 2026-10-05 12:23"
-        },
-        {
-          "name": "CHECKPOINT-20261005-1344.md",
-          "ts": "2026-10-05T13:44+00:00",
-          "heading": "Checkpoint - 2026-10-05 13:44"
-        },
         {
           "name": "CHECKPOINT-20261005-1350.md",
           "ts": "2026-10-05T13:50+00:00",
           "heading": "Checkpoint - 2026-10-05 13:50"
+        },
+        {
+          "name": "CHECKPOINT-20261005-1359.md",
+          "ts": "2026-10-05T13:59+00:00",
+          "heading": "Checkpoint - 2026-10-05 13:59"
+        },
+        {
+          "name": "CHECKPOINT-20261005-1411.md",
+          "ts": "2026-10-05T14:11+00:00",
+          "heading": "Checkpoint - 2026-10-05 14:11"
         }
       ],
       "waves": [
@@ -177,13 +177,13 @@
         "evidence": 0
       },
       "created_at": "2026-10-05T01:16:27.231152",
-      "updated_at": "2026-10-05T13:50:30.040087",
-      "last_commit": "2310cf4 2026-10-05 docs(b15b): T-202 review PASS — wave-2 exit verified; LOW-1/LOW-3 adjudicated in seam contract",
+      "updated_at": "2026-10-05T14:11:49.046970",
+      "last_commit": "bd19f7b 2026-10-05 docs(b15b): G-2 allowlist v0.2 — message_content fixture, ttl candidate+rationale, malformed/schema fixtures, envelope per-field, tool_material",
       "pd_view": {
         "phase_name": "Setup",
         "tasks_done": 6,
         "tasks_total": 12,
-        "checkpoints": 7
+        "checkpoints": 9
       }
     },
     {
@@ -419,7 +419,7 @@
       },
       "created_at": "2026-10-03T23:22:01.901001",
       "updated_at": "2026-10-03T23:22:01.901001",
-      "last_commit": "2310cf4 2026-10-05 docs(b15b): T-202 review PASS — wave-2 exit verified; LOW-1/LOW-3 adjudicated in seam contract",
+      "last_commit": "7a1a6bc 2026-10-05 docs(b15b): G-2 package PASS — review synced; awaiting owner approval (gate G-2)",
       "pd_view": {
         "phase_name": "Setup",
         "tasks_done": 0,
@@ -564,22 +564,22 @@
   ],
   "timeline": [
     {
+      "ts": "2026-10-05T14:11+00:00",
+      "kind": "checkpoint",
+      "feature": "b15b-gateway",
+      "detail": "Checkpoint - 2026-10-05 14:11"
+    },
+    {
+      "ts": "2026-10-05T13:59+00:00",
+      "kind": "checkpoint",
+      "feature": "b15b-gateway",
+      "detail": "Checkpoint - 2026-10-05 13:59"
+    },
+    {
       "ts": "2026-10-05T13:50+00:00",
       "kind": "checkpoint",
       "feature": "b15b-gateway",
       "detail": "Checkpoint - 2026-10-05 13:50"
-    },
-    {
-      "ts": "2026-10-05T13:44+00:00",
-      "kind": "checkpoint",
-      "feature": "b15b-gateway",
-      "detail": "Checkpoint - 2026-10-05 13:44"
-    },
-    {
-      "ts": "2026-10-05T12:23+00:00",
-      "kind": "checkpoint",
-      "feature": "b15b-gateway",
-      "detail": "Checkpoint - 2026-10-05 12:23"
     },
     {
       "ts": "2026-10-05T00:44+00:00",
@@ -618,7 +618,7 @@
   ],
   "meta": {
     "feature_count": 8,
-    "checkpoint_events": 21,
+    "checkpoint_events": 23,
     "fleet_run_count": 1,
     "warnings": []
   }
