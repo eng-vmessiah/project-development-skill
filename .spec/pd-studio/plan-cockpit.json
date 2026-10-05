@@ -1,6 +1,6 @@
 {
   "schema": "plan-cockpit:v1",
-  "generated_at": "2026-10-05T02:56:11+00:00",
+  "generated_at": "2026-10-05T03:04:43+00:00",
   "repo": "/home/vitor/project/project-development-skill",
   "runs_root": "/home/vitor/project/project-development-skill/.pd-fleet-runs",
   "features": [
@@ -9,15 +9,10 @@
       "phase": 0,
       "status": "initialized",
       "source": "plan-yaml",
-      "tasks_done": 8,
+      "tasks_done": 9,
       "tasks_total": 13,
-      "checkpoints": 8,
+      "checkpoints": 9,
       "checkpoints_log": [
-        {
-          "name": "CHECKPOINT-20261004-2346.md",
-          "ts": "2026-10-04T23:46+00:00",
-          "heading": "Checkpoint - 2026-10-04 23:46"
-        },
         {
           "name": "CHECKPOINT-20261004-2349.md",
           "ts": "2026-10-04T23:49+00:00",
@@ -27,6 +22,11 @@
           "name": "CHECKPOINT-20261004-2356.md",
           "ts": "2026-10-04T23:56+00:00",
           "heading": "Checkpoint - 2026-10-04 23:56"
+        },
+        {
+          "name": "CHECKPOINT-20261005-0004.md",
+          "ts": "2026-10-05T00:04+00:00",
+          "heading": "Checkpoint - 2026-10-05 00:04"
         }
       ],
       "waves": [
@@ -114,7 +114,7 @@
           "id": "T-401",
           "wave": 4,
           "role": "coder",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": "T-402",
@@ -172,13 +172,13 @@
         "evidence": 0
       },
       "created_at": "2026-10-04T23:05:58.575354",
-      "updated_at": "2026-10-04T23:56:10.884877",
-      "last_commit": "9f7cc3d 2026-10-04 feat(plan-cockpit): T-204 — mission selector (action-form + live mission detail; --mission) + tests",
+      "updated_at": "2026-10-05T00:04:43.492857",
+      "last_commit": "655067a 2026-10-04 feat(plan-cockpit): T-202+T-301 — skill plan-cockpit + repo docs (cockpit-ready standard) + feeding adopted; waves 1-3 done",
       "pd_view": {
         "phase_name": "Setup",
-        "tasks_done": 7,
+        "tasks_done": 8,
         "tasks_total": 14,
-        "checkpoints": 8
+        "checkpoints": 9
       }
     },
     {
@@ -382,6 +382,12 @@
   ],
   "timeline": [
     {
+      "ts": "2026-10-05T00:04+00:00",
+      "kind": "checkpoint",
+      "feature": "plan-cockpit-v1",
+      "detail": "Checkpoint - 2026-10-05 00:04"
+    },
+    {
       "ts": "2026-10-04T23:56+00:00",
       "kind": "checkpoint",
       "feature": "plan-cockpit-v1",
@@ -394,12 +400,6 @@
       "detail": "Checkpoint - 2026-10-04 23:49"
     },
     {
-      "ts": "2026-10-04T23:46+00:00",
-      "kind": "checkpoint",
-      "feature": "plan-cockpit-v1",
-      "detail": "Checkpoint - 2026-10-04 23:46"
-    },
-    {
       "ts": "2026-07-27T14:58+00:00",
       "kind": "checkpoint",
       "feature": "pd-fleet-supervisor-handoff",
@@ -409,7 +409,7 @@
   "fleet_runs": [],
   "meta": {
     "feature_count": 7,
-    "checkpoint_events": 9,
+    "checkpoint_events": 10,
     "fleet_run_count": 0,
     "warnings": []
   }

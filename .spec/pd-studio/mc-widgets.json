@@ -13,7 +13,7 @@
     "bindings": {
       "content": {
         "source": "static",
-        "value": "# Mission Control — PD (plan-cockpit v1)\n\nVisão única do PD **derivada só de fontes reais** (nunca fabricar telemetria).\n\n- **Features:** 7 · **plan-cockpit-v1:** 8/13 tasks · **Checkpoints:** 9 · **Runs:** 0\n- Snapshot: **2026-10-05 02:56**\n- Fonte: `scripts/plan_cockpit_sync.py` → `.spec/pd-studio/plan-cockpit.json`"
+        "value": "# Mission Control — PD (plan-cockpit v1)\n\nVisão única do PD **derivada só de fontes reais** (nunca fabricar telemetria).\n\n- **Features:** 7 · **plan-cockpit-v1:** 9/13 tasks · **Checkpoints:** 10 · **Runs:** 0\n- Snapshot: **2026-10-05 03:04**\n- Fonte: `scripts/plan_cockpit_sync.py` → `.spec/pd-studio/plan-cockpit.json`"
       }
     }
   },
@@ -37,8 +37,8 @@
             "fase": "0",
             "status": "initialized",
             "fonte": "plan-yaml",
-            "tasks": "8/13",
-            "cps": "8",
+            "tasks": "9/13",
+            "cps": "9",
             "gates": "G1✅ G2· G3·"
           },
           {
@@ -177,7 +177,7 @@
             "id": "T-401",
             "wave": "4",
             "role": "coder",
-            "status": "⏳ pending"
+            "status": "✅ done"
           },
           {
             "id": "T-402",
@@ -231,17 +231,17 @@
         "source": "static",
         "value": [
           {
+            "quando": "2026-10-05 00:04",
+            "feature": "plan-cockpit-v1",
+            "detalhe": "Checkpoint"
+          },
+          {
             "quando": "2026-10-04 23:56",
             "feature": "plan-cockpit-v1",
             "detalhe": "Checkpoint"
           },
           {
             "quando": "2026-10-04 23:49",
-            "feature": "plan-cockpit-v1",
-            "detalhe": "Checkpoint"
-          },
-          {
-            "quando": "2026-10-04 23:46",
             "feature": "plan-cockpit-v1",
             "detalhe": "Checkpoint"
           },
