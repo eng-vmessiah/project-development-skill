@@ -41,7 +41,7 @@ def _git(*args: str) -> str:
         out = subprocess.run(["git", "-C", str(REPO), *args],
                              capture_output=True, text=True, timeout=15, check=True)
         return out.stdout.strip()
-    except Exception:
+    except (subprocess.SubprocessError, OSError):
         return ""
 
 
@@ -50,8 +50,10 @@ def _checkpoint_ts(name: str) -> str | None:
     if not m:
         return None
     try:
-        dt = datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M")
-        return dt.replace(tzinfo=timezone.utc).isoformat(timespec="minutes")
+        raw = m.group(1) + m.group(2)
+        dt = datetime(int(raw[0:4]), int(raw[4:6]), int(raw[6:8]),
+                      int(raw[8:10]), int(raw[10:12]), tzinfo=timezone.utc)
+        return dt.isoformat(timespec="minutes")
     except ValueError:
         return None
 
@@ -64,8 +66,8 @@ def _checkpoints(feature_dir: Path) -> list[dict]:
         try:
             m = HEADING_RE.search(path.read_text(encoding="utf-8", errors="replace"))
             heading = m.group(1).strip()[:110] if m else ""
-        except Exception:
-            pass
+        except OSError:
+            heading = ""
         rows.append({"name": path.name, "ts": ts, "heading": heading})
     return rows
 
@@ -77,7 +79,7 @@ def _plan_yaml(feature_dir: Path) -> dict | None:
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
         return data if isinstance(data, dict) else None
-    except Exception:
+    except (OSError, yaml.YAMLError):
         return None
 
 
@@ -87,7 +89,7 @@ def _plan_md_counts(feature_dir: Path) -> tuple[int, int] | None:
         return None
     try:
         marks = CHECKBOX_RE.findall(path.read_text(encoding="utf-8", errors="replace"))
-    except Exception:
+    except OSError:
         return None
     return (sum(1 for m in marks if m == "x"), len(marks))
 
@@ -108,11 +110,13 @@ def features() -> list[dict]:
     rows = []
     for state_path in sorted(SPEC_DIR.glob("*/STATE.json")):
         fdir = state_path.parent
+        state: dict | None = None
         try:
-            state = json.loads(state_path.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        if not isinstance(state, dict):
+            loaded = json.loads(state_path.read_text(encoding="utf-8"))
+            state = loaded if isinstance(loaded, dict) else None
+        except (OSError, json.JSONDecodeError):
+            state = None
+        if state is None:
             continue
 
         plan = _plan_yaml(fdir)
@@ -165,7 +169,7 @@ def pd_cli_view() -> dict[str, dict]:
         out = subprocess.run(["pd", "list", "--json"], capture_output=True,
                              text=True, timeout=20, check=True)
         data = json.loads(out.stdout)
-    except Exception:
+    except (subprocess.SubprocessError, OSError, json.JSONDecodeError):
         return {}
     view: dict[str, dict] = {}
     for item in data.get("features", []):
@@ -195,11 +199,13 @@ def fleet_runs(runs_root: Path) -> list[dict]:
     if not runs_root.exists():
         return rows
     for snap in sorted(runs_root.glob("*/snapshot.json")):
+        data: dict | None = None
         try:
-            data = json.loads(snap.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        if not isinstance(data, dict):
+            loaded = json.loads(snap.read_text(encoding="utf-8"))
+            data = loaded if isinstance(loaded, dict) else None
+        except (OSError, json.JSONDecodeError):
+            data = None
+        if data is None:
             continue
         rows.append({
             "run_id": data.get("run_id", snap.parent.name),

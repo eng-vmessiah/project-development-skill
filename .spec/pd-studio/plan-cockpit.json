@@ -1,6 +1,6 @@
 {
   "schema": "plan-cockpit:v1",
-  "generated_at": "2026-10-05T02:21:02+00:00",
+  "generated_at": "2026-10-05T02:22:05+00:00",
   "repo": "/home/vitor/project/project-development-skill",
   "runs_root": "/home/vitor/project/project-development-skill/.pd-fleet-runs",
   "features": [
@@ -11,7 +11,7 @@
       "source": "plan-yaml",
       "tasks_done": 2,
       "tasks_total": 12,
-      "checkpoints": 2,
+      "checkpoints": 3,
       "checkpoints_log": [
         {
           "name": "CHECKPOINT-20261004-2312.md",
@@ -22,6 +22,11 @@
           "name": "CHECKPOINT-20261004-2318.md",
           "ts": "2026-10-04T23:18+00:00",
           "heading": "Checkpoint - 2026-10-04 23:18"
+        },
+        {
+          "name": "CHECKPOINT-20261004-2321.md",
+          "ts": "2026-10-04T23:21+00:00",
+          "heading": "Checkpoint - 2026-10-04 23:21"
         }
       ],
       "waves": [
@@ -87,13 +92,13 @@
         "evidence": 0
       },
       "created_at": "2026-10-04T23:05:58.575354",
-      "updated_at": "2026-10-04T23:18:20.815776",
-      "last_commit": "2acb8a3 2026-10-04 docs(plan-cockpit): G1 approved by owner; +T-203 auto-refresh task; checkpoint 2318",
+      "updated_at": "2026-10-04T23:21:02.448568",
+      "last_commit": "3b45be9 2026-10-04 feat(plan-cockpit): T-101 — plan_cockpit_sync.py collector (derived-only, deterministic) + first real snapshot",
       "pd_view": {
         "phase_name": "Setup",
-        "tasks_done": 0,
+        "tasks_done": 1,
         "tasks_total": 13,
-        "checkpoints": 2
+        "checkpoints": 3
       }
     },
     {
@@ -291,6 +296,12 @@
   ],
   "timeline": [
     {
+      "ts": "2026-10-04T23:21+00:00",
+      "kind": "checkpoint",
+      "feature": "plan-cockpit-v1",
+      "detail": "Checkpoint - 2026-10-04 23:21"
+    },
+    {
       "ts": "2026-10-04T23:18+00:00",
       "kind": "checkpoint",
       "feature": "plan-cockpit-v1",
@@ -312,7 +323,7 @@
   "fleet_runs": [],
   "meta": {
     "feature_count": 7,
-    "checkpoint_events": 3,
+    "checkpoint_events": 4,
     "fleet_run_count": 0,
     "warnings": []
   }
