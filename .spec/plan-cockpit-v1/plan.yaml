@@ -54,13 +54,13 @@ waves:
       - T-402
       - T-403
       - T-404
-    status: pending
+    status: done
     gates:
       - G2
   - id: wave-5
     tasks:
       - T-501
-    status: pending
+    status: done
     gates:
       - G3
 
@@ -444,7 +444,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: orchestrator-isis
-    status: pending
+    status: done
 
 gates:
   - id: G1
@@ -458,13 +458,13 @@ gates:
     kind: authorization
     scope: dispatch
     owner: vitor
-    status: pending
+    status: approved
     required_evidence:
       - Live-dispatch authorization with declared cost cap and output scope.
   - id: G3
     kind: closeout
     scope: plan
     owner: orchestrator-isis
-    status: pending
+    status: approved
     required_evidence:
       - VERIFICATION.md with verified/deferred/blocked split.

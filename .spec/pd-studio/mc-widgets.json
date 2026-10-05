@@ -13,7 +13,7 @@
     "bindings": {
       "content": {
         "source": "static",
-        "value": "# Mission Control — PD (plan-cockpit v1)\n\nVisão única do PD **derivada só de fontes reais** (nunca fabricar telemetria).\n\n- **Features:** 7 · **plan-cockpit-v1:** 12/13 tasks · **Checkpoints:** 13 · **Runs:** 1\n- Snapshot: **2026-10-05 03:40**\n- Fonte: `scripts/plan_cockpit_sync.py` → `.spec/pd-studio/plan-cockpit.json`"
+        "value": "# Mission Control — PD (plan-cockpit v1)\n\nVisão única do PD **derivada só de fontes reais** (nunca fabricar telemetria).\n\n- **Features:** 7 · **plan-cockpit-v1:** 13/13 tasks · **Checkpoints:** 14 · **Runs:** 1\n- Snapshot: **2026-10-05 03:44**\n- Fonte: `scripts/plan_cockpit_sync.py` → `.spec/pd-studio/plan-cockpit.json`"
       }
     }
   },
@@ -37,9 +37,9 @@
             "fase": "0",
             "status": "initialized",
             "fonte": "plan-yaml",
-            "tasks": "12/13",
-            "cps": "12",
-            "gates": "G1✅ G2· G3·"
+            "tasks": "13/13",
+            "cps": "13",
+            "gates": "G1✅ G2✅ G3✅"
           },
           {
             "feature": "pd-fleet-scope-alignment",
@@ -201,7 +201,7 @@
             "id": "T-501",
             "wave": "5",
             "role": "orchestrator",
-            "status": "⏳ pending"
+            "status": "✅ done"
           }
         ]
       }
@@ -231,17 +231,17 @@
         "source": "static",
         "value": [
           {
+            "quando": "2026-10-05 00:44",
+            "feature": "plan-cockpit-v1",
+            "detalhe": "Checkpoint"
+          },
+          {
             "quando": "2026-10-05 00:40",
             "feature": "plan-cockpit-v1",
             "detalhe": "Checkpoint"
           },
           {
             "quando": "2026-10-05 00:22",
-            "feature": "plan-cockpit-v1",
-            "detalhe": "Checkpoint"
-          },
-          {
-            "quando": "2026-10-05 00:11",
             "feature": "plan-cockpit-v1",
             "detalhe": "Checkpoint"
           },

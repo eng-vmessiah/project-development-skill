@@ -1,6 +1,6 @@
 {
   "schema": "plan-cockpit:v1",
-  "generated_at": "2026-10-05T03:40:56+00:00",
+  "generated_at": "2026-10-05T03:44:09+00:00",
   "repo": "/home/vitor/project/project-development-skill",
   "runs_root": "/home/vitor/project/project-development-skill/.pd-fleet-runs",
   "features": [
@@ -9,15 +9,10 @@
       "phase": 0,
       "status": "initialized",
       "source": "plan-yaml",
-      "tasks_done": 12,
+      "tasks_done": 13,
       "tasks_total": 13,
-      "checkpoints": 12,
+      "checkpoints": 13,
       "checkpoints_log": [
-        {
-          "name": "CHECKPOINT-20261005-0011.md",
-          "ts": "2026-10-05T00:11+00:00",
-          "heading": "Checkpoint - 2026-10-05 00:11"
-        },
         {
           "name": "CHECKPOINT-20261005-0022.md",
           "ts": "2026-10-05T00:22+00:00",
@@ -27,6 +22,11 @@
           "name": "CHECKPOINT-20261005-0040.md",
           "ts": "2026-10-05T00:40+00:00",
           "heading": "Checkpoint - 2026-10-05 00:40"
+        },
+        {
+          "name": "CHECKPOINT-20261005-0044.md",
+          "ts": "2026-10-05T00:44+00:00",
+          "heading": "Checkpoint - 2026-10-05 00:44"
         }
       ],
       "waves": [
@@ -52,12 +52,12 @@
         },
         {
           "id": "wave-4",
-          "status": "pending",
+          "status": "done",
           "tasks": 4
         },
         {
           "id": "wave-5",
-          "status": "pending",
+          "status": "done",
           "tasks": 1
         }
       ],
@@ -138,7 +138,7 @@
           "id": "T-501",
           "wave": 5,
           "role": "orchestrator",
-          "status": "pending"
+          "status": "done"
         }
       ],
       "gates": [
@@ -151,13 +151,13 @@
         {
           "id": "G2",
           "kind": "authorization",
-          "status": "pending",
+          "status": "approved",
           "owner": "vitor"
         },
         {
           "id": "G3",
           "kind": "closeout",
-          "status": "pending",
+          "status": "approved",
           "owner": "orchestrator-isis"
         }
       ],
@@ -172,13 +172,13 @@
         "evidence": 0
       },
       "created_at": "2026-10-04T23:05:58.575354",
-      "updated_at": "2026-10-05T00:40:56.004615",
-      "last_commit": "d59d54a 2026-10-05 feat(plan-cockpit): T-403 — real pilot RUN 3/3 completed (hermes/opencode-go); collector reads .spec/pilot-runs; evidence committed",
+      "updated_at": "2026-10-05T00:44:08.902208",
+      "last_commit": "711d9fd 2026-10-05 fix(plan-cockpit): T-404 review applied — correct run-1 narrative (4 runs/9 dispatches; PATH_DENIED diagnosis was wrong), limits documented, log records model",
       "pd_view": {
         "phase_name": "Setup",
-        "tasks_done": 11,
+        "tasks_done": 12,
         "tasks_total": 14,
-        "checkpoints": 12
+        "checkpoints": 13
       }
     },
     {
@@ -382,6 +382,12 @@
   ],
   "timeline": [
     {
+      "ts": "2026-10-05T00:44+00:00",
+      "kind": "checkpoint",
+      "feature": "plan-cockpit-v1",
+      "detail": "Checkpoint - 2026-10-05 00:44"
+    },
+    {
       "ts": "2026-10-05T00:40+00:00",
       "kind": "checkpoint",
       "feature": "plan-cockpit-v1",
@@ -392,12 +398,6 @@
       "kind": "checkpoint",
       "feature": "plan-cockpit-v1",
       "detail": "Checkpoint - 2026-10-05 00:22"
-    },
-    {
-      "ts": "2026-10-05T00:11+00:00",
-      "kind": "checkpoint",
-      "feature": "plan-cockpit-v1",
-      "detail": "Checkpoint - 2026-10-05 00:11"
     },
     {
       "ts": "2026-07-27T14:58+00:00",
@@ -418,7 +418,7 @@
   ],
   "meta": {
     "feature_count": 7,
-    "checkpoint_events": 13,
+    "checkpoint_events": 14,
     "fleet_run_count": 1,
     "warnings": []
   }
