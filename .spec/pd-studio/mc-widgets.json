@@ -13,7 +13,7 @@
     "bindings": {
       "content": {
         "source": "static",
-        "value": "# Mission Control — PD (plan-cockpit v1)\n\nVisão única do PD **derivada só de fontes reais** (nunca fabricar telemetria).\n\n- **Features:** 8 · **plan-cockpit-v1:** 13/13 tasks · **Checkpoints:** 23 · **Runs:** 1\n- Snapshot: **2026-10-05 17:11**\n- Fonte: `scripts/plan_cockpit_sync.py` → `.spec/pd-studio/plan-cockpit.json`"
+        "value": "# Mission Control — PD (plan-cockpit v1)\n\nVisão única do PD **derivada só de fontes reais** (nunca fabricar telemetria).\n\n- **Features:** 8 · **plan-cockpit-v1:** 13/13 tasks · **Checkpoints:** 25 · **Runs:** 1\n- Snapshot: **2026-10-05 17:17**\n- Fonte: `scripts/plan_cockpit_sync.py` → `.spec/pd-studio/plan-cockpit.json`"
       }
     }
   },
@@ -38,8 +38,8 @@
             "status": "initialized",
             "fonte": "plan-yaml",
             "tasks": "5/12",
-            "cps": "9",
-            "gates": "G-0✅ G-1✅ G-2· G-3·"
+            "cps": "11",
+            "gates": "G-0✅ G-1✅ G-2✅ G-3·"
           },
           {
             "feature": "plan-cockpit-v1",
@@ -240,17 +240,17 @@
         "source": "static",
         "value": [
           {
+            "quando": "2026-10-05 14:17",
+            "feature": "b15b-gateway",
+            "detalhe": "Checkpoint"
+          },
+          {
+            "quando": "2026-10-05 14:13",
+            "feature": "b15b-gateway",
+            "detalhe": "Checkpoint"
+          },
+          {
             "quando": "2026-10-05 14:11",
-            "feature": "b15b-gateway",
-            "detalhe": "Checkpoint"
-          },
-          {
-            "quando": "2026-10-05 13:59",
-            "feature": "b15b-gateway",
-            "detalhe": "Checkpoint"
-          },
-          {
-            "quando": "2026-10-05 13:50",
             "feature": "b15b-gateway",
             "detalhe": "Checkpoint"
           },

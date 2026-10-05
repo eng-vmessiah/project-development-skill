@@ -283,6 +283,7 @@ tasks:
       - T-301
     parallel_group: null
     allowed_paths:
+      - scripts/
       - tests/
     forbidden_paths:
       - .env
@@ -303,7 +304,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: coder-hermes
-    status: pending
+    status: in_progress
 
   - id: T-401
     wave: 4

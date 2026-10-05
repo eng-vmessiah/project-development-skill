@@ -8,7 +8,8 @@
     "T-102 \u2014 matriz composite-deny (8 gates)",
     "T-103 \u2014 wire vocabulary mapping (proposta)",
     "T-201 \u2014 seam contract draft v0.1 (publisher + principal resolution; assinatura/namespace/isolamento/vers\u00e3o/disabled)",
-    "T-202 \u2014 s\u00e9rie replayable: observer seam default-off (registry+publish+7 fixtures; git am limpo, tree id\u00eantico)"
+    "T-202 \u2014 s\u00e9rie replayable: observer seam default-off (registry+publish+7 fixtures; git am limpo, tree id\u00eantico)",
+    "T-301 \u2014 auth+associa\u00e7\u00e3o local: gateway_auth.py (tickets \u00a71 / consume at\u00f4mico single-writer \u00a74 / idempot\u00eancia \u00a75 / uniformidade \u00a76 / state machine \u00a73) + 22 fixtures G4 \u00a79 verdes; ruff ok"
   ],
   "checkpoints": [
     {
@@ -132,12 +133,26 @@
         "T-201 \u2014 seam contract draft v0.1 (publisher + principal resolution; assinatura/namespace/isolamento/vers\u00e3o/disabled)",
         "T-202 \u2014 s\u00e9rie replayable: observer seam default-off (registry+publish+7 fixtures; git am limpo, tree id\u00eantico)"
       ]
+    },
+    {
+      "date": "2026-10-05 14:17",
+      "phase": 0,
+      "note": "T-301 entregue (22/22; ruff ok); review independente dispatch",
+      "tasks_snapshot": [
+        "T-000 \u2014 feature init + plano cockpit-ready (FleetPlan v1 validado)",
+        "T-101 \u2014 decision matrix (11 decis\u00f5es congeladas)",
+        "T-102 \u2014 matriz composite-deny (8 gates)",
+        "T-103 \u2014 wire vocabulary mapping (proposta)",
+        "T-201 \u2014 seam contract draft v0.1 (publisher + principal resolution; assinatura/namespace/isolamento/vers\u00e3o/disabled)",
+        "T-202 \u2014 s\u00e9rie replayable: observer seam default-off (registry+publish+7 fixtures; git am limpo, tree id\u00eantico)",
+        "T-301 \u2014 auth+associa\u00e7\u00e3o local: gateway_auth.py (tickets \u00a71 / consume at\u00f4mico single-writer \u00a74 / idempot\u00eancia \u00a75 / uniformidade \u00a76 / state machine \u00a73) + 22 fixtures G4 \u00a79 verdes; ruff ok"
+      ]
     }
   ],
   "created_at": "2026-10-05T01:16:27.231152",
-  "updated_at": "2026-10-05T14:13:12.635962",
+  "updated_at": "2026-10-05T14:17:42.374651",
   "fleet_state": {
-    "updated_at": "2026-10-05T14:13:12.635962",
+    "updated_at": "2026-10-05T14:17:42.374651",
     "schema_version": 1,
     "agents": [],
     "waves": [],
