@@ -1,6 +1,6 @@
 {
   "schema": "plan-cockpit:v1",
-  "generated_at": "2026-10-05T17:58:01+00:00",
+  "generated_at": "2026-10-05T18:02:24+00:00",
   "repo": "/home/vitor/project/project-development-skill",
   "runs_root": "/home/vitor/project/project-development-skill/.pd-fleet-runs",
   "features": [
@@ -11,13 +11,8 @@
       "source": "plan-yaml",
       "tasks_done": 5,
       "tasks_total": 12,
-      "checkpoints": 19,
+      "checkpoints": 20,
       "checkpoints_log": [
-        {
-          "name": "CHECKPOINT-20261005-1451.md",
-          "ts": "2026-10-05T14:51+00:00",
-          "heading": "Checkpoint - 2026-10-05 14:51"
-        },
         {
           "name": "CHECKPOINT-20261005-1455.md",
           "ts": "2026-10-05T14:55+00:00",
@@ -27,6 +22,11 @@
           "name": "CHECKPOINT-20261005-1458.md",
           "ts": "2026-10-05T14:58+00:00",
           "heading": "Checkpoint - 2026-10-05 14:58"
+        },
+        {
+          "name": "CHECKPOINT-20261005-1502.md",
+          "ts": "2026-10-05T15:02+00:00",
+          "heading": "Checkpoint - 2026-10-05 15:02"
         }
       ],
       "waves": [
@@ -57,7 +57,7 @@
         },
         {
           "id": "wave-5",
-          "status": "pending",
+          "status": "done",
           "tasks": 1
         },
         {
@@ -177,13 +177,13 @@
         "evidence": 0
       },
       "created_at": "2026-10-05T01:16:27.231152",
-      "updated_at": "2026-10-05T14:58:00.937579",
-      "last_commit": "038df68 2026-10-05 chore(b15b): T-501 feedings",
+      "updated_at": "2026-10-05T15:02:24.160320",
+      "last_commit": "17c9092 2026-10-05 chore(b15b): wave-5 done",
       "pd_view": {
         "phase_name": "Setup",
         "tasks_done": 10,
         "tasks_total": 12,
-        "checkpoints": 19
+        "checkpoints": 20
       }
     },
     {
@@ -419,7 +419,7 @@
       },
       "created_at": "2026-10-03T23:22:01.901001",
       "updated_at": "2026-10-03T23:22:01.901001",
-      "last_commit": "53f5c52 2026-10-05 feat(b15b): T-501 — rollback rehearsal (controlled env, PASS) + crash-point matrix + replay/epochs doc; evidence log",
+      "last_commit": "9d6f8e1 2026-10-05 docs(b15b): T-501 review PASS — NIT-2/NIT-3 doc disambiguations; wave-5 exit verified",
       "pd_view": {
         "phase_name": "Setup",
         "tasks_done": 0,
@@ -564,6 +564,12 @@
   ],
   "timeline": [
     {
+      "ts": "2026-10-05T15:02+00:00",
+      "kind": "checkpoint",
+      "feature": "b15b-gateway",
+      "detail": "Checkpoint - 2026-10-05 15:02"
+    },
+    {
       "ts": "2026-10-05T14:58+00:00",
       "kind": "checkpoint",
       "feature": "b15b-gateway",
@@ -574,12 +580,6 @@
       "kind": "checkpoint",
       "feature": "b15b-gateway",
       "detail": "Checkpoint - 2026-10-05 14:55"
-    },
-    {
-      "ts": "2026-10-05T14:51+00:00",
-      "kind": "checkpoint",
-      "feature": "b15b-gateway",
-      "detail": "Checkpoint - 2026-10-05 14:51"
     },
     {
       "ts": "2026-10-05T00:44+00:00",
@@ -618,7 +618,7 @@
   ],
   "meta": {
     "feature_count": 8,
-    "checkpoint_events": 33,
+    "checkpoint_events": 34,
     "fleet_run_count": 1,
     "warnings": []
   }
