@@ -1,6 +1,6 @@
 {
   "schema": "plan-cockpit:v1",
-  "generated_at": "2026-10-05T03:11:32+00:00",
+  "generated_at": "2026-10-05T03:11:43+00:00",
   "repo": "/home/vitor/project/project-development-skill",
   "runs_root": "/home/vitor/project/project-development-skill/.pd-fleet-runs",
   "features": [
@@ -9,7 +9,7 @@
       "phase": 0,
       "status": "initialized",
       "source": "plan-yaml",
-      "tasks_done": 9,
+      "tasks_done": 10,
       "tasks_total": 13,
       "checkpoints": 10,
       "checkpoints_log": [
@@ -120,7 +120,7 @@
           "id": "T-402",
           "wave": 4,
           "role": "orchestrator",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": "T-403",
@@ -173,7 +173,7 @@
       },
       "created_at": "2026-10-04T23:05:58.575354",
       "updated_at": "2026-10-05T00:11:32.438009",
-      "last_commit": "1f16676 2026-10-05 feat(plan-cockpit): T-401 — thin hermes pilot runner (smoke fail-closed, exact-argv allowlist, live gated by --authorized)",
+      "last_commit": "43a7dee 2026-10-05 feat(plan-cockpit): T-402 — pilot plan + G2 owner authorization; pilot provider pinned to opencode-go",
       "pd_view": {
         "phase_name": "Setup",
         "tasks_done": 9,
