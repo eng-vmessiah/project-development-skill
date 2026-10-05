@@ -39,7 +39,7 @@ Gateway vivo verificado `active` **após** o ensaio (não tocado). Log bruto: `B
 |---|---|---|---|---|
 | 1 | before validation/redaction | no persist/outbox/cursor/ack | `validate_event` rejeita sem efeitos (fixtures de redaction); módulos não mutam | ✅ |
 | 2 | after redaction before persist | cursor unchanged; safe reprocess | `append` gap/dup ⇒ `False` **sem mutação** (`test_gap_blocks_ingestion_cursor_advancement`) | ✅ |
-| 3 | after event before outbox | reconstruct/retry idempotently | `read` re-registra no outbox com dedupe por sequence (`test_ack_flow_and_outbox_retry`) | ✅ |
+| 3 | after event before outbox | reconstruct/retry idempotently | `read` re-registra no outbox com dedupe por sequence (`test_ack_flow_and_outbox_retry` — cobertura indireta; dedupe por construção em `read()`) | ✅ |
 | 4 | after outbox before cursor | dedupe then advance only after durability | cursor avança **só no ACK contíguo** (`test_ack_advances_only_contiguously`) | ✅ |
 | 5 | after cursor before ACK | outbox retries; no loss | `pending()` retriável (`test_ack_flow_and_outbox_retry`) | ✅ |
 | 6 | snapshot/boundary unavailable | `resync_required` | subscribe exige `boundary_ref`; gaps ⇒ `replay_gap`/`cursor_stale`/`cursor_expired` + `resync_required` | ✅ |
@@ -50,6 +50,7 @@ Gateway vivo verificado `active` **após** o ensaio (não tocado). Log bruto: `B
 
 - Epoch novo por restart; **gap explícito — nunca silencioso**: `cursor_stale` (epoch), `replay_gap` (retenção), `cursor_expired` (TTL) — com `resync_required` onde cabível (§3/§4 das fixtures de subscription).
 - `resync_required` só quando snapshot/boundary não comprovável: subscribe devolve `None` sem `boundary_ref`; leitura com gap devolve instrução explícita.
+- **Desambiguação (NIT-3):** no slice local, `resync_required` é o **flag** do `ReadResult` (remédio explícito para `cursor_stale`/`cursor_expired`/`replay_gap`, exigido pelo G1 §7); o **código** canônico homônimo (snapshot/boundary não comprovável) pertence ao bridge real — emitido no slice live (B15b.5).
 - **Limite honesto:** este é o comportamento **local** (fixtures). Replay operacional contra o `isis-gateway.service` vivo é escopo do slice live (**B15b.5** — autorização separada; `local_verified` nunca substitui `NOT_READY_HERMES_SEAM`).
 
 ## 5. Não incluído (escopo live — B15b.5)
