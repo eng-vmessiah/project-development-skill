@@ -37,15 +37,16 @@ initialized
 - 2026-10-05 14:31: T-302 review PASS_WITH_BLOCKERS → fixes aplicados (duplicate_path/ts-bound/defensive/per-field); wave-3 exit pendente de re-check
 - 2026-10-05 14:36: WAVE-3 EXIT VERIFIED (re-check PASS; MEDIUM-1 closed) — wave 4 (T-401) desbloqueada
 - 2026-10-05 14:40: T-401 entregue (14/14; suíte fleet 1348 verde c/ fix do harness bridge); review a dispatchar
+- 2026-10-05 14:51: T-401 review PASS_WITH_BLOCKERS → fixes MEDIUM-1/2 + LOWs aplicados; re-check dispatchado
 
 ## Timestamps
 - Created: 2026-10-05T01:16:27.231152
-- Updated: 2026-10-05T14:40:06.088992
+- Updated: 2026-10-05T14:51:48.229037
 
 ## Fleet State
 ```json
 {
-  "updated_at": "2026-10-05T14:40:06.088992",
+  "updated_at": "2026-10-05T14:51:48.229037",
   "schema_version": 1,
   "agents": [],
   "waves": [],

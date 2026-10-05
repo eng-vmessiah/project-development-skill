@@ -52,7 +52,7 @@ waves:
   - id: wave-4
     tasks:
       - T-401
-    status: pending
+    status: done
   - id: wave-5
     tasks:
       - T-501
