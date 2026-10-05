@@ -209,6 +209,7 @@ def test_detach_cancels_outbox_and_tombstones():
     assert store.pending("sub-1") == ()  # cancelled, not delivered
     assert store.read("sub-1", "epoch-1", NOW + 2).outcome == ASSOCIATION_REQUIRED
     assert not store.heartbeat("sub-1", 9, NOW + 3)
+    assert not store.ack("sub-1", 1)  # ack post-detach: consistent deny (NIT-4)
     assert _sub(store) is None  # reassociation always emits new refs
 
 

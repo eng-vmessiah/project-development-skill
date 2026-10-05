@@ -209,12 +209,28 @@
         "T-301 \u2014 auth+associa\u00e7\u00e3o local: gateway_auth.py (tickets \u00a71 / consume at\u00f4mico single-writer \u00a74 / idempot\u00eancia \u00a75 / uniformidade \u00a76 / state machine \u00a73) + 22 fixtures G4 \u00a79 verdes; ruff ok",
         "T-302 \u2014 composite-deny (8 gates, all-pass, anti-hot-reload) + redaction validator (allowlist G-2 fechada) + fixtures nomeadas (20+29+22=71 verdes; ruff ok)"
       ]
+    },
+    {
+      "date": "2026-10-05 14:40",
+      "phase": 0,
+      "note": "T-401 entregue (14/14; su\u00edte fleet 1348 verde c/ fix do harness bridge); review a dispatchar",
+      "tasks_snapshot": [
+        "T-000 \u2014 feature init + plano cockpit-ready (FleetPlan v1 validado)",
+        "T-101 \u2014 decision matrix (11 decis\u00f5es congeladas)",
+        "T-102 \u2014 matriz composite-deny (8 gates)",
+        "T-103 \u2014 wire vocabulary mapping (proposta)",
+        "T-201 \u2014 seam contract draft v0.1 (publisher + principal resolution; assinatura/namespace/isolamento/vers\u00e3o/disabled)",
+        "T-202 \u2014 s\u00e9rie replayable: observer seam default-off (registry+publish+7 fixtures; git am limpo, tree id\u00eantico)",
+        "T-301 \u2014 auth+associa\u00e7\u00e3o local: gateway_auth.py (tickets \u00a71 / consume at\u00f4mico single-writer \u00a74 / idempot\u00eancia \u00a75 / uniformidade \u00a76 / state machine \u00a73) + 22 fixtures G4 \u00a79 verdes; ruff ok",
+        "T-302 \u2014 composite-deny (8 gates, all-pass, anti-hot-reload) + redaction validator (allowlist G-2 fechada) + fixtures nomeadas (20+29+22=71 verdes; ruff ok)",
+        "T-401 \u2014 subscription v1: associa\u00e7\u00e3o expl\u00edcita (sem global/wildcard), ordering cont\u00edgua (gap bloqueia avan\u00e7o), outbox/ACK retri\u00e1vel (cursor s\u00f3 avan\u00e7a cont\u00edguo), TTLs liveness (30/90/60/900s), gaps expl\u00edcitos (replay_gap/cursor_stale/cursor_expired+resync), detach tombstona+cancela outbox; 14 fixtures verdes; su\u00edte fleet 1348 passed"
+      ]
     }
   ],
   "created_at": "2026-10-05T01:16:27.231152",
-  "updated_at": "2026-10-05T14:40:05.982113",
+  "updated_at": "2026-10-05T14:40:06.088992",
   "fleet_state": {
-    "updated_at": "2026-10-05T14:40:05.982113",
+    "updated_at": "2026-10-05T14:40:06.088992",
     "schema_version": 1,
     "agents": [],
     "waves": [],

@@ -204,7 +204,7 @@ class GatewaySubscriptionStore:
         with self._lock:
             subscription = self._subscriptions.get(subscriber_ref)
             outbox = self._outbox.get(subscriber_ref)
-            if subscription is None or outbox is None:
+            if subscription is None or subscriber_ref in self._tombstones or outbox is None:
                 self._audit.append((subscriber_ref, ASSOCIATION_REQUIRED))
                 return False
             if sequence not in outbox:
