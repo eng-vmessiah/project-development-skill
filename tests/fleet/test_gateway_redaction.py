@@ -228,11 +228,19 @@ def test_redaction_envelope_field_required(field):
 
 def test_redaction_duplicate_path_rejected():
     # MEDIUM-1: a literal shadow of a nested path must be rejected, never
-    # passed through unvalidated (round-trip JSON preserves both).
-    event = _event()
-    event["source.system"] = "Bearer SECRET-leak"  # shadow literal
-    verdict = validate_event(event)
+    # passed through unvalidated (round-trip JSON preserves both), in BOTH
+    # insertion orders; detection is by path, not by value.
+    nested_first = _event()
+    nested_first["source.system"] = "Bearer SECRET-leak"  # shadow literal
+    verdict = validate_event(nested_first)
     assert not verdict.ok and verdict.reason == "duplicate_path"
-    event2 = _event()
-    event2["session.session_ref"] = "x" * 100_000  # oversized shadow
-    assert not validate_event(event2).ok
+    literal_first = {"source.system": "Bearer SECRET-leak"}
+    literal_first.update(_event())
+    assert validate_event(literal_first).reason == "duplicate_path"
+    oversized = _event()
+    oversized["session.session_ref"] = "x" * 100_000  # oversized shadow
+    verdict = validate_event(oversized)
+    assert not verdict.ok and verdict.reason == "duplicate_path"
+    benign = _event()
+    benign["provenance.transport"] = "gateway-event-stream"  # benign shadow
+    assert validate_event(benign).reason == "duplicate_path"

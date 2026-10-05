@@ -32,15 +32,16 @@ initialized
 - 2026-10-05 14:13: G-2 APPROVED — allowlist/denylist/fixtures congelados; wave 3 desbloqueada (T-301)
 - 2026-10-05 14:17: T-301 entregue (22/22; ruff ok); review independente dispatch
 - 2026-10-05 14:22: T-302 entregue (71/71; ruff ok); wave-3 tasks completas; reviews (T-301/T-302) em curso
+- 2026-10-05 14:25: T-301 review PASS; fixes LOW aplicados
 
 ## Timestamps
 - Created: 2026-10-05T01:16:27.231152
-- Updated: 2026-10-05T14:22:07.776451
+- Updated: 2026-10-05T14:25:40.856679
 
 ## Fleet State
 ```json
 {
-  "updated_at": "2026-10-05T14:22:07.776451",
+  "updated_at": "2026-10-05T14:25:40.856679",
   "schema_version": 1,
   "agents": [],
   "waves": [],
