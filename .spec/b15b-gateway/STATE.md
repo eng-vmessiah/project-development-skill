@@ -42,15 +42,16 @@ initialized
 - 2026-10-05 14:55: WAVE-4 EXIT VERIFIED (re-check PASS; NIT-4 aplicado) — wave 5 (T-501) próxima
 - 2026-10-05 14:58: T-501 entregue (ensaio PASS; matriz 8/8; evidência no spec); review a dispatchar
 - 2026-10-05 15:02: WAVE-5 EXIT VERIFIED (review PASS; NITs aplicados) — wave 6 (T-601/T-602) aguarda G-3 (live)
+- 2026-10-05 15:07: G-3 APPROVED — live validation autorizada (eu executo); T-601 in_progress
 
 ## Timestamps
 - Created: 2026-10-05T01:16:27.231152
-- Updated: 2026-10-05T15:02:24.160320
+- Updated: 2026-10-05T15:07:50.167347
 
 ## Fleet State
 ```json
 {
-  "updated_at": "2026-10-05T15:02:24.160320",
+  "updated_at": "2026-10-05T15:07:50.167347",
   "schema_version": 1,
   "agents": [],
   "waves": [],

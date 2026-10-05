@@ -1,0 +1,42 @@
+B15B LIVE VALIDATION — raw evidence (2026-10-05)
+=================================================
+
+[preflight]
+checkout: dc50153faf31687928aff7c69cbee18d25d6aa61 (main, clean)
+hermes-serve: ActiveState=active MainPID=1534474
+isis-gateway: ActiveState=active MainPID=1534475
+drop-in: fleet-canary.conf (HERMES_FLEET_TUI_CANARY=1)
+
+[install]
+git am patches/b15b-seam/0001-...patch
+-> Applying: feat(fleet): add default-off plugin observer seam (B15b.1)
+-> HEAD: 966a079d9c (parent dc50153faf)
+
+[sanity]
+run_tests.sh tests/tui_gateway/test_plugin_observer.py
+-> === Summary: 1 files, 7 tests passed, 0 failed (100% complete) in 0.5s ===
+git grep -l plugin_observer -> tests/tui_gateway/test_plugin_observer.py (only)
+
+[restart]
+systemctl --user stop isis-gateway ; rc=0
+is-active -> failed (pre-existing exit-1-on-SIGTERM quirk; see evidence doc *)
+systemctl --user start isis-gateway ; rc=0
+show: ActiveState=active SubState=running MainPID=1749556
+journal: Stopping 15:08:40 (SIGTERM shutdown context logged) -> Main exited status=1/FAILURE -> Stopped 15:08:41 -> Started 15:08:43
+downtime: 15:08:40 -> 15:08:43 = ~3s
+
+[post-restart health]
+ps: pid 1749556 elapsed 01:01 state Ssl
+gateway.log: 15:09:34 kanban dispatcher holding singleton lock; cron scheduler ...
+journal (since 15:08:43): boot logs from hermes[1749556] (skill_commands warnings, normal)
+
+[default-off live probe — real runtime env]
+env: /home/vitor/.hermes/installs/4180fed3e6ab5465/environments/d66984ae3bcf4f5db7e14b4c6431eeb4/venv
+probe: registry empty; publish(v1)=0; publish(wrong version)=0; register without flag -> PluginRpcRegistrationError
+-> default-off live probe: OK
+
+[serve untouched]
+hermes-serve: ActiveState=active MainPID=1534474 (same as preflight)
+
+[rollback (prepared, not needed)]
+git -C ~/.hermes/hermes-agent reset --hard dc50153faf ; systemctl --user restart isis-gateway
