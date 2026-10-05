@@ -1,0 +1,54 @@
+{
+  "note": "Extras das abas PDS/Fleet no Board (botões de ação + ordem de abas). Reaplicar via ferramentas boardstate_* após reset do app. Gerado 05/10/2026 (workspace v71).",
+  "tabOrder": ["pds", "board", "fleet", "mc"],
+  "widgets": {
+    "pds": [
+      {
+        "id": "pds-actions",
+        "kind": "builtin:action-form",
+        "title": "Ações",
+        "grid": {"x": 0, "y": 3, "w": 12, "h": 2},
+        "props": {
+          "buttonLabel": "🔄 Executar",
+          "fields": [
+            {"label": "Modo", "name": "modo", "options": ["aplicar (sync + reaplicar)", "prévia (só mostrar)"], "type": "select"}
+          ],
+          "template": "PD Studio — atualização — modo: {{modo}}. Procedimento: rode o sync (scripts/pd_studio_sync.py) no repo PD; no modo aplicar use --write e reaplique os bindings da aba pds. Ver Projects/project-development-skill/pd-studio.md. Confirme o que mudou."
+        }
+      }
+    ],
+    "fleet": [
+      {
+        "id": "fleet-actions",
+        "kind": "builtin:action-form",
+        "title": "Ações",
+        "grid": {"x": 0, "y": 3, "w": 12, "h": 2},
+        "props": {
+          "buttonLabel": "🔄 Executar",
+          "fields": [
+            {"label": "Modo", "name": "modo", "options": ["aplicar (sync + reaplicar)", "prévia (só mostrar)"], "type": "select"}
+          ],
+          "template": "Fleet canary — atualização — modo: {{modo}}. Procedimento: rode scripts/fleet_studio_sync.py no repo PD (snapshot .spec/pd-studio/fleet-snapshot.json; cursor persistido); no modo aplicar reaplique os bindings da aba fleet. Ver Projects/project-development-skill/pd-studio.md. Confirme o que mudou."
+        }
+      }
+    ]
+  },
+  "layoutShifts": {
+    "pds": [
+      {"id": "phases", "grid": {"x": 0, "y": 5, "w": 6, "h": 5}},
+      {"id": "gates", "grid": {"x": 6, "y": 5, "w": 6, "h": 6}},
+      {"id": "commits", "grid": {"x": 0, "y": 11, "w": 6, "h": 7}},
+      {"id": "sources", "grid": {"x": 6, "y": 11, "w": 6, "h": 5}}
+    ],
+    "fleet": [
+      {"id": "fleet-state", "grid": {"x": 0, "y": 5, "w": 6, "h": 6}},
+      {"id": "fleet-events", "grid": {"x": 6, "y": 5, "w": 6, "h": 6}},
+      {"id": "fleet-rules", "grid": {"x": 0, "y": 11, "w": 12, "h": 4}}
+    ]
+  },
+  "pitfalls": [
+    "builtin:action-form exige props.fields com 1-8 entradas (array vazio e rejeitado no servidor).",
+    "action-button/mode:tool precisam de connector concedido pelo operador (nenhum ativo em 05/10) - usar mode prompt (default).",
+    "Verificar com boardstate_workspace_get apos reaplicar; strings estaticas <=500 chars."
+  ]
+}
