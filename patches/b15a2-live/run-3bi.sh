@@ -2,6 +2,11 @@
 # B15a.2 3b-i — live runtime update + seam patches (fail-safe, logado)
 # Uso:  bash run-3bi.sh          # executa (derruba Desktop/bots ~10-20 min)
 #       bash run-3bi.sh --check  # pré-checagens read-only
+#
+# v2 (04/10 22:17, pós-1ª execução): o check de import do v1 checava o SHIM
+# (.venv-canary/bin/python → re-exec no python do PM SEM o venv gerenciado) e
+# dava falso-negativo (ex.: ruamel). Agora o check profundo roda no SMOKE,
+# contra o venv de RUNTIME resolvido do /proc/<serve-pid>/maps. uv sync loga.
 set -uo pipefail
 BK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$HOME/.hermes/hermes-agent"
@@ -49,22 +54,32 @@ log "3/8 UPDATE (fetch + ff-only $BASE_NEW)"
 git fetch origin || die "fetch"
 git merge --ff-only "$BASE_NEW" || die "merge"
 
-log "4/8 DEPS (uv sync)"
-(UV_PROJECT_ENVIRONMENT=.venv-canary uv sync --frozen || UV_PROJECT_ENVIRONMENT=.venv-canary uv sync) || die "uv sync"
+log "4/8 DEPS (uv sync no shim .venv-canary — o env de runtime é gerenciado pelo produto)"
+(UV_PROJECT_ENVIRONMENT=.venv-canary uv sync --frozen || UV_PROJECT_ENVIRONMENT=.venv-canary uv sync) 2>&1 | tee -a "$LOG" || die "uv sync"
 
 log "5/8 PATCHES (git am 21)"
 git am "$PATCHES"/*.patch || { git am --abort 2>/dev/null || true; die "git am"; }
 
-log "6/8 VERIFY"
+log "6/8 VERIFY (git)"
 git log --oneline -1 | tee -a "$LOG"
-HERMES_HOME="$HOME/.hermes" .venv-canary/bin/python -c "import tui_gateway.server, hermes_cli.fleet_tui_session; print('import ok')" || die "import check"
+# NB (v2): o import check NÃO roda aqui — o shim .venv-canary/bin/python não tem
+# o venv gerenciado e daria falso-negativo. O check profundo roda no SMOKE (8/8).
 
 log "7/8 START"
 systemctl --user start hermes-serve isis-gateway || die "start"
 
-log "8/8 SMOKE (não-fatal)"
+log "8/8 SMOKE"
 sleep 6
 log "serve: $(systemctl --user is-active hermes-serve) | gateway: $(systemctl --user is-active isis-gateway)"
 curl -s -o /dev/null -w "serve HTTP %{http_code}\n" --max-time 10 http://127.0.0.1:9119/ | tee -a "$LOG" || log "⚠ HTTP inconclusivo"
 timeout 90 "$HOME/.local/bin/hermes" plugins list --plain 2>/dev/null | grep -i pd-fleet | tee -a "$LOG" || true
+# Check profundo (v2): importa os módulos do fleet no env de RUNTIME (venv gerenciado,
+# resolvido do /proc/<serve-pid>/maps). Sem resolução → avisa e segue (smoke cobre).
+SVPID=$(systemctl --user show hermes-serve -p MainPID --value 2>/dev/null || true)
+MV=$(grep -oE '/[^ ]*/installs/[^/]+/environments/[^/]+/venv' "/proc/$SVPID/maps" 2>/dev/null | head -1)
+if [ -n "${MV:-}" ]; then
+  (cd "$REPO" && "$MV/bin/python" -c "import sys; sys.path.insert(0, '$REPO'); import hermes_cli.fleet_tui_session, tui_gateway.fleet_tui_composition; print('fleet import OK')" 2>&1 | tee -a "$LOG") || die "import do fleet no env de runtime"
+else
+  log "⚠ venv gerenciado não resolvido (skip do check profundo — smoke cobre)"
+fi
 log "✓ 3b-i CONCLUÍDO — Desktop deve reconectar em instantes. Log: $LOG"

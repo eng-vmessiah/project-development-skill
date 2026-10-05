@@ -9,7 +9,7 @@
 - **External effects:** disabled
 - **Runtime/provider authorization:** none
 - **Live Hermes status:** `NOT_READY_HERMES_SEAM`
-- **Hermes implementation WIP:** B15a.2 Fase 1 (S0–S5) implemented on worktree branches (`hermes-agent-b15a2-integration` @ `feat/b15a2-integration`, plus the S0 series worktrees); unpushed, uninstalled, not activated. Closeout packet: `B15A2-EVIDENCE-PACKET.md`.
+- **Hermes implementation WIP:** B15a.2 Fases 1–2 implemented on worktree branches (`hermes-agent-b15a2-integration` @ `feat/b15a2-integration`, plus the S0 series worktrees); unpushed, uninstalled, not activated. Closeout packet: `B15A2-EVIDENCE-PACKET.md`. **As of 04/10 21:56 the live runtime carries the full series** (base `ea81748579` + 21 patches; tip `6b5d888382`), verified with services healthy and the fleet **dormant** (plugin installed but disabled; zero production call sites); execution result: `B15A2-3BI-EXECUTION-RESULT.md`.
 
 ## Gate statuses
 
@@ -65,6 +65,6 @@ Hermes owns concrete session/runtime state. Fleet owns coordination state. PD Co
 
 ## Next blocker
 
-B15a.2 **Fase 1 (local seam implementation) is complete and locally verified** — see `B15A2-EVIDENCE-PACKET.md` (`LOCAL_SEAM_VERIFIED / LIVE_NOT_READY`). The next blockers are: **Fase 2** (isolated canary wiring, still local-only) and **Fase 3** (runtime installation into `~/.hermes/plugins/pd-fleet-hermes/` and activation), the latter requiring a **new explicit authorization** (B15A5-style runtime readiness packet). Live readiness remains `NOT_READY_HERMES_SEAM` until the open live Hermes decisions (G4 §10) are implemented, reviewed, and separately authorized.
+B15a.2 **Fase 1 (local seam implementation) is complete and locally verified** (`LOCAL_SEAM_VERIFIED / LIVE_NOT_READY`) and **Fase 2 (isolated canary) is complete and independently reviewed** — composition root + 7 canary tests + owner/security review fixes @ Hermes `df97ad1a87`; see `B15A2-EVIDENCE-PACKET.md` + the Fase 2 notes in the caminho doc. **Fase 3 is in progress**: 3a (plugin `pd-fleet-hermes` installed **disabled**) and 3b-prep (21-patch replayable series, replay proven) are done, and **3b-i is executed and verified** — the live runtime carries the full series (base `ea81748579` + 21 patches) with the fleet still **dormant**; see `B15A2-3BI-EXECUTION-RESULT.md`. The next blocker is **3b-ii** (activating the fleet: `enable_fleet_tui_canary` + "fleet no ar" + the live Fleet tab), which requires an **explicit request** from the owner. Live readiness remains `NOT_READY_HERMES_SEAM` until the open live Hermes decisions (G4 §10) are implemented, reviewed, and separately authorized.
 
 After B15a, B15b must separately solve the messaging/API Gateway seam: authenticated registration, global or multi-session subscription, opaque ticket issuance/consume/revoke and issuer verification, durable cursor/replay/association semantics, and operational rollback. Until those waves are implemented, reviewed, and separately authorized, do not start live activation, access credentials, connect to a live Gateway, or treat the local fake as a runtime fallback.

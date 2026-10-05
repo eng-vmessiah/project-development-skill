@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-04T20:51:20+00:00",
+  "generated_at": "2026-10-05T01:19:41+00:00",
   "sources": {
     "repo": "/home/vitor/project/project-development-skill",
     "hermes_worktree": "/home/vitor/project/hermes-agent-b15a2-integration"
@@ -129,6 +129,26 @@
   "commits": {
     "pd": [
       {
+        "commit": "1087796",
+        "summary": "feat(fleet): 3b-i fail-safe execution script (handoff to operator)"
+      },
+      {
+        "commit": "38c0bfb",
+        "summary": "docs(fleet): B15a.2 3b-i live execution packet (authorization request)"
+      },
+      {
+        "commit": "43bb445",
+        "summary": "feat(fleet): B15a.2 3a + 3b-prep executed — plugin installed (disabled) + live patch series"
+      },
+      {
+        "commit": "d1d2cdb",
+        "summary": "docs(fleet): B15a.2 Fase 3 runtime readiness packet (authorization request)"
+      },
+      {
+        "commit": "28d8496",
+        "summary": "feat(pd-studio): v1 read-only sync script + snapshot for the Board tab"
+      },
+      {
         "commit": "d9c33dc",
         "summary": "docs(fleet): B15a.2 Fase 1 evidence packet + S6 review dispositions"
       },
@@ -139,29 +159,13 @@
       {
         "commit": "d9c6afd",
         "summary": "docs(b15a2): host integration gap analysis (phase 1, local-only)"
-      },
-      {
-        "commit": "011c050",
-        "summary": "chore: prepare 1.2.1 patch release (fix release workflow test deps)"
-      },
-      {
-        "commit": "a606ad3",
-        "summary": "chore: prepare 1.2.0 release"
-      },
-      {
-        "commit": "2fd3495",
-        "summary": "fix(ci): repair py3.11 collection, missing jsonschema, and lint F401s"
-      },
-      {
-        "commit": "cfad698",
-        "summary": "merge(pd): promote B15a gateway fleet closeout and skill-source reconciliation"
-      },
-      {
-        "commit": "1cd43a9",
-        "summary": "docs(pd): reconcile installed-only skill content from deployments"
       }
     ],
     "hermes_b15a2": [
+      {
+        "commit": "df97ad1a87",
+        "summary": "feat(fleet): local canary composition root + Fase 2 review fixes (b15a2-F2)"
+      },
       {
         "commit": "590a18f75f",
         "summary": "fix(fleet): close S6 review findings on the B15a.2 series"
