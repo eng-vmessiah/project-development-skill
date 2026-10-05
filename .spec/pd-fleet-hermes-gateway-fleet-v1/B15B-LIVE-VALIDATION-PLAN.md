@@ -1,6 +1,6 @@
 # B15B — Plano de Validação Live (pacote G-3)
 
-**Status:** `draft_v0_1_for_authorization` — gate **G-3** (owner: Vitor). **NADA será executado antes da aprovação.**
+**Status:** `EXECUTED` (2026-10-05) — gate **G-3 aprovado pelo owner** ("sim"); execução completa (instalação + restart + fixtures live); evidência em `B15B-LIVE-EVIDENCE.md`/`.log`.
 **Data:** 2026-10-05 · **Autoria:** ISIS · **Fonte:** `B15B-PLAN.md` §4 (B15b.5) · T-501 (`B15B-REPLAY-ROLLBACK.md`) · `G4-AUTH-LIFECYCLE.md` §10.
 
 ## 1. Escopo proposto (slice mínimo)
@@ -39,8 +39,8 @@ Instalação do **seam B15b.1** (`patches/b15b-seam/0001-…patch`) no checkout 
 
 ## 5. Autorização (G-3) — checklist do owner
 
-- [ ] Aprovar o escopo (§1/§2) e a instalação no checkout vivo (§2.2).
-- [ ] Aprovar a janela de downtime (10–20 min) e **quem executa o restart** (proposta: **eu executo** com sua autorização; alternativa: **você executa** e eu conduzo o resto).
-- [ ] Aprovar as fixtures negativas live (§2.5).
+- [x] Aprovar o escopo (§1/§2) e a instalação no checkout vivo (§2.2). — **aprovado**
+- [x] Aprovar a janela de downtime (10–20 min) e **quem executa o restart** — **aprovado; execução: eu (ISIS); downtime efetivo ~3s**.
+- [x] Aprovar as fixtures negativas live (§2.5). — **aprovado; executadas**
 
 **Efeito:** G-3 aprovado ⇒ T-601/T-602 desbloqueados (execução do plano + closeout com G4 live closure).

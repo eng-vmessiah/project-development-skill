@@ -1,6 +1,6 @@
 {
   "schema": "plan-cockpit:v1",
-  "generated_at": "2026-10-05T18:10:26+00:00",
+  "generated_at": "2026-10-05T18:18:34+00:00",
   "repo": "/home/vitor/project/project-development-skill",
   "runs_root": "/home/vitor/project/project-development-skill/.pd-fleet-runs",
   "features": [
@@ -9,7 +9,7 @@
       "phase": 0,
       "status": "initialized",
       "source": "plan-yaml",
-      "tasks_done": 5,
+      "tasks_done": 12,
       "tasks_total": 12,
       "checkpoints": 22,
       "checkpoints_log": [
@@ -62,7 +62,7 @@
         },
         {
           "id": "wave-6",
-          "status": "pending",
+          "status": "done",
           "tasks": 2
         }
       ],
@@ -95,7 +95,7 @@
           "id": "T-201",
           "wave": 2,
           "role": "coder",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": "T-202",
@@ -107,37 +107,37 @@
           "id": "T-301",
           "wave": 3,
           "role": "coder",
-          "status": "in_progress"
+          "status": "done"
         },
         {
           "id": "T-302",
           "wave": 3,
           "role": "coder",
-          "status": "in_progress"
+          "status": "done"
         },
         {
           "id": "T-401",
           "wave": 4,
           "role": "coder",
-          "status": "in_progress"
+          "status": "done"
         },
         {
           "id": "T-501",
           "wave": 5,
           "role": "coder",
-          "status": "in_progress"
+          "status": "done"
         },
         {
           "id": "T-601",
           "wave": 6,
           "role": "coder",
-          "status": "in_progress"
+          "status": "done"
         },
         {
           "id": "T-602",
           "wave": 6,
           "role": "reviewer",
-          "status": "pending"
+          "status": "done"
         }
       ],
       "gates": [
@@ -177,13 +177,13 @@
         "evidence": 0
       },
       "created_at": "2026-10-05T01:16:27.231152",
-      "updated_at": "2026-10-05T15:10:25.941050",
-      "last_commit": "dd97e28 2026-10-05 chore(b15b): T-601 feedings",
+      "updated_at": "2026-10-05T15:10:56.111123",
+      "last_commit": "ec135b6 2026-10-05 chore(b15b): wave-6 done — feature closeout (pending final review)",
       "pd_view": {
         "phase_name": "Setup",
-        "tasks_done": 11,
+        "tasks_done": 12,
         "tasks_total": 12,
-        "checkpoints": 22
+        "checkpoints": 23
       }
     },
     {

@@ -211,7 +211,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: coder-hermes
-    status: pending
+    status: done
 
   - id: T-202
     wave: 2
@@ -273,7 +273,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: coder-hermes
-    status: in_progress
+    status: done
 
   - id: T-302
     wave: 3
@@ -304,7 +304,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: coder-hermes
-    status: in_progress
+    status: done
 
   - id: T-401
     wave: 4
@@ -334,7 +334,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: coder-hermes
-    status: in_progress
+    status: done
 
   - id: T-501
     wave: 5
@@ -365,7 +365,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: coder-hermes
-    status: in_progress
+    status: done
 
   - id: T-601
     wave: 6
@@ -395,7 +395,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: coder-hermes
-    status: in_progress
+    status: done
 
   - id: T-602
     wave: 6
@@ -425,7 +425,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: reviewer
-    status: pending
+    status: done
 
 gates:
   - id: G-0

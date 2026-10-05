@@ -1,6 +1,6 @@
 # B15B — Seam Contract (B15b.1) — event publisher + principal resolution
 
-**Status:** `draft_v0_3` — **nenhum patch aplicado**; a série replayable é o T-202 (G-1 aprovado; **desbloqueado**). Canário TUI B15a.2 segue live; readiness live do Fleet segue `NOT_READY_HERMES_SEAM`.
+**Status:** `v0_3_installed` — patch B15b.1 **INSTALADO** no checkout vivo (`966a079d9c`, 05/10; **inert** — 0 call sites; default-off provado live). Rollback: `dc50153faf`. Canário TUI B15a.2 segue live; readiness live do Fleet segue `NOT_READY_HERMES_SEAM`.
 **Data:** 2026-10-05 · **Autoria:** ISIS (orchestrator) · **Fonte:** `B15B-DECISION-MATRIX.md` (A1–A11/B/C) · `G1-CONTRACT.md` (§3–§9) · `G4-SECURITY` · `G4-CLOSURE` · `B15A-TUI-WIRE-CONTRACT.md` · `B15A-DELIVERY-RECOVERY-CONTRACT.md` · **mecanismo vivo:** `tui_gateway/plugin_rpc.py` + `tui_gateway/fleet_tui_registration.py` (checkout `dc50153faf`).
 **Review independente:** v0.1 → `PASS_WITH_BLOCKERS`; v0.2 → **`PASS`**; v0.3 = congelamento dos bounds. **T-202 review: `PASS`** (zero BLOCKER/HIGH/MEDIUM; replay reproduzido independentemente; LOW-1/LOW-3 adjudicados nesta revisão; LOW-2/LOW-4 aceitos p/ B15b.1).
 

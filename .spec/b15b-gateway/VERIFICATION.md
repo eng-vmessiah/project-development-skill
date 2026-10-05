@@ -34,3 +34,4 @@
 - **Checkout vivo:** `966a079d9c` (seam **instalada, inert**); rollback documentado (`dc50153faf` + restart).
 - **Painel:** Mission Control reflete o fechamento (refresh pós-feedings).
 - **Review independente final:** dispatchado no closeout (T-602).
+- **Review final (T-602): `PASS_WITH_BLOCKERS`** — engenharia/live integralmente reproduzidos (replay re-verificado; probe live re-executado; live state conferido); **único blocker mecânico** (flips de status no `plan.yaml` + drift do PLAN.md) — **corrigido em 05/10**; feature fechada.
