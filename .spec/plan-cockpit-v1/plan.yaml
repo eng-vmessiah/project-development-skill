@@ -1,0 +1,408 @@
+schema_version: "1"
+
+agents:
+  - id: orchestrator-isis
+    role: orchestrator
+    capabilities:
+      - planning
+      - boardstate
+      - records
+    status: available
+  - id: coder-hermes
+    role: coder
+    capabilities:
+      - python
+      - cli
+    status: available
+  - id: tester-hermes
+    role: test-engineer
+    capabilities:
+      - pytest
+    status: available
+  - id: reviewer-hermes
+    role: reviewer
+    capabilities:
+      - review
+    status: available
+
+waves:
+  - id: wave-0
+    tasks:
+      - T-000
+    status: done
+  - id: wave-1
+    tasks:
+      - T-101
+      - T-102
+    status: pending
+    gates:
+      - G1
+  - id: wave-2
+    tasks:
+      - T-201
+      - T-202
+    status: pending
+  - id: wave-3
+    tasks:
+      - T-301
+    status: pending
+  - id: wave-4
+    tasks:
+      - T-401
+      - T-402
+      - T-403
+      - T-404
+    status: pending
+    gates:
+      - G2
+  - id: wave-5
+    tasks:
+      - T-501
+    status: pending
+    gates:
+      - G3
+
+tasks:
+  - id: T-000
+    wave: 0
+    role: orchestrator
+    objective: Intake + discovery (fleet machinery, docs, examples, executor templates).
+    depends_on: []
+    parallel_group: null
+    allowed_paths: []
+    forbidden_paths: []
+    inputs: []
+    outputs:
+      - name: spec-draft
+        description: SPEC/PLAN/CONTEXT drafted from real discovery.
+        required: true
+    acceptance_criteria:
+      - Discovery grounded in existing machinery with file-level references.
+    validation_commands: []
+    blocked_when: []
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: orchestrator-isis
+    status: done
+
+  - id: T-101
+    wave: 1
+    role: coder
+    objective: Implement scripts/plan_cockpit_sync.py aggregator (R1).
+    depends_on: []
+    parallel_group: null
+    allowed_paths:
+      - scripts/
+      - .spec/pd-studio/
+    forbidden_paths:
+      - .env
+      - credentials/
+    inputs:
+      - pd list --json
+      - .spec/*/STATE.json
+      - .spec/*/plan.yaml
+    outputs:
+      - name: plan-cockpit.json
+        description: Derived aggregate of real PD state.
+        required: true
+    acceptance_criteria:
+      - JSON derived only from real sources; explicit empty when data is missing.
+    validation_commands:
+      - python3 scripts/plan_cockpit_sync.py --write
+    blocked_when:
+      - G1 not approved.
+    retry_policy:
+      max_attempts: 2
+      backoff_seconds: 1
+      retryable_errors: []
+    owner: coder-hermes
+    status: pending
+
+  - id: T-102
+    wave: 1
+    role: test-engineer
+    objective: Sync tests (fixtures to expected aggregate; determinism; anti-fabrication).
+    depends_on:
+      - T-101
+    parallel_group: null
+    allowed_paths:
+      - tests/
+    forbidden_paths:
+      - .env
+    inputs:
+      - scripts/plan_cockpit_sync.py
+    outputs:
+      - name: sync-tests
+        description: Focused pytest module for the aggregator.
+        required: true
+    acceptance_criteria:
+      - Fixture-driven assertions; empty input yields explicit empties, never fabricated values.
+    validation_commands:
+      - python3 -m pytest tests/ -k plan_cockpit -q
+    blocked_when:
+      - T-101 not complete.
+    retry_policy:
+      max_attempts: 2
+      backoff_seconds: 1
+      retryable_errors: []
+    owner: tester-hermes
+    status: pending
+
+  - id: T-201
+    wave: 2
+    role: orchestrator
+    objective: Board Mission Control tab (mc) with real plan-cockpit.json data.
+    depends_on:
+      - T-101
+    parallel_group: null
+    allowed_paths: []
+    forbidden_paths: []
+    inputs:
+      - .spec/pd-studio/plan-cockpit.json
+    outputs:
+      - name: mc-tab
+        description: Board tab with Overview/Features/Tasks/Timeline/Fleet widgets.
+        required: true
+    acceptance_criteria:
+      - Widgets render only real snapshot values (never fabricated telemetry).
+    validation_commands: []
+    blocked_when:
+      - T-101 not complete.
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: orchestrator-isis
+    status: pending
+
+  - id: T-202
+    wave: 2
+    role: coder
+    objective: Adopt pd feeding in the workflow (docs + this feature's real checkpoints).
+    depends_on: []
+    parallel_group: null
+    allowed_paths:
+      - docs/
+    forbidden_paths:
+      - .env
+    inputs:
+      - pd CLI
+    outputs:
+      - name: feeding-docs
+        description: Documented habit + real checkpoints for this feature.
+        required: true
+    acceptance_criteria:
+      - pd list --json shows this feature with real tasks/checkpoints.
+    validation_commands:
+      - pd list --json
+    blocked_when:
+      - G1 not approved.
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: coder-hermes
+    status: pending
+
+  - id: T-301
+    wave: 3
+    role: orchestrator
+    objective: Create skill plan-cockpit + repo docs + vault notes.
+    depends_on:
+      - T-101
+      - T-201
+    parallel_group: null
+    allowed_paths:
+      - docs/
+    forbidden_paths:
+      - .env
+    inputs:
+      - .spec/pd-studio/plan-cockpit.json
+    outputs:
+      - name: skill-plan-cockpit
+        description: Installed skill with the cockpit-ready standard.
+        required: true
+    acceptance_criteria:
+      - Skill loads and encodes the standard, sync procedure, layout rules and pitfalls.
+    validation_commands: []
+    blocked_when:
+      - T-101 or T-201 not complete.
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: orchestrator-isis
+    status: pending
+
+  - id: T-401
+    wave: 4
+    role: coder
+    objective: Wire the real runtime adapter into the pd fleet-run path (spike fallback documented).
+    depends_on:
+      - T-101
+    parallel_group: null
+    allowed_paths:
+      - scripts/pd_fleet/
+    forbidden_paths:
+      - .env
+      - credentials/
+    inputs:
+      - scripts/pd_fleet/runtime_adapters.py
+      - examples/pd-fleet/plan.yaml
+    outputs:
+      - name: real-adapter-path
+        description: Runnable real-adapter dispatch path for the pilot.
+        required: true
+    acceptance_criteria:
+      - Dry-run with fake adapter works; template smoke executes without real dispatch.
+    validation_commands:
+      - pd fleet-run --dry-run --plan examples/pd-fleet/plan.yaml
+    blocked_when:
+      - T-101 not complete.
+    retry_policy:
+      max_attempts: 2
+      backoff_seconds: 1
+      retryable_errors: []
+    owner: coder-hermes
+    status: pending
+
+  - id: T-402
+    wave: 4
+    role: orchestrator
+    objective: Pilot plan (FleetPlan + cost caps + output dir) and G2 authorization request.
+    depends_on:
+      - T-401
+    parallel_group: null
+    allowed_paths:
+      - .spec/
+    forbidden_paths:
+      - .env
+    inputs:
+      - examples/pd-fleet/plan.yaml
+    outputs:
+      - name: pilot-plan
+        description: Validated pilot manifest with declared cost and scope.
+        required: true
+    acceptance_criteria:
+      - Cost cap declared (invocations x pinned model); output dir explicit; scope minimal.
+    validation_commands: []
+    blocked_when:
+      - G2 not authorized.
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: orchestrator-isis
+    status: pending
+
+  - id: T-403
+    wave: 4
+    role: coder
+    objective: Pilot RUN — 3 tasks via pinned hermes runtime adapter.
+    depends_on:
+      - T-402
+    parallel_group: null
+    allowed_paths:
+      - .spec/pd-studio/
+    forbidden_paths:
+      - .env
+      - credentials/
+    inputs:
+      - pilot plan
+    outputs:
+      - name: pilot-evidence
+        description: reports/evidence/gates/summary persisted from the real run.
+        required: true
+    acceptance_criteria:
+      - Real dispatch evidence captured; visible in plan-cockpit.json.
+    validation_commands: []
+    blocked_when:
+      - G2 not authorized.
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: coder-hermes
+    status: pending
+
+  - id: T-404
+    wave: 4
+    role: reviewer
+    objective: Review the pilot (real evidence vs claims; limits documented).
+    depends_on:
+      - T-403
+    parallel_group: null
+    allowed_paths: []
+    forbidden_paths: []
+    inputs:
+      - pilot evidence
+    outputs:
+      - name: pilot-review
+        description: Independent review notes with dispositions.
+        required: true
+    acceptance_criteria:
+      - Evidence independently re-read; claims separated from verification.
+    validation_commands: []
+    blocked_when:
+      - T-403 not complete.
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: reviewer-hermes
+    status: pending
+
+  - id: T-501
+    wave: 5
+    role: orchestrator
+    objective: Closeout — VERIFICATION.md, records, final Board, pd closeout.
+    depends_on:
+      - T-404
+    parallel_group: null
+    allowed_paths:
+      - .spec/
+    forbidden_paths:
+      - .env
+    inputs:
+      - pilot review
+    outputs:
+      - name: closeout
+        description: VERIFICATION.md + records updated; pd tasks completed for real.
+        required: true
+    acceptance_criteria:
+      - Verification distinguishes verified/deferred/blocked; records match reality.
+    validation_commands:
+      - pd validate --deep
+    blocked_when:
+      - T-404 not complete.
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: orchestrator-isis
+    status: pending
+
+gates:
+  - id: G1
+    kind: review
+    scope: plan
+    owner: vitor
+    status: pending
+    required_evidence:
+      - SPEC + PLAN approved by the owner.
+  - id: G2
+    kind: authorization
+    scope: dispatch
+    owner: vitor
+    status: pending
+    required_evidence:
+      - Live-dispatch authorization with declared cost cap and output scope.
+  - id: G3
+    kind: closeout
+    scope: plan
+    owner: orchestrator-isis
+    status: pending
+    required_evidence:
+      - VERIFICATION.md with verified/deferred/blocked split.

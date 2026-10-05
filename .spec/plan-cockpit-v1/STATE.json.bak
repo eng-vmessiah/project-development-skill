@@ -1,0 +1,21 @@
+{
+  "feature": "plan-cockpit-v1",
+  "phase": 0,
+  "status": "initialized",
+  "tasks": [],
+  "checkpoints": [],
+  "created_at": "2026-10-04T23:05:58.575354",
+  "updated_at": "2026-10-04T23:05:58.575833",
+  "fleet_state": {
+    "updated_at": "2026-10-04T23:05:58.575833",
+    "schema_version": 1,
+    "agents": [],
+    "waves": [],
+    "tasks": [],
+    "gates": [],
+    "reports": [],
+    "attempts": [],
+    "blockers": [],
+    "evidence": []
+  }
+}
