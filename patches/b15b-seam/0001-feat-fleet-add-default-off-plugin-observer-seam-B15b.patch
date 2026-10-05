@@ -1,0 +1,241 @@
+From c9c09b666e67da2ac35b8c02f5be1c625813d61e Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Mon, 5 Oct 2026 13:43:41 -0300
+Subject: [PATCH] =?UTF-8?q?feat(fleet):=20add=20default-off=20plugin=20obs?=
+ =?UTF-8?q?erver=20seam=20(B15b.1)=20=E2=80=94=20registry,=20contained=20p?=
+ =?UTF-8?q?ublish,=20fixtures?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ tests/tui_gateway/test_plugin_observer.py | 102 +++++++++++++++++++++
+ tui_gateway/plugin_observer.py            | 107 ++++++++++++++++++++++
+ 2 files changed, 209 insertions(+)
+ create mode 100644 tests/tui_gateway/test_plugin_observer.py
+ create mode 100644 tui_gateway/plugin_observer.py
+
+diff --git a/tests/tui_gateway/test_plugin_observer.py b/tests/tui_gateway/test_plugin_observer.py
+new file mode 100644
+index 0000000000..d214e40a70
+--- /dev/null
++++ b/tests/tui_gateway/test_plugin_observer.py
+@@ -0,0 +1,102 @@
++"""Fixtures for the B15b.1 observer seam (B15B-SEAM-CONTRACT §6).
++
++Proves: default-off no-op publishing, enabled-flag requirement, atomic batch
++registration, namespace/duplicate rejections, handler exception isolation,
++fail-closed schema versioning, and non-Fleet compatibility.
++"""
++from __future__ import annotations
++
++import pytest
++
++from tui_gateway.plugin_observer import BRIDGE_WIRE_SCHEMA, PluginObserverRegistry
++from tui_gateway.plugin_rpc import PluginRpcRegistrationError
++
++EVENT = {"schema_version": BRIDGE_WIRE_SCHEMA, "event_type": "session.heartbeat"}
++
++
++def _noop(event, **kwargs):
++    return None
++
++
++def test_default_off_no_handlers() -> None:
++    registry = PluginObserverRegistry()
++    assert registry.methods == ()
++    assert registry.publish(EVENT) == 0  # no-op: nothing registered, nothing delivered
++    with pytest.raises(PluginRpcRegistrationError):
++        registry.register_batch("fleet", (("bridge_observer", _noop),), enabled=False)
++    assert registry.methods == ()
++
++
++def test_config_absent_disabled_invalid() -> None:
++    registry = PluginObserverRegistry()
++    for enabled in (False, None, "yes", 1):
++        with pytest.raises(PluginRpcRegistrationError):
++            registry.register_batch("fleet", (), enabled=enabled)
++    assert registry.register_batch("fleet", (), enabled=True) == ()  # empty batch valid
++    assert registry.methods == ()
++
++
++def test_namespace_rejections() -> None:
++    registry = PluginObserverRegistry()
++    with pytest.raises(PluginRpcRegistrationError):
++        registry.register_batch("other", (), enabled=True)  # namespace must be exactly "fleet"
++    for bad_name in ("Bad", "has-dash", "1start", "end.", "a..b", ""):
++        with pytest.raises(PluginRpcRegistrationError):
++            registry.register_batch("fleet", ((bad_name, _noop),), enabled=True)
++    registry.register_batch("fleet", (("obs", _noop),), enabled=True)
++    with pytest.raises(PluginRpcRegistrationError):
++        registry.register_batch("fleet", (("obs", _noop),), enabled=True)  # duplicate
++    with pytest.raises(PluginRpcRegistrationError):
++        registry.register_batch("fleet", (("obs2", _noop),), enabled=True, reserved={"fleet.obs2"})
++    with pytest.raises(PluginRpcRegistrationError):
++        registry.register_batch("fleet", (("dup", _noop), ("dup", _noop)), enabled=True)
++    assert registry.methods == ("fleet.obs",)
++
++
++def test_batch_is_atomic_on_failure() -> None:
++    registry = PluginObserverRegistry()
++    with pytest.raises(PluginRpcRegistrationError):
++        registry.register_batch("fleet", (("ok_one", _noop), ("Bad", _noop)), enabled=True)
++    assert registry.methods == ()  # failed batch published nothing
++
++
++def test_handler_exception_isolated() -> None:
++    calls: list[str] = []
++
++    def bad(event, **kwargs):
++        calls.append("bad")
++        raise RuntimeError("boom")
++
++    def good(event, **kwargs):
++        calls.append("good")
++
++    registry = PluginObserverRegistry()
++    registry.register_batch("fleet", (("bad_obs", bad), ("good_obs", good)), enabled=True)
++    assert registry.publish(EVENT) == 1  # good delivered; bad contained
++    assert calls == ["bad", "good"]
++
++
++def test_version_unsupported_fails_closed() -> None:
++    received: list[dict] = []
++    registry = PluginObserverRegistry()
++    registry.register_batch(
++        "fleet", (("obs", lambda event, **kwargs: received.append(event)),), enabled=True
++    )
++    assert registry.publish({"schema_version": "pd-fleet-gateway-bridge:v2"}) == 0
++    assert registry.publish({"event_type": "session.heartbeat"}) == 0  # missing version
++    assert registry.publish("not-a-mapping") == 0
++    assert received == []
++    assert registry.publish(EVENT) == 1
++    assert received and received[0]["schema_version"] == BRIDGE_WIRE_SCHEMA
++
++
++def test_golden_non_fleet_registry_untouched() -> None:
++    from tui_gateway.plugin_rpc import PluginRpcRegistry
++
++    rpc = PluginRpcRegistry()
++    rpc.register("fleet", "session_probe", lambda *args, **kwargs: {}, enabled=True)
++    observers = PluginObserverRegistry()
++    observers.register_batch("fleet", (("obs", _noop),), enabled=True)
++    assert observers.publish(EVENT) == 1
++    assert rpc.resolve("fleet.session_probe") is not None  # non-Fleet surface untouched
++    assert observers.methods == ("fleet.obs",)
+diff --git a/tui_gateway/plugin_observer.py b/tui_gateway/plugin_observer.py
+new file mode 100644
+index 0000000000..9365abe48b
+--- /dev/null
++++ b/tui_gateway/plugin_observer.py
+@@ -0,0 +1,107 @@
++"""Default-off, namespaced observer registration and outbound event fan-out.
++
++Sibling of ``plugin_rpc.py`` (same namespace/identifier discipline, atomic
++batch registration, ``enabled`` flag required).  The bridge publisher is
++outbound: there is no request that "discovers" registrations — the composition
++root registers observers once at boot under ``pd_fleet_gateway_enabled``;
++without the flag this registry stays empty and ``publish`` is a no-op.
++
++Read-only by construction: observers receive redacted lifecycle events only.
++This module never dispatches, mutates sessions, or opens network routes.
++"""
++from __future__ import annotations
++
++from collections.abc import Callable, Mapping
++import logging
++from typing import Any
++
++from .plugin_rpc import PluginRpcRegistrationError, validate_plugin_rpc
++
++logger = logging.getLogger(__name__)
++
++#: Frozen bridge wire schema (B15B seam contract §2/§4).
++BRIDGE_WIRE_SCHEMA = "pd-fleet-gateway-bridge:v1"
++
++ObserverHandler = Callable[..., None]
++
++
++class PluginObserverRegistry:
++    """Small registry whose caller must explicitly pass the integration flag."""
++
++    def __init__(self) -> None:
++        self._observers: dict[str, ObserverHandler] = {}
++
++    def register_batch(
++        self,
++        namespace: Any,
++        registrations: Any,
++        *,
++        enabled: bool = False,
++        reserved: set[str] | frozenset[str] = frozenset(),
++    ) -> tuple[str, ...]:
++        """Atomically register ``(name, handler)`` observer pairs.
++
++        Every entry is validated before the registry changes; the complete
++        candidate mapping is published by one reference swap, so a concurrent
++        publisher observes either the old or the new mapping, never a partial
++        batch.
++        """
++        if enabled is not True:
++            raise PluginRpcRegistrationError("plugin observer registration disabled")
++        # Validate the namespace even for an empty batch.
++        validate_plugin_rpc(namespace, "batch")
++        try:
++            entries = tuple(registrations)
++        except TypeError as exc:
++            raise PluginRpcRegistrationError("observer registrations must be iterable") from exc
++        validated: list[tuple[str, ObserverHandler]] = []
++        batch_names: set[str] = set()
++        for registration in entries:
++            if not isinstance(registration, (tuple, list)) or len(registration) != 2:
++                raise PluginRpcRegistrationError(
++                    "observer registration must be a (name, handler) pair"
++                )
++            name, handler = registration
++            method = validate_plugin_rpc(namespace, name)
++            if not callable(handler):
++                raise PluginRpcRegistrationError("observer handler must be callable")
++            if method in reserved:
++                raise PluginRpcRegistrationError("observer namespace collision")
++            if method in self._observers:
++                raise PluginRpcRegistrationError("duplicate plugin observer")
++            if method in batch_names:
++                raise PluginRpcRegistrationError("duplicate plugin observer in batch")
++            batch_names.add(method)
++            validated.append((method, handler))
++        published = dict(self._observers)
++        for method, handler in validated:
++            published[method] = handler
++        self._observers = published
++        return tuple(method for method, _handler in validated)
++
++    @property
++    def methods(self) -> tuple[str, ...]:
++        return tuple(sorted(self._observers))
++
++    def publish(self, event: Mapping[str, Any], *, principal: Any = None) -> int:
++        """Fan out one event to every registered observer; returns deliveries.
++
++        Contained failure: a raising handler never breaks the gateway loop,
++        other observers, or this call.  Malformed events or unsupported schema
++        versions deliver nothing (fail-closed) — no fallback, no partial claim.
++        """
++        if not self._observers:
++            return 0
++        if not isinstance(event, Mapping) or event.get("schema_version") != BRIDGE_WIRE_SCHEMA:
++            logger.debug("observer publish skipped: unsupported or malformed event")
++            return 0
++        payload = dict(event)
++        delivered = 0
++        for method, handler in sorted(self._observers.items()):
++            try:
++                handler(payload, principal=principal)
++            except Exception:  # contained: never propagates to the gateway loop
++                logger.warning("observer handler failed: %s", method)
++                continue
++            delivered += 1
++        return delivered
+-- 
+2.43.0
+

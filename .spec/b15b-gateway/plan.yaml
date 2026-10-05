@@ -39,7 +39,7 @@ waves:
     tasks:
       - T-201
       - T-202
-    status: pending
+    status: done
     gates:
       - G-1
   - id: wave-3
@@ -242,7 +242,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: coder-hermes
-    status: pending
+    status: done
 
   - id: T-301
     wave: 3

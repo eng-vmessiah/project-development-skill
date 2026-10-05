@@ -15,21 +15,24 @@ initialized
 - [x] T-102 — matriz composite-deny (8 gates)
 - [x] T-103 — wire vocabulary mapping (proposta)
 - [x] T-201 — seam contract draft v0.1 (publisher + principal resolution; assinatura/namespace/isolamento/versão/disabled)
+- [x] T-202 — série replayable: observer seam default-off (registry+publish+7 fixtures; git am limpo, tree idêntico)
 
 ## Checkpoints
 - 2026-10-05 01:17: B15b.0 docs drafted; G-0 review dispatch
 - 2026-10-05 01:24: Owner sign-offs (A1-A11+C) + G-1 authorization recorded; G-0 pending review
 - 2026-10-05 01:42: G-0 APPROVED (review PASS + sign-offs) — B15b.0 fechado; wave-2 desbloqueada (G-1 ja aprovado)
 - 2026-10-05 12:00: T-201 draft entregue; review independente dispatch
+- 2026-10-05 12:23: T-201 CLOSED (review PASS); T-202 in_progress — worktree setup
+- 2026-10-05 13:44: T-202 DONE — série exportada + replay provado (tree 39dd54e4be); review independente dispatch
 
 ## Timestamps
 - Created: 2026-10-05T01:16:27.231152
-- Updated: 2026-10-05T12:00:25.278520
+- Updated: 2026-10-05T13:44:03.909248
 
 ## Fleet State
 ```json
 {
-  "updated_at": "2026-10-05T12:00:25.278520",
+  "updated_at": "2026-10-05T13:44:03.909248",
   "schema_version": 1,
   "agents": [],
   "waves": [],
