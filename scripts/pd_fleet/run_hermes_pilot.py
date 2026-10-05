@@ -36,15 +36,19 @@ from pd_fleet.runtime_adapter import (
     RuntimeTaskEnvelope,
     TemplateRuntimeAdapter,
 )
-from pd_fleet.runtime_adapters import create_runtime_adapter
 from pd_fleet.sandbox import LocalSandboxRunner
 
 REPO = Path(__file__).resolve().parents[2]
 HERMES_EXECUTABLE = "/home/vitor/.local/bin/hermes"
 PILOT_MODEL_DEFAULT = "deepseek-v4.1-flash"
+PILOT_PROVIDER = "opencode-go"
 PILOT_NAMESPACE = "workspace"
 PILOT_TIMEOUT_SECONDS = 120
-ADAPTER_NAME = "hermes/openai-codex"
+ADAPTER_NAME = f"hermes/{PILOT_PROVIDER}"
+PILOT_TEMPLATE = (
+    "hermes", "chat", "-q", "{prompt}", "--provider", PILOT_PROVIDER, "--model",
+    "{model}", "-Q", "--safe-mode", "--ignore-rules", "--max-turns", "1",
+)
 
 _META_CHARS = ";&|<>$`\n\r"
 
@@ -62,8 +66,23 @@ def build_profile() -> RuntimeProviderProfile:
     )
 
 
-def build_adapter(profile: RuntimeProviderProfile):
-    return create_runtime_adapter("hermes", profile, CommandMetadata(executable=HERMES_EXECUTABLE))
+def build_adapter(profile: RuntimeProviderProfile) -> TemplateRuntimeAdapter:
+    """Pilot command contract: hermes CLI pinned to the cheap provider (opencode-go)."""
+    return TemplateRuntimeAdapter(ADAPTER_NAME, profile, PILOT_TEMPLATE,
+                                  CommandMetadata(executable=HERMES_EXECUTABLE))
+
+
+def executed_argv(adapter: TemplateRuntimeAdapter,
+                  envelope: RuntimeTaskEnvelope) -> tuple[str, ...]:
+    """The exact argv the sandbox runner will receive (executable substituted)."""
+    return (HERMES_EXECUTABLE,) + adapter.build_argv(envelope)[1:]
+
+
+def _enum_value(value: object) -> str | None:
+    """Enum-or-str-or-None -> plain string (RuntimeResult fields are unions)."""
+    if value is None:
+        return None
+    return value.value if hasattr(value, "value") else str(value)
 
 
 def task_prompt(task: object, mission: str) -> str:
@@ -109,11 +128,12 @@ def mission_name(plan_path: Path) -> str:
     return plan_path.parent.name or plan_path.stem
 
 
-def build_runner(plan: FleetPlan, profile: RuntimeProviderProfile, adapter: object,
+def build_runner(plan: FleetPlan, profile: RuntimeProviderProfile,
+                 adapter: TemplateRuntimeAdapter,
                  model: str, mission: str, output_root: Path,
                  tool_root: Path = REPO) -> LocalSandboxRunner:
     output_root.mkdir(parents=True, exist_ok=True)
-    argvs = [adapter.build_argv(build_envelope(task, profile, model, mission))
+    argvs = [executed_argv(adapter, build_envelope(task, profile, model, mission))
              for task in plan.tasks]
     env = {
         "PATH": "/home/vitor/.local/bin:/usr/local/bin:/usr/bin:/bin",
@@ -133,7 +153,7 @@ def build_runner(plan: FleetPlan, profile: RuntimeProviderProfile, adapter: obje
 class AdapterDispatchShim:
     """Duck-typed dispatcher: FleetOrchestrator -> named runtime adapter + runner."""
 
-    def __init__(self, adapter: object, runner: LocalSandboxRunner,
+    def __init__(self, adapter: TemplateRuntimeAdapter, runner: LocalSandboxRunner,
                  profile: RuntimeProviderProfile, model: str, mission: str) -> None:
         self.adapter = adapter
         self.runner = runner
@@ -151,15 +171,16 @@ class AdapterDispatchShim:
             return DispatchResult(task_id, ADAPTER_NAME, "failed", attempt, None,
                                   {"adapter": ADAPTER_NAME}, "pilot dispatch error")
         ok = result.status is RuntimeStatus.OK
+        error_value = _enum_value(result.error_code)
         evidence = {
             "adapter": ADAPTER_NAME,
-            "runtime_status": result.status.value,
-            "error_code": result.error_code.value if result.error_code else None,
+            "runtime_status": _enum_value(result.status),
+            "error_code": error_value,
         }
         output = {"output": result.output} if ok else None
         return DispatchResult(task_id, ADAPTER_NAME, "completed" if ok else "failed", attempt,
                               output, evidence,
-                              None if ok else (result.error_code.value if result.error_code else "failed"))
+                              None if ok else (error_value or "failed"))
 
 
 def run_smoke(plan_path: Path, model: str) -> int:
@@ -172,7 +193,7 @@ def run_smoke(plan_path: Path, model: str) -> int:
     failures = 0
     for task in plan.tasks:
         envelope = build_envelope(task, profile, model, mission)
-        argv = adapter.build_argv(envelope)
+        argv = executed_argv(adapter, envelope)
         try:
             adapter.execute(envelope, runner=None)
         except RuntimeRunnerRequiredError:
@@ -188,10 +209,9 @@ def run_smoke(plan_path: Path, model: str) -> int:
             _captured["argv"] = value
             return "ok"
 
-        inner = TemplateRuntimeAdapter(adapter.name, profile, adapter._template(envelope),
-                                       adapter.command_metadata)  # same-package seam
-        bridge_result = inner.dry_run(envelope, bridge=_bridge)
-        if bridge_result.status is not RuntimeStatus.OK or captured.get("argv") != adapter._template(envelope):
+        bridge_result = adapter.dry_run(envelope, bridge=_bridge)
+        if (bridge_result.status is not RuntimeStatus.OK
+                or captured.get("argv") != adapter.build_argv(envelope)):
             print(f"  {task.id}: ERRO — bridge não reproduziu o argv")
             failures += 1
             continue

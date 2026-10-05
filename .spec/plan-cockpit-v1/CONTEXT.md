@@ -7,6 +7,7 @@
 - 2026-10-04 · **T-203 cron CREATED (owner-approved)**: "plan-cockpit-refresh" every 30m — no_agent script `plan_cockpit_publish.sh` (silent on success; deliver local). Trigger points: cron + manual `--publish` at PD checkpoints.
 - 2026-10-04 · Dashboard `file` bindings located: `~/.hermes/boardstate-state/dashboard/data/` (no cache; `.md`/`.csv` raw, JSON + pointer). mc tab widgets switched to live file bindings; `--widgets`/mc-widgets.json kept for rebuilds after app workspace resets.
 - 2026-10-04 · **T-204 added** (owner asked "escolher a missão no painel?"): action-form selector → agent re-publishes `mc/mission.json` + "Plano da missão" widget (real waves/tasks/gates per mission).
+- 2026-10-05 · **T-401 DONE** (thin runner `run_hermes_pilot.py`; smoke fail-closed; live gated by `--live --authorized`). **T-402 pilot plan declared** in `PILOT-PLAN.md`; **G2 APPROVED by owner ("autorizado")** — pilot command pinned to provider `opencode-go` (template swap: the named openai-codex runtime hardcodes `--provider openai-codex`).
 - 2026-10-04 · Branch `feat/plan-cockpit-v1`, base `c526b27` (tip of `feat/b15a2-host-integration`); no worktree (focused feature on the repo itself).
 - 2026-10-04 · `plan-cockpit.json` is ALWAYS derived (never hand-authored); legacy features labeled `source: state-md`; no backfill.
 - 2026-10-04 · Pilot uses the EXISTING real runtime template (`hermes chat -q … --safe-mode --max-turns 1`) with pinned provider/model; outputs to an explicit dir; G2 authorization before live dispatch.

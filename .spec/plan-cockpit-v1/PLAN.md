@@ -27,7 +27,7 @@ Cockpit-ready: every task declares `id · wave · role · depends_on · allowed_
 ## Wave 4 — Real fleet pilot (B)
 
 - [x] T-401 · coder · wire real adapter ✅ 04/10 (thin runner `run_hermes_pilot.py`: profile READY + envelope + exact-argv allowlist + smoke fail-closed ✓ 3 tasks; live atrás de `--live --authorized` (G2); 6/6 tests) · deps: T-101 · paths: `scripts/pd_fleet/` · validation: dry-run with fake adapter + template smoke (no real dispatch).
-- [ ] T-402 · orchestrator · pilot plan (FleetPlan + cost caps + output dir) + **G2 — owner authorization for live dispatch** · deps: T-401 · validation: plan validated + cost declared.
+- [x] T-402 · orchestrator · pilot plan ✅ 04/10 (PILOT-PLAN.md: 3 invocações flash ≈ centavos, caps declarados, output `.spec/pilot-runs/hermes`; **G2 aprovado pelo owner** — "autorizado") · deps: T-401 · validation: plan validated + cost declared.
 - [ ] T-403 · coder · pilot RUN (3 tasks via pinned hermes runtime) · deps: T-402 + G2 · validation: reports/evidence/gates/summary + cockpit presence.
 - [ ] T-404 · reviewer · pilot review (real evidence vs claims; limits) · deps: T-403.
 

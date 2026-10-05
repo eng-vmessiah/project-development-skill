@@ -51,7 +51,7 @@ def test_profile_is_ready_and_adapter_name() -> None:
     profile = pilot.build_profile()
     assert profile.readiness_status.value == "ready"
     adapter = pilot.build_adapter(profile)
-    assert adapter.name == "hermes/openai-codex"
+    assert adapter.name == "hermes/opencode-go"
 
 
 def test_runner_allowlist_matches_built_argv(tmp_path: Path) -> None:
@@ -62,9 +62,10 @@ def test_runner_allowlist_matches_built_argv(tmp_path: Path) -> None:
     runner = pilot.build_runner(plan, profile, adapter, "model-x", "pilot", out_root,
                                 tool_root=tmp_path)
     assert isinstance(runner, LocalSandboxRunner)
-    argv = adapter.build_argv(pilot.build_envelope(plan.tasks[0], profile, "model-x", "pilot"))
+    argv = pilot.executed_argv(adapter, pilot.build_envelope(plan.tasks[0], profile, "model-x", "pilot"))
     assert argv in runner.allowlist
     assert argv[0] == pilot.HERMES_EXECUTABLE
+    assert "opencode-go" in argv
 
 
 def test_execute_without_runner_raises(tmp_path: Path) -> None:
