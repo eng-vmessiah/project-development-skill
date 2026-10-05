@@ -6,3 +6,4 @@
 - Gate G-0 = review independente sem BLOCKER/HIGH + sign-offs (owner/security/Hermes-owner roles — §D da matriz).
 - Regras herdadas: nunca fabricar telemetria/estado; buckets de evidência separados (contract/fake/TUI/live); default-off até autorização própria por slice.
 - Feature registrada no cockpit (padrão plan-cockpit); feedings no `pd` a cada transição.
+- 2026-10-05 · Autorizações do owner ("autorizado"): **sign-off A1–A11 + mapping C** (§D da matriz) e **G-1 — edição do checkout Hermes** (série replayable, sem instalação). Wave 2 inicia somente após o G-0 fechar (review independente em curso).

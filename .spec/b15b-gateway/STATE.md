@@ -17,15 +17,16 @@ initialized
 
 ## Checkpoints
 - 2026-10-05 01:17: B15b.0 docs drafted; G-0 review dispatch
+- 2026-10-05 01:24: Owner sign-offs (A1-A11+C) + G-1 authorization recorded; G-0 pending review
 
 ## Timestamps
 - Created: 2026-10-05T01:16:27.231152
-- Updated: 2026-10-05T01:17:41.591632
+- Updated: 2026-10-05T01:24:50.410770
 
 ## Fleet State
 ```json
 {
-  "updated_at": "2026-10-05T01:17:41.591632",
+  "updated_at": "2026-10-05T01:24:50.410770",
   "schema_version": 1,
   "agents": [],
   "waves": [],

@@ -57,8 +57,10 @@
 
 ## D. Sign-off checklist (gate G-0)
 
-- [ ] Owner (Vitor): A1–A11 + mapping C.
-- [ ] Security (papéis da tabela): A1, A4, A5, A7, A8, A11.
-- [ ] Hermes Gateway owner: A1–A3, A8–A10 + **seleção formal do vocabulário autoritativo** (C).
-- [ ] Review independente sem BLOCKER/HIGH (em curso).
-- [ ] Feeding `pd`: complete-task do B15b.0 + gate G-0.
+- [x] Owner (Vitor): A1–A11 + mapping C — **"autorizado"** (05/10). Papéis de security e Hermes Gateway owner acumulados no owner neste contexto solo (registrado).
+- [x] Security (papéis da tabela): A1, A4, A5, A7, A8, A11 — cobertos pela autorização do owner (acumulado).
+- [x] Hermes Gateway owner: A1–A3, A8–A10 + **seleção formal do vocabulário autoritativo** (C) — cobertos pela autorização do owner (acumulado).
+- [ ] Review independente sem BLOCKER/HIGH — **em curso** (G-0 fecha quando retornar limpo).
+- [ ] Feeding `pd`: complete-task do B15b.0 + gate G-0 — parcial (checkpoint 01:17; completa no fechamento do G-0).
+
+**Autorizações de fase registradas:** G-1 (edição do checkout Hermes — série replayable, sem instalação): **"autorizado" (05/10)**; a execução da wave 2 inicia somente após o fechamento do G-0.

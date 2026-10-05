@@ -16,16 +16,16 @@ initialized
 - [x] T-103 — wire vocabulary mapping (proposta)
 
 ## Checkpoints
-- No checkpoints
+- 2026-10-05 01:17: B15b.0 docs drafted; G-0 review dispatch
 
 ## Timestamps
 - Created: 2026-10-05T01:16:27.231152
-- Updated: 2026-10-05T01:17:41.493015
+- Updated: 2026-10-05T01:17:41.591632
 
 ## Fleet State
 ```json
 {
-  "updated_at": "2026-10-05T01:17:41.493015",
+  "updated_at": "2026-10-05T01:17:41.591632",
   "schema_version": 1,
   "agents": [],
   "waves": [],

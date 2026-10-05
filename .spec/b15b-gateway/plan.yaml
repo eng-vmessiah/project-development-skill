@@ -439,7 +439,7 @@ gates:
     kind: authorization
     scope: wave-2
     owner: vitor
-    status: pending
+    status: approved
     required_evidence:
       - Autorização explícita para editar o checkout Hermes (série replayable, sem instalação).
   - id: G-2
