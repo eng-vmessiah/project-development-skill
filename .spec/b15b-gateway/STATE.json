@@ -30,12 +30,23 @@
         "T-102 \u2014 matriz composite-deny (8 gates)",
         "T-103 \u2014 wire vocabulary mapping (proposta)"
       ]
+    },
+    {
+      "date": "2026-10-05 01:42",
+      "phase": 0,
+      "note": "G-0 APPROVED (review PASS + sign-offs) \u2014 B15b.0 fechado; wave-2 desbloqueada (G-1 ja aprovado)",
+      "tasks_snapshot": [
+        "T-000 \u2014 feature init + plano cockpit-ready (FleetPlan v1 validado)",
+        "T-101 \u2014 decision matrix (11 decis\u00f5es congeladas)",
+        "T-102 \u2014 matriz composite-deny (8 gates)",
+        "T-103 \u2014 wire vocabulary mapping (proposta)"
+      ]
     }
   ],
   "created_at": "2026-10-05T01:16:27.231152",
-  "updated_at": "2026-10-05T01:24:50.410770",
+  "updated_at": "2026-10-05T01:42:25.101311",
   "fleet_state": {
-    "updated_at": "2026-10-05T01:24:50.410770",
+    "updated_at": "2026-10-05T01:42:25.101311",
     "schema_version": 1,
     "agents": [],
     "waves": [],

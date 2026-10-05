@@ -32,7 +32,7 @@ waves:
       - T-101
       - T-102
       - T-103
-    status: pending
+    status: done
     gates:
       - G-0
   - id: wave-2
@@ -431,7 +431,7 @@ gates:
     kind: review
     scope: wave-1
     owner: vitor
-    status: pending
+    status: approved
     required_evidence:
       - Review independente sem BLOCKER/HIGH (B15B-DECISION-MATRIX A/B/C).
       - Sign-offs owner/security conforme B15B-DECISION-MATRIX §D.

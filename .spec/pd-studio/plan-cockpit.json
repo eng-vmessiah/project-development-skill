@@ -1,6 +1,6 @@
 {
   "schema": "plan-cockpit:v1",
-  "generated_at": "2026-10-05T04:24:50+00:00",
+  "generated_at": "2026-10-05T04:42:25+00:00",
   "repo": "/home/vitor/project/project-development-skill",
   "runs_root": "/home/vitor/project/project-development-skill/.pd-fleet-runs",
   "features": [
@@ -11,7 +11,7 @@
       "source": "plan-yaml",
       "tasks_done": 4,
       "tasks_total": 12,
-      "checkpoints": 2,
+      "checkpoints": 3,
       "checkpoints_log": [
         {
           "name": "CHECKPOINT-20261005-0117.md",
@@ -22,6 +22,11 @@
           "name": "CHECKPOINT-20261005-0124.md",
           "ts": "2026-10-05T01:24+00:00",
           "heading": "Checkpoint - 2026-10-05 01:24"
+        },
+        {
+          "name": "CHECKPOINT-20261005-0142.md",
+          "ts": "2026-10-05T01:42+00:00",
+          "heading": "Checkpoint - 2026-10-05 01:42"
         }
       ],
       "waves": [
@@ -32,7 +37,7 @@
         },
         {
           "id": "wave-1",
-          "status": "pending",
+          "status": "done",
           "tasks": 3
         },
         {
@@ -139,7 +144,7 @@
         {
           "id": "G-0",
           "kind": "review",
-          "status": "pending",
+          "status": "approved",
           "owner": "vitor"
         },
         {
@@ -172,13 +177,13 @@
         "evidence": 0
       },
       "created_at": "2026-10-05T01:16:27.231152",
-      "updated_at": "2026-10-05T01:24:50.410770",
-      "last_commit": "b914ec0 2026-10-05 feat(b15b): B15b.0 — decision matrix (11 decisões + composite-deny + wire mapping) + review packet + cockpit-ready feature",
+      "updated_at": "2026-10-05T01:42:25.101311",
+      "last_commit": "15106a1 2026-10-05 docs(b15b): owner sign-offs recorded (A1-A11 + mapping C) + G-1 checkout-edit authorization; G-0 pending review",
       "pd_view": {
         "phase_name": "Setup",
         "tasks_done": 4,
         "tasks_total": 12,
-        "checkpoints": 2
+        "checkpoints": 3
       }
     },
     {
@@ -414,7 +419,7 @@
       },
       "created_at": "2026-10-03T23:22:01.901001",
       "updated_at": "2026-10-03T23:22:01.901001",
-      "last_commit": "b914ec0 2026-10-05 feat(b15b): B15b.0 — decision matrix (11 decisões + composite-deny + wire mapping) + review packet + cockpit-ready feature",
+      "last_commit": "3f17e67 2026-10-05 docs(b15b): B15b.0 review fixes — H1 (D4 vocabulary fleet.session.* + shared root + auth context/version), M1 (A5 sign-off), M2 (wire freeze → B15b.1), L1-L3",
       "pd_view": {
         "phase_name": "Setup",
         "tasks_done": 0,
@@ -559,6 +564,12 @@
   ],
   "timeline": [
     {
+      "ts": "2026-10-05T01:42+00:00",
+      "kind": "checkpoint",
+      "feature": "b15b-gateway",
+      "detail": "Checkpoint - 2026-10-05 01:42"
+    },
+    {
       "ts": "2026-10-05T01:24+00:00",
       "kind": "checkpoint",
       "feature": "b15b-gateway",
@@ -607,7 +618,7 @@
   ],
   "meta": {
     "feature_count": 8,
-    "checkpoint_events": 16,
+    "checkpoint_events": 17,
     "fleet_run_count": 1,
     "warnings": []
   }

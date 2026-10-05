@@ -72,11 +72,11 @@ Os blockers de reconciliação (6 do `B15A-EXECUTION-PLANS.md` + 1 adicional do 
 
 ## 5. Autorizações necessárias (checklist do owner)
 
-- [ ] Aprovar este plano (direção + decomposição).
-- [ ] (B15b.1) Autorizar edição do checkout Hermes (série replayable, sem instalação).
+- [x] Aprovar este plano (direção + decomposição) — ✅ 05/10.
+- [x] (B15b.1) Autorizar edição do checkout Hermes (série replayable, sem instalação) — ✅ 05/10 (G-1).
 - [ ] (pós-B15b.4) Autorizar instalação/ativação do pacote no checkout vivo.
 - [ ] (B15b.5) Autorizar live validation (escopo + rollback + downtime declarados).
-- [ ] (contínuo) Aprovações owner/security das decisões §3 conforme a tabela.
+- [x] (contínuo) Aprovações owner/security das decisões §3 conforme a tabela — ✅ 05/10 (A1–A11).
 
 ## 6. Riscos e limites herdados
 
