@@ -27,15 +27,16 @@ initialized
 - 2026-10-05 13:50: T-202 review PASS (independente; replay reproduzido; LOW-1/3 adjudicados, LOW-2/4 aceitos) — wave-2 exit VERIFIED
 - 2026-10-05 13:59: G-2 draft (redaction allowlist) entregue; review independente dispatch
 - 2026-10-05 14:11: G-2 pacote review PASS; aguardando aprovação do owner
+- 2026-10-05 14:13: G-2 APPROVED — allowlist/denylist/fixtures congelados; wave 3 desbloqueada (T-301)
 
 ## Timestamps
 - Created: 2026-10-05T01:16:27.231152
-- Updated: 2026-10-05T14:11:49.046970
+- Updated: 2026-10-05T14:13:12.635962
 
 ## Fleet State
 ```json
 {
-  "updated_at": "2026-10-05T14:11:49.046970",
+  "updated_at": "2026-10-05T14:13:12.635962",
   "schema_version": 1,
   "agents": [],
   "waves": [],
