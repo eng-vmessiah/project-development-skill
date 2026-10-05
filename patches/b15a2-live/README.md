@@ -19,6 +19,13 @@
 - **Rollback**: `git revert`/reset dos 21 commits (ou checkout do commit anterior) + restart.
 - **⚠️ Caveat**: o update upstream (262 commits) pode rodar migrações de estado no primeiro boot — **capturar backup do DB antes** do 3b-i.
 
+## 3b-ii — ativação (patch 0022 + gate de boot) — 04/10
+
+- **0022** — `tui_gateway/fleet_tui_boot.py` (gate explícito, default-off: só `HERMES_FLEET_TUI_CANARY=1` no ambiente do processo liga o composition root) + call site no `_lifespan` do `hermes_cli/web_server.py` (best-effort) + `tests/tui_gateway/test_fleet_tui_boot.py` (4 testes: no-op sem flag; enable idempotente; falha fail-soft; valores ≠ "1" = off). Aplicado com `git am` sobre o tip vivo `6b5d888382` — **`git apply --check` OK no checkout vivo (04/10 22:4x)**.
+- **Ativação**: `run-3bii.sh` (backup dir `~/backups/b15a2-3bii-20261004-2238/` + esta pasta) — stop → `git am` 0022 → drop-in systemd `Environment=HERMES_FLEET_TUI_CANARY=1` **só no `hermes-serve`** → daemon-reload → start → smoke (`[fleet-canary] enabled` no journal).
+- **Rollback**: **R1** (fleet off, código fica): `rm` do drop-in + daemon-reload + restart serve · **R2**: R1 + `git reset --hard 6b5d888382` + restart.
+- **Evidências da árvore**: boot tests 4✓; grupo fleet 77✓; lifespan sanity 39✓; ruff ✓; canônica `tests/tui_gateway` em execução no fechamento (comparar com o baseline 93 falhas conhecidas).
+
 ## Regenerar esta série
 
 ```

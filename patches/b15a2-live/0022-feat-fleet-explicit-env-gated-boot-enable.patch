@@ -1,0 +1,192 @@
+From 8543a2a3ac0f14810cbc6749007de4da5f2cf989 Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Sun, 4 Oct 2026 22:39:02 -0300
+Subject: [PATCH] feat(fleet): explicit env-gated boot enable for the local
+ canary (b15a2-3bii)
+
+---
+ hermes_cli/web_server.py                 |  11 +++
+ tests/tui_gateway/test_fleet_tui_boot.py | 103 +++++++++++++++++++++++
+ tui_gateway/fleet_tui_boot.py            |  41 +++++++++
+ 3 files changed, 155 insertions(+)
+ create mode 100644 tests/tui_gateway/test_fleet_tui_boot.py
+ create mode 100644 tui_gateway/fleet_tui_boot.py
+
+diff --git a/hermes_cli/web_server.py b/hermes_cli/web_server.py
+index fdbc439b1d..1de9f012b4 100644
+--- a/hermes_cli/web_server.py
++++ b/hermes_cli/web_server.py
+@@ -225,6 +225,17 @@ async def _lifespan(app: "FastAPI"):
+     except Exception:
+         _log.warning("TUI message injector did not install", exc_info=True)
+ 
++    # Fleet TUI canary (B15a.2 · 3b-ii): explicit, default-off boot enable. No-op
++    # unless HERMES_FLEET_TUI_CANARY=1 is set for THIS process (operator action,
++    # e.g. a systemd drop-in on the serve unit); best-effort — an observational
++    # canary must never break backend startup.
++    try:
++        from tui_gateway import fleet_tui_boot
++
++        fleet_tui_boot.maybe_enable_fleet_tui_canary()
++    except Exception:
++        _log.warning("fleet TUI canary boot enable failed", exc_info=True)
++
+     hosted_room_start_cancel = threading.Event()
+ 
+     def _start_hosted_rooms() -> None:
+diff --git a/tests/tui_gateway/test_fleet_tui_boot.py b/tests/tui_gateway/test_fleet_tui_boot.py
+new file mode 100644
+index 0000000000..64bbffa852
+--- /dev/null
++++ b/tests/tui_gateway/test_fleet_tui_boot.py
+@@ -0,0 +1,103 @@
++"""B15a.2 · 3b-ii — env-gated boot enable for the local fleet canary.
++
++Proves the explicit, default-off gate in :mod:`tui_gateway.fleet_tui_boot`:
++absent flag → strict no-op (no hooks, no RPCs); flag=1 → the composition root
++is enabled exactly once (idempotent second call); failures fail SOFT — the
++host boot path is never affected and the fleet stays disabled.
++"""
++from __future__ import annotations
++
++import pytest
++
++from hermes_cli.fleet_tui_wire import WIRE_SCHEMA
++from tui_gateway import fleet_tui_boot, server
++from tui_gateway.fleet_tui_hooks import get_fleet_tui_hooks
++
++S1 = "session.boot-1"
++
++
++@pytest.fixture(autouse=True)
++def _temp_home(tmp_path, monkeypatch):
++    monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes-home"))
++    yield
++
++
++@pytest.fixture(autouse=True)
++def _clean_registries():
++    import tui_gateway.fleet_tui_composition as composition
++
++    server.clear_plugin_rpcs_for_tests()
++    with server._sessions_lock:
++        saved = dict(server._sessions)
++        server._sessions.clear()
++    yield
++    server.clear_plugin_rpcs_for_tests()
++    composition._runtime = None  # defensive: no test may leak an enabled runtime
++    with server._sessions_lock:
++        server._sessions.clear()
++        server._sessions.update(saved)
++
++
++def _register(sid, tmp_path):
++    session = {"agent": None, "session_key": sid, "running": False, "last_active": 0.0,
++               "profile_home": str(tmp_path / "profile-home")}
++    with server._sessions_lock:
++        server._sessions[sid] = session
++    return session
++
++
++def _call(method, params):
++    return server.handle_request({"id": 1, "method": method, "params": params})
++
++
++def _code(resp):
++    payload = resp.get("result", resp)
++    return payload.get("error", {}).get("code") if isinstance(payload, dict) else None
++
++
++def test_flag_absent_is_a_strict_noop(tmp_path, monkeypatch):
++    monkeypatch.delenv(fleet_tui_boot.ENV_FLAG, raising=False)
++    _register(S1, tmp_path)
++    assert fleet_tui_boot.maybe_enable_fleet_tui_canary() is False
++    assert get_fleet_tui_hooks() is None
++    assert _code(_call("fleet.session.activate", {"schema_version": WIRE_SCHEMA})) == -32601
++
++
++def test_flag_set_enables_once_and_is_idempotent(tmp_path, monkeypatch):
++    import tui_gateway.fleet_tui_composition as composition
++
++    monkeypatch.setenv(fleet_tui_boot.ENV_FLAG, "1")
++    _register(S1, tmp_path)
++    assert fleet_tui_boot.maybe_enable_fleet_tui_canary() is True
++    assert get_fleet_tui_hooks() is not None
++    runtime = composition._runtime
++    assert runtime is not None
++    activated = _call("fleet.session.activate", {"schema_version": WIRE_SCHEMA})["result"]
++    assert activated["snapshot"]["state"] == "observing"
++    # second call: no duplicate-registration error, same runtime instance
++    assert fleet_tui_boot.maybe_enable_fleet_tui_canary() is True
++    assert composition._runtime is runtime
++    runtime.disable()
++
++
++def test_enable_failure_fails_soft(tmp_path, monkeypatch):
++    import tui_gateway.fleet_tui_composition as composition
++
++    monkeypatch.setenv(fleet_tui_boot.ENV_FLAG, "1")
++
++    def _boom(**kwargs):
++        raise RuntimeError("boom")
++
++    monkeypatch.setattr(composition, "enable_fleet_tui_canary", _boom)
++    assert fleet_tui_boot.maybe_enable_fleet_tui_canary() is False  # never raises
++    assert composition._runtime is None
++    assert get_fleet_tui_hooks() is None
++    assert _code(_call("fleet.session.activate", {"schema_version": WIRE_SCHEMA})) == -32601
++
++
++def test_flag_values_other_than_one_are_off(tmp_path, monkeypatch):
++    _register(S1, tmp_path)
++    for value in ("0", "true", "yes", ""):
++        monkeypatch.setenv(fleet_tui_boot.ENV_FLAG, value)
++        assert fleet_tui_boot.maybe_enable_fleet_tui_canary() is False
++    assert get_fleet_tui_hooks() is None
+diff --git a/tui_gateway/fleet_tui_boot.py b/tui_gateway/fleet_tui_boot.py
+new file mode 100644
+index 0000000000..6614c7161c
+--- /dev/null
++++ b/tui_gateway/fleet_tui_boot.py
+@@ -0,0 +1,41 @@
++"""Explicit, default-off boot enable for the local fleet TUI canary (B15a.2 · 3b-ii).
++
++The composition root (:mod:`tui_gateway.fleet_tui_composition`) is never
++enabled implicitly: the serve process must carry ``HERMES_FLEET_TUI_CANARY=1``
++in its environment — an operator action (e.g. a systemd drop-in on the serve
++unit), auditable via ``systemctl --user cat``. Fail-soft by design: the fleet
++is observational, so any failure here leaves it disabled and the host boot
++path untouched.
++"""
++from __future__ import annotations
++
++import logging
++import os
++import sys
++
++logger = logging.getLogger(__name__)
++
++ENV_FLAG = "HERMES_FLEET_TUI_CANARY"
++
++
++def maybe_enable_fleet_tui_canary() -> bool:
++    """Enable the canary iff ``ENV_FLAG`` is exactly ``"1"``. Idempotent; never raises."""
++    if os.environ.get(ENV_FLAG) != "1":
++        return False
++    from . import fleet_tui_composition as composition
++
++    if composition._runtime is not None:
++        return True
++    try:
++        runtime = composition.enable_fleet_tui_canary()
++    except Exception:
++        logger.warning("fleet TUI canary enable failed (%s=1 set)", ENV_FLAG, exc_info=True)
++        return False
++    logger.info("fleet TUI canary enabled (%s=1): %s", ENV_FLAG, ", ".join(runtime.names))
++    # Operational signal: INFO may not reach the unit journal, but stderr always does
++    # (same rationale as entry.py's ``[gateway-exit]`` prints).
++    print(f"[fleet-canary] enabled: {', '.join(runtime.names)}", file=sys.stderr, flush=True)
++    return True
++
++
++__all__ = ["ENV_FLAG", "maybe_enable_fleet_tui_canary"]
