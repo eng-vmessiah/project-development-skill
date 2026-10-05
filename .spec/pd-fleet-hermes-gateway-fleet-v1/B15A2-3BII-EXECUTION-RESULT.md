@@ -42,4 +42,4 @@
 - `~/backups/b15a2-3bii-20261004-2238/run.log` (execução completa)
 - `.spec/pd-studio/fleet-snapshot.json` (captura integral do wire)
 - Board: aba Fleet (workspace v30)
-- Árvore: boot tests 4✓ · grupo fleet 77✓ · lifespan sanity 39✓ · ruff ✓ · canônica em fechamento
+- Árvore: boot tests 4✓ · grupo fleet 77✓ · lifespan sanity 39✓ · ruff ✓ · **canônica `tests/tui_gateway`: 93 falhas / 24 arquivos — conjunto idêntico ao baseline** (flake `change_watcher_sessions` passou nesta rodada; collection error `ephemeral_profile_override` = pré-existente) → **delta zero**.
