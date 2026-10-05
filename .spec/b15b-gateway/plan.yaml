@@ -395,7 +395,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: coder-hermes
-    status: pending
+    status: in_progress
 
   - id: T-602
     wave: 6
@@ -454,6 +454,6 @@ gates:
     kind: authorization
     scope: wave-6
     owner: vitor
-    status: pending
+    status: approved
     required_evidence:
       - Autorização de live validation (escopo + rollback + downtime declarados).
