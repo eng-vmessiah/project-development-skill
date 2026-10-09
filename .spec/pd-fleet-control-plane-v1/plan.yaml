@@ -259,7 +259,7 @@ tasks:
         description: Design doc; zero implementation in v1.
         required: true
     acceptance_criteria:
-      - Boundary explicit: implementation requires separate authorization.
+      - "Boundary explicit: implementation requires separate authorization."
     validation_commands: []
     blocked_when:
       - G2 not approved.
