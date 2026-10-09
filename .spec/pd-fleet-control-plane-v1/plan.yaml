@@ -172,7 +172,7 @@ tasks:
     acceptance_criteria:
       - Fixture-driven; empty input yields explicit empties; deterministic output.
     validation_commands:
-      - python3 -m pytest tests/ -k control_plane -q
+      - /usr/bin/python3 -m pytest tests/ -k control_plane -q
     blocked_when:
       - T-102 not complete.
     retry_policy:
@@ -180,7 +180,7 @@ tasks:
       backoff_seconds: 1
       retryable_errors: []
     owner: tester-hermes
-    status: pending
+    status: done
 
   - id: T-201
     wave: 2

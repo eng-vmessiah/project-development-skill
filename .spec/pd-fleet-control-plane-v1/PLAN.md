@@ -12,7 +12,7 @@ steering designed, not built. FleetPlan v1-compatible; machine manifest in `plan
 
 - [x] T-101 · coder · Activity event contract v1 ✅ 09/10 (`ACTIVITY-CONTRACT.md` + `fixtures/activity-events.example.jsonl`; parse+keys ✓; diff ✓; pytest formal em T-103) · deps: G1 · paths: `.spec/pd-fleet-control-plane-v1/`, `docs/` · acceptance: R1 — documented + deterministic fixtures.
 - [x] T-102 · coder · Read-only swarm surface ✅ 09/10 (`swarm()` no collector → `swarm/agents.{md,json}`: monitor + kanban(ro) + pilot; vazio explícito; widgets `fleet-swarm-md`/`fleet-swarm-table` na aba fleet (v83) com bindings file verificados; payload `swarm-widgets.json`) · deps: T-101 · paths: `scripts/`, `.spec/pd-studio/` · acceptance: R2 — renders real data, no fabricated fields.
-- [ ] T-103 · test-engineer · Anti-fabrication + determinism tests for collector/surface · deps: T-102 · paths: `tests/` · validation: focused pytest.
+- [x] T-103 · test-engineer · Anti-fabrication + determinism tests ✅ 09/10 (`tests/test_control_plane_swarm.py` — 7 novos: vazio explícito, kanban ro, pilot counts, determinismo, shapes · focado: **21 passed**; guarda de contrato live em `.spec/…/tests/` (**2 passed**); determinismo do collector normalizado p/ o swarm) · deps: T-102 · paths: `tests/` · validation: focused pytest.
 - [ ] **G2 — Read-only surface acceptance (owner: Vitor)** — pending.
 
 ## Wave 2 — Hermes-native activity source (local spike)

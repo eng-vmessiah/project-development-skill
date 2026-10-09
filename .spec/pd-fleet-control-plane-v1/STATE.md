@@ -13,6 +13,7 @@ initialized
 - [x] T-000 — intake: SPEC/CONTEXT/PLAN/RESEARCH + plan.yaml (vision workspace + omp delta); G1 pending
 - [x] T-101 — activity contract v1 (schema/redaction/fidelity) + fixtures (6 eventos; parse+keys ✓)
 - [x] T-102 — superfície swarm read-only (swarm/agents.* + widgets fleet-swarm-*; fontes reais; vazio explícito)
+- [x] T-103 — testes do swarm: unit (7 novos; focado 21 passed) + guarda de contrato live (2 passed); determinismo; vazio explícito
 
 ## Checkpoints
 - 2026-10-09 11:50: SPEC+PLAN drafted (W0); vision + omp delta as inputs; G1 pending
@@ -20,15 +21,16 @@ initialized
 - 2026-10-09 18:58: G1 APPROVED by owner ('vamos atuar') — SPEC aceito; waves 1+ destravadas; iniciando W1
 - 2026-10-09 18:58: T-101 DONE — ACTIVITY-CONTRACT.md + fixtures; próximo T-102 (superfície read-only)
 - 2026-10-09 19:28: T-102 DONE — superfície swarm read-only live (aba fleet; bindings file verificados; monitor+kanban-ro+pilot; vazio explícito)
+- 2026-10-09 19:47: T-103 DONE — testes do swarm (21 passed + contrato 2 passed; determinismo; vazio explícito); W1 COMPLETA (3/3); G2 pendente (aceite Vitor)
 
 ## Timestamps
 - Created: 2026-10-09T11:49:03.997240
-- Updated: 2026-10-09T19:28:06.519606
+- Updated: 2026-10-09T19:47:37.333618
 
 ## Fleet State
 ```json
 {
-  "updated_at": "2026-10-09T19:28:06.519606",
+  "updated_at": "2026-10-09T19:47:37.333618",
   "schema_version": 1,
   "agents": [],
   "waves": [],

@@ -39,6 +39,7 @@ def _feature(root: Path, name: str, **overrides: object) -> Path:
 def fake_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(pc, "REPO", tmp_path)
     monkeypatch.setattr(pc, "SPEC_DIR", tmp_path / ".spec")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))  # hermetic: swarm sources stay empty
     return tmp_path
 
 
@@ -153,6 +154,8 @@ def test_determinism(fake_repo: Path) -> None:
     b = pc.build(fake_repo / ".pd-fleet-runs")
     a.pop("generated_at")
     b.pop("generated_at")
+    a["swarm"].pop("generated_at")
+    b["swarm"].pop("generated_at")
     assert a == b
 
 
