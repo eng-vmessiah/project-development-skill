@@ -106,6 +106,30 @@ approval; they are not prerequisites for PD Core or the local Fleet mode:
 - [ ] Operational observability, canary/rollback, runbooks, and G1–G6 evidence
 - [ ] OMH adapter, runtime/state synchronization, or scheduling integration
 
+### Fleet harness research inputs — oh-my-pi (omp)
+
+Reference input only (same standing as OMH): [oh-my-pi](https://github.com/can1357/oh-my-pi)
+(MIT coding harness, Rust+TS; evaluated 2026-10-09). Not installed, not integrated, not
+authoritative; nothing here activates a runtime or adapter. Caveats: young project with very
+fast releases (pin versions if ever tried) and a wide execution surface (sandbox discipline
+required).
+
+- [ ] **Agent Hub ↔ Fleet observer/TUI delta** — feature-by-feature comparison (per-worker
+  status/cost/time, live transcript, steer/revive/kill without aborting the parent) against
+  the B15 wire/observer/canary surface; feeds the next fleet-TUI phase.
+- [ ] **Typed, addressable worker results** — evaluate `agent://<id>/<path>`-style addressing
+  plus schema-validated yields as a contract pattern for observer transport and handoffs.
+- [ ] **Stream-rule guardrails (TTSR)** — evaluate abort → inject rule → retry-from-the-same-
+  point stream rules as a bridge gate mechanism without per-turn context tax.
+- [ ] **Advisor-model pattern** — a second model watching every turn on its own context;
+  compare with the council/sparring patterns already in use.
+- [ ] **Benchmark harness and reflink isolation** — compare metaharness (runners, REST/SSE,
+  dashboard) against Mission Control / plan-cockpit; compare reflink-based isolation (pi-iso)
+  against current worktree techniques.
+- [ ] **(Optional) omp as candidate worker lane** — bounded comparative trial with the same
+  provider/model before any adapter work; any activation follows the runtime-adapter boundary
+  above and requires separate scope plus explicit approval.
+
 ## Known limitations
 
 1. Fleet V2 is local simulation only; provider/live/production claims are out of scope.
