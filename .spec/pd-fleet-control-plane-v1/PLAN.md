@@ -11,7 +11,7 @@ steering designed, not built. FleetPlan v1-compatible; machine manifest in `plan
 ## Wave 1 — Contract + read-only surface
 
 - [x] T-101 · coder · Activity event contract v1 ✅ 09/10 (`ACTIVITY-CONTRACT.md` + `fixtures/activity-events.example.jsonl`; parse+keys ✓; diff ✓; pytest formal em T-103) · deps: G1 · paths: `.spec/pd-fleet-control-plane-v1/`, `docs/` · acceptance: R1 — documented + deterministic fixtures.
-- [ ] T-102 · coder · Read-only swarm surface (fleet tab: per-agent cards — heartbeat, last action, paths; real sources; explicit empty) · deps: T-101 · paths: `scripts/`, `.spec/pd-studio/` · acceptance: R2 — renders real data, no fabricated fields · validation: sync + Board bindings verified.
+- [x] T-102 · coder · Read-only swarm surface ✅ 09/10 (`swarm()` no collector → `swarm/agents.{md,json}`: monitor + kanban(ro) + pilot; vazio explícito; widgets `fleet-swarm-md`/`fleet-swarm-table` na aba fleet (v83) com bindings file verificados; payload `swarm-widgets.json`) · deps: T-101 · paths: `scripts/`, `.spec/pd-studio/` · acceptance: R2 — renders real data, no fabricated fields.
 - [ ] T-103 · test-engineer · Anti-fabrication + determinism tests for collector/surface · deps: T-102 · paths: `tests/` · validation: focused pytest.
 - [ ] **G2 — Read-only surface acceptance (owner: Vitor)** — pending.
 

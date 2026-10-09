@@ -28,12 +28,30 @@
       "tasks_snapshot": [
         "T-000 \u2014 intake: SPEC/CONTEXT/PLAN/RESEARCH + plan.yaml (vision workspace + omp delta); G1 pending"
       ]
+    },
+    {
+      "date": "2026-10-09 18:58",
+      "phase": 0,
+      "note": "T-101 DONE \u2014 ACTIVITY-CONTRACT.md + fixtures; pr\u00f3ximo T-102 (superf\u00edcie read-only)",
+      "tasks_snapshot": [
+        "T-000 \u2014 intake: SPEC/CONTEXT/PLAN/RESEARCH + plan.yaml (vision workspace + omp delta); G1 pending",
+        "T-101 \u2014 activity contract v1 (schema/redaction/fidelity) + fixtures (6 eventos; parse+keys \u2713)"
+      ]
+    },
+    {
+      "date": "2026-10-09 19:28",
+      "phase": 0,
+      "note": "T-102 DONE \u2014 superf\u00edcie swarm read-only live (aba fleet; bindings file verificados; monitor+kanban-ro+pilot; vazio expl\u00edcito)",
+      "tasks_snapshot": [
+        "T-000 \u2014 intake: SPEC/CONTEXT/PLAN/RESEARCH + plan.yaml (vision workspace + omp delta); G1 pending",
+        "T-101 \u2014 activity contract v1 (schema/redaction/fidelity) + fixtures (6 eventos; parse+keys \u2713)"
+      ]
     }
   ],
   "created_at": "2026-10-09T11:49:03.997240",
-  "updated_at": "2026-10-09T18:58:50.776283",
+  "updated_at": "2026-10-09T19:28:06.414975",
   "fleet_state": {
-    "updated_at": "2026-10-09T18:58:50.776283",
+    "updated_at": "2026-10-09T19:28:06.414975",
     "schema_version": 1,
     "agents": [],
     "waves": [],

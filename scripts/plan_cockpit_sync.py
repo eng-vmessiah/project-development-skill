@@ -8,6 +8,8 @@ Sources (all real; missing data yields explicit empties, never invented values):
 - `.spec/*/CHECKPOINT-*.md`       timeline events (timestamp from filename)
 - `.pd-fleet-runs/*/snapshot.json` fleet runs persisted by FleetRunStore
 - `pd list --json`                optional enrichment (tasks/checkpoints counters)
+- `swarm` sources                 `~/.hermes/monitor/machine.jsonl` + `~/.hermes/kanban.db` (ro) + `.spec/pilot-runs/*`
+                                  per-agent activity (empty stays explicit, never fabricated)
 
 Usage:
   python3 scripts/plan_cockpit_sync.py            # print snapshot JSON
@@ -18,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sqlite3
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -246,6 +249,196 @@ def fleet_runs(runs_root: Path) -> list[dict]:
     return rows
 
 
+
+def _read_jsonl_last(path: Path) -> dict | None:
+    try:
+        lines = path.read_text(encoding="utf-8").strip().splitlines()
+    except OSError:
+        return None
+    for line in reversed(lines):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            loaded = json.loads(line)
+        except json.JSONDecodeError:
+            return None
+        return loaded if isinstance(loaded, dict) else None
+    return None
+
+
+def _host_agent(now: datetime) -> dict:
+    """Host card from the machine-monitoring watchdog sample (real, 10 min cadence)."""
+    row = {"agente": "host (Windows + WSL)", "fonte": "monitor", "fidelity": "high",
+           "status": "sem fonte", "heartbeat": "—", "acao": "—", "arquivos": "—",
+           "nota": "machine.jsonl ausente"}
+    sample = _read_jsonl_last(Path.home() / ".hermes/monitor/machine.jsonl")
+    if not sample:
+        return row
+    ts = str(sample.get("ts") or "")
+    age_min = None
+    try:
+        age_min = (now - datetime.fromisoformat(ts)).total_seconds() / 60.0
+    except ValueError:
+        pass
+    fresh = age_min is not None and age_min <= 15
+    row.update({
+        "status": "ok" if fresh else "stale",
+        "heartbeat": ts,
+        "acao": (f"gpu {sample.get('gpu_util', '?')}% · wsl-ram {sample.get('wsl_ram_pct', '?')}% "
+                 f"· win-cpu {sample.get('win_cpu', '?')}% · win-ram {sample.get('win_ram_pct', '?')}%"),
+        "nota": (f"watchdog 10 min · amostra há {age_min:.0f} min" if age_min is not None
+                 else "timestamp ilegível"),
+    })
+    return row
+
+
+def _kanban_agents() -> tuple[list[dict], str | None]:
+    """Worker rows from the Hermes kanban DB (read-only). Empty boards stay explicit."""
+    db = Path.home() / ".hermes" / "kanban.db"
+    if not db.exists():
+        return [], "kanban.db ausente"
+    try:
+        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=3)
+        try:
+            rows = con.execute(
+                "select t.id, t.title, t.assignee, t.status, tr.profile, tr.status, "
+                "tr.last_heartbeat_at, tr.outcome, tr.summary "
+                "from task_runs tr join tasks t on t.id = tr.task_id "
+                "order by tr.last_heartbeat_at desc limit 20"
+            ).fetchall()
+        finally:
+            con.close()
+    except sqlite3.Error as exc:
+        return [], f"kanban.db ilegível ({exc})"
+    agents = []
+    for (tid, title, assignee, tstatus, profile, rstatus, hb, outcome, summary) in rows:
+        agents.append({
+            "agente": f"kanban:{assignee or profile or 'worker'}",
+            "fonte": "kanban", "fidelity": "high",
+            "status": str(rstatus or tstatus or "?"),
+            "heartbeat": str(hb or "—"),
+            "acao": f"{tid} — {title}"[:120],
+            "arquivos": "—",
+            "nota": (str(outcome or summary or "")[:120] or "run ativo"),
+        })
+    return agents, (None if agents else "kanban.db sem workers/tasks")
+
+
+def _pilot_agents() -> tuple[list[dict], str | None]:
+    """Rows from persisted pilot runs (.spec/pilot-runs/*/summary.json + dispatch-log)."""
+    pilot_root = REPO / ".spec" / "pilot-runs"
+    if not pilot_root.exists():
+        return [], "sem pilot-runs"
+    agents: list[dict] = []
+    found = False
+    for summary_path in sorted(pilot_root.glob("*/summary.json")):
+        try:
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(summary, dict):
+            continue
+        found = True
+        mtime = datetime.fromtimestamp(summary_path.stat().st_mtime,
+                                       tz=timezone.utc).isoformat(timespec="seconds")
+        events: dict[str, int] = {}
+        last_ok: dict[str, bool] = {}
+        try:
+            for line in (summary_path.parent / "dispatch-log.jsonl").read_text(encoding="utf-8").splitlines():
+                try:
+                    ev = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                tid = str(ev.get("task_id"))
+                events[tid] = events.get(tid, 0) + 1
+                last_ok[tid] = bool(ev.get("ok"))
+        except OSError:
+            pass
+        adapter = str(summary.get("adapter") or "?")
+        model = str(summary.get("model") or "?")
+        for tid, st in (summary.get("statuses") or {}).items():
+            agents.append({
+                "agente": f"{adapter}:{model}",
+                "fonte": "fleet", "fidelity": "high",
+                "status": str(st),
+                "heartbeat": mtime,
+                "acao": (f"{tid} — dispatch ×{events.get(tid, 0)}"
+                         + ("" if tid not in last_ok else (" · último ok" if last_ok[tid] else " · última falha"))),
+                "arquivos": str(summary_path.parent.relative_to(REPO)),
+                "nota": f"run {summary.get('run_id', '?')}",
+            })
+    return agents, (None if found else "sem runs")
+
+
+def swarm(runs_root: Path) -> dict:
+    """Per-agent activity from real sources (read-only). Empty sources stay explicit."""
+    now = datetime.now(timezone.utc)
+    agents: list[dict] = []
+    notes: list[str] = []
+
+    agents.append(_host_agent(now))
+
+    kb, kb_note = _kanban_agents()
+    agents.extend(kb)
+    if kb_note:
+        notes.append(f"kanban: {kb_note}")
+    if not kb:
+        agents.append({"agente": "kanban", "fonte": "kanban", "fidelity": "high",
+                       "status": "sem fonte", "heartbeat": "—", "acao": "—",
+                       "arquivos": "—", "nota": kb_note or "sem workers"})
+
+    pi, pi_note = _pilot_agents()
+    agents.extend(pi)
+    if pi_note:
+        notes.append(f"pilot-runs: {pi_note}")
+
+    agents.append({"agente": "sessões Hermes", "fonte": "hermes", "fidelity": "high",
+                   "status": "sem fonte", "heartbeat": "—", "acao": "—", "arquivos": "—",
+                   "nota": "emitter de eventos = T-201 (pendente)"})
+    return {"schema": "activity-swarm:v1",
+            "generated_at": now.isoformat(timespec="seconds"),
+            "rows": agents, "notes": notes}
+
+
+def swarm_files(snapshot: dict) -> dict[str, str]:
+    """Live files for the fleet-tab swarm surface (file bindings)."""
+    sw = snapshot.get("swarm") or {"rows": [], "generated_at": "", "notes": []}
+    rows = sw.get("rows", [])
+    ts = str(sw.get("generated_at", ""))[:16].replace("T", " ")
+    lines = [
+        "# Swarm — agentes (read-only, fontes reais)",
+        "",
+        f"Snapshot: **{ts}** · {len(rows)} linhas · regra: nunca fabricar telemetria — sem fonte = \"sem fonte\".",
+        "",
+    ]
+    for r in rows:
+        lines.append(f"- **{r['agente']}** · {r['fonte']} ({r.get('fidelity', '?')}) · "
+                     f"status `{r['status']}` · hb `{r.get('heartbeat') or '—'}` · {r.get('acao') or '—'}")
+    if sw.get("notes"):
+        lines += ["", "**Fontes sem dados:** " + "; ".join(sw["notes"])]
+    lines += ["", "_Fontes: monitor (watchdog 10 min) · kanban.db (read-only) · pilot-runs · hermes = T-201._"]
+    return {"agents.md": "\n".join(lines) + "\n",
+            "agents.json": json.dumps({"generated_at": sw.get("generated_at"), "rows": rows,
+                                       "notes": sw.get("notes", [])}, indent=2, ensure_ascii=False) + "\n"}
+
+
+def swarm_widgets() -> list[dict]:
+    """Fleet-tab payloads for the swarm surface (re-apply after workspace resets)."""
+    return [
+        {"tab": "fleet", "kind": "builtin:markdown", "id": "fleet-swarm-md",
+         "title": "Swarm — agentes (read-only)",
+         "grid": {"x": 0, "y": 15, "w": 12, "h": 4},
+         "bindings": {"content": {"source": "file", "path": "swarm/agents.md"}}},
+        {"tab": "fleet", "kind": "builtin:table", "id": "fleet-swarm-table",
+         "title": "Agentes & atividade (fontes reais)",
+         "grid": {"x": 0, "y": 19, "w": 12, "h": 7},
+         "bindings": {"rows": {"source": "file", "path": "swarm/agents.json", "pointer": "/rows"}},
+         "props": {"columns": ["agente", "fonte", "status", "heartbeat", "acao", "arquivos", "nota"]}},
+    ]
+
+
+
 def build(runs_root: Path) -> dict:
     feature_rows = features()
     pd_view = pd_cli_view()
@@ -264,6 +457,7 @@ def build(runs_root: Path) -> dict:
         "features": feature_rows,
         "timeline": timeline(feature_rows),
         "fleet_runs": fleet_runs(runs_root),
+        "swarm": swarm(runs_root),
         "meta": {
             "feature_count": len(feature_rows),
             "checkpoint_events": sum(f["checkpoints"] for f in feature_rows),
@@ -436,12 +630,21 @@ def main() -> None:
         wout.write_text(json.dumps(widget_payloads(snapshot), indent=2, ensure_ascii=False) + "\n",
                         encoding="utf-8")
         print(f"wrote {wout}")
+        sout = REPO / ".spec/pd-studio/swarm-widgets.json"
+        sout.write_text(json.dumps(swarm_widgets(), indent=2, ensure_ascii=False) + "\n",
+                        encoding="utf-8")
+        print(f"wrote {sout}")
     if args.publish:
         pdir = Path.home() / ".hermes/boardstate-state/dashboard/data/mc"
         pdir.mkdir(parents=True, exist_ok=True)
         for name, content in publish_files(snapshot).items():
             (pdir / name).write_text(content, encoding="utf-8")
             print(f"wrote {pdir / name}")
+        sdir = Path.home() / ".hermes/boardstate-state/dashboard/data/swarm"
+        sdir.mkdir(parents=True, exist_ok=True)
+        for name, content in swarm_files(snapshot).items():
+            (sdir / name).write_text(content, encoding="utf-8")
+            print(f"wrote {sdir / name}")
         mission = args.mission
         if mission is None:
             cur = pdir / "mission.json"

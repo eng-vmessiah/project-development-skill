@@ -1,0 +1,50 @@
+[
+  {
+    "tab": "fleet",
+    "kind": "builtin:markdown",
+    "id": "fleet-swarm-md",
+    "title": "Swarm — agentes (read-only)",
+    "grid": {
+      "x": 0,
+      "y": 15,
+      "w": 12,
+      "h": 4
+    },
+    "bindings": {
+      "content": {
+        "source": "file",
+        "path": "swarm/agents.md"
+      }
+    }
+  },
+  {
+    "tab": "fleet",
+    "kind": "builtin:table",
+    "id": "fleet-swarm-table",
+    "title": "Agentes & atividade (fontes reais)",
+    "grid": {
+      "x": 0,
+      "y": 19,
+      "w": 12,
+      "h": 7
+    },
+    "bindings": {
+      "rows": {
+        "source": "file",
+        "path": "swarm/agents.json",
+        "pointer": "/rows"
+      }
+    },
+    "props": {
+      "columns": [
+        "agente",
+        "fonte",
+        "status",
+        "heartbeat",
+        "acao",
+        "arquivos",
+        "nota"
+      ]
+    }
+  }
+]
