@@ -17,6 +17,13 @@
    read-only increment ("Supervisor e control-plane, nao executor"); default-deny; actions
    require separate authorization.
 
+5. **Laya — decision layer for activity routing** (owner idea, 09/10/2026) — vault
+   `Projects/isis/laya-uso-por-projeto.md` (slot "roteamento de escrita/log"): typed slots
+   (choice/score/noul) for event->sink, flush timing, and notify/persist gates. Advisory only:
+   sink allowlist + caps stay in code; features precomputed; fail-open; validate slots on real
+   states BEFORE wiring (weak zero-shot). Local, ~93ms warm CPU, zero egress; tooling live
+   (`laya_decide`, plugin laya v1.2.0; skill `decision-model-integration`).
+
 ## Gap (what is actually new)
 
 - Standardized cross-runtime **activity event** (the missing seam) + its display.

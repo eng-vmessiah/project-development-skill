@@ -18,7 +18,8 @@ steering designed, not built. FleetPlan v1-compatible; machine manifest in `plan
 ## Wave 2 — Hermes-native activity source (local spike)
 
 - [ ] T-201 · coder · Emit R1 events from Hermes sessions/bridge into observer transport (local, redacted, no network) · deps: T-101, G2 · paths: `scripts/pd_fleet/` · acceptance: R3 — local end-to-end emission with redaction · validation: spike log + tests.
-- [ ] T-202 · reviewer · Independent fresh-eyes review of W1–W2 (evidence; no bypass) · deps: T-201.
+- [ ] T-203 · coder · Laya advisory slots for activity routing (event→sink, flush timing, notify/persist gates) — spike on real states; wire only if validated; sink allowlist + caps in code · deps: T-101, T-201 · paths: `scripts/pd_fleet/`, `.spec/pd-fleet-control-plane-v1/` · acceptance: slots validated on real states (agreement vs deterministic rule measured; zero wire) · validation: spike log + logged decisions (calibration dataset).
+- [ ] T-202 · reviewer · Independent fresh-eyes review of W1–W2 incl. the Laya spike (evidence; no bypass) · deps: T-201, T-203.
 
 ## Wave 3 — Steering contract (design only)
 

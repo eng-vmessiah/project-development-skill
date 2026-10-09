@@ -41,6 +41,7 @@ waves:
   - id: wave-2
     tasks:
       - T-201
+      - T-203
       - T-202
     status: pending
     gates:
@@ -214,12 +215,47 @@ tasks:
     owner: coder-hermes
     status: pending
 
+  - id: T-203
+    wave: 2
+    role: coder
+    objective: Laya advisory slots for activity routing (event->sink, flush timing, notify/persist gates) - spike on real states; no wire.
+    depends_on:
+      - T-101
+      - T-201
+    parallel_group: null
+    allowed_paths:
+      - scripts/pd_fleet/
+      - .spec/pd-fleet-control-plane-v1/
+    forbidden_paths:
+      - .env
+      - credentials/
+    inputs:
+      - activity contract (T-101)
+      - observer events (T-201)
+      - laya-uso-por-projeto.md slot
+    outputs:
+      - name: laya-routing-spike
+        description: Slot prototypes with decisions logged (probability + outcome) for later calibration.
+        required: true
+    acceptance_criteria:
+      - "Slots validated on real states; agreement vs deterministic rule measured; zero wire."
+    validation_commands: []
+    blocked_when:
+      - T-201 not complete.
+    retry_policy:
+      max_attempts: 2
+      backoff_seconds: 1
+      retryable_errors: []
+    owner: coder-hermes
+    status: pending
+
   - id: T-202
     wave: 2
     role: reviewer
-    objective: Independent fresh-eyes review of W1-W2 (evidence; no bypass).
+    objective: Independent fresh-eyes review of W1-W2 incl. the Laya spike (evidence; no bypass).
     depends_on:
       - T-201
+      - T-203
     parallel_group: null
     allowed_paths: []
     forbidden_paths:

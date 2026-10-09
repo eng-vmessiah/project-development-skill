@@ -11,12 +11,20 @@
       "phase": 0,
       "note": "SPEC+PLAN drafted (W0); vision + omp delta as inputs; G1 pending",
       "tasks_snapshot": []
+    },
+    {
+      "date": "2026-10-09 18:24",
+      "phase": 0,
+      "note": "T-203 adicionada (Laya advisory routing spike) \u2014 ideia Vitor 09/10; RESEARCH#5",
+      "tasks_snapshot": [
+        "T-000 \u2014 intake: SPEC/CONTEXT/PLAN/RESEARCH + plan.yaml (vision workspace + omp delta); G1 pending"
+      ]
     }
   ],
   "created_at": "2026-10-09T11:49:03.997240",
-  "updated_at": "2026-10-09T11:50:22.752136",
+  "updated_at": "2026-10-09T18:24:42.568331",
   "fleet_state": {
-    "updated_at": "2026-10-09T11:50:22.752136",
+    "updated_at": "2026-10-09T18:24:42.568331",
     "schema_version": 1,
     "agents": [],
     "waves": [],
