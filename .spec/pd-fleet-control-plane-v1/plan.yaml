@@ -1,0 +1,324 @@
+schema_version: "1"
+
+agents:
+  - id: orchestrator-isis
+    role: orchestrator
+    capabilities:
+      - planning
+      - boardstate
+      - records
+    status: available
+  - id: coder-hermes
+    role: coder
+    capabilities:
+      - python
+      - cli
+    status: available
+  - id: tester-hermes
+    role: test-engineer
+    capabilities:
+      - pytest
+    status: available
+  - id: reviewer-hermes
+    role: reviewer
+    capabilities:
+      - review
+    status: available
+
+waves:
+  - id: wave-0
+    tasks:
+      - T-000
+    status: done
+  - id: wave-1
+    tasks:
+      - T-101
+      - T-102
+      - T-103
+    status: pending
+    gates:
+      - G1
+  - id: wave-2
+    tasks:
+      - T-201
+      - T-202
+    status: pending
+    gates:
+      - G2
+  - id: wave-3
+    tasks:
+      - T-301
+    status: pending
+  - id: wave-4
+    tasks:
+      - T-401
+    status: pending
+    gates:
+      - G3
+
+tasks:
+  - id: T-000
+    wave: 0
+    role: orchestrator
+    objective: Intake + registration (SPEC/CONTEXT/PLAN/RESEARCH + plan.yaml from vision + omp delta).
+    depends_on: []
+    parallel_group: null
+    allowed_paths:
+      - .spec/pd-fleet-control-plane-v1/
+    forbidden_paths:
+      - .env
+      - credentials/
+    inputs:
+      - vault control-plane-workspace.md
+      - ROADMAP.md (omp research inputs)
+    outputs:
+      - name: mission-registration
+        description: SPEC/PLAN/CONTEXT/RESEARCH drafted from real inputs.
+        required: true
+    acceptance_criteria:
+      - Registration grounded in real inputs with references.
+    validation_commands: []
+    blocked_when: []
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: orchestrator-isis
+    status: done
+
+  - id: T-101
+    wave: 1
+    role: coder
+    objective: Activity event contract v1 (schema, redaction, fixtures, docs).
+    depends_on:
+      - G1
+    parallel_group: null
+    allowed_paths:
+      - .spec/pd-fleet-control-plane-v1/
+      - docs/
+    forbidden_paths:
+      - .env
+      - credentials/
+    inputs:
+      - RESEARCH.md gap section
+    outputs:
+      - name: activity-contract
+        description: Cross-runtime activity event schema + fixtures.
+        required: true
+    acceptance_criteria:
+      - Schema documented; fixtures deterministic; redaction rules explicit.
+    validation_commands:
+      - python3 -m pytest tests/ -k control_plane -q
+    blocked_when:
+      - G1 not approved.
+    retry_policy:
+      max_attempts: 2
+      backoff_seconds: 1
+      retryable_errors: []
+    owner: coder-hermes
+    status: pending
+
+  - id: T-102
+    wave: 1
+    role: coder
+    objective: Read-only swarm surface (per-agent cards from real sources; explicit empty).
+    depends_on:
+      - T-101
+    parallel_group: null
+    allowed_paths:
+      - scripts/
+      - .spec/pd-studio/
+    forbidden_paths:
+      - .env
+      - credentials/
+    inputs:
+      - scripts/plan_cockpit_sync.py
+      - fleet run_store/observer state
+    outputs:
+      - name: swarm-surface
+        description: Read-only per-agent activity render on the Board fleet surface.
+        required: true
+    acceptance_criteria:
+      - Real sources only; missing data yields explicit empty, never fabricated values.
+    validation_commands:
+      - python3 scripts/plan_cockpit_sync.py
+    blocked_when:
+      - T-101 not complete.
+    retry_policy:
+      max_attempts: 2
+      backoff_seconds: 1
+      retryable_errors: []
+    owner: coder-hermes
+    status: pending
+
+  - id: T-103
+    wave: 1
+    role: test-engineer
+    objective: Anti-fabrication + determinism tests for collector/surface.
+    depends_on:
+      - T-102
+    parallel_group: null
+    allowed_paths:
+      - tests/
+    forbidden_paths:
+      - .env
+    inputs:
+      - scripts/plan_cockpit_sync.py
+    outputs:
+      - name: surface-tests
+        description: Focused pytest module for the swarm surface/collector.
+        required: true
+    acceptance_criteria:
+      - Fixture-driven; empty input yields explicit empties; deterministic output.
+    validation_commands:
+      - python3 -m pytest tests/ -k control_plane -q
+    blocked_when:
+      - T-102 not complete.
+    retry_policy:
+      max_attempts: 2
+      backoff_seconds: 1
+      retryable_errors: []
+    owner: tester-hermes
+    status: pending
+
+  - id: T-201
+    wave: 2
+    role: coder
+    objective: Emit activity events from Hermes sessions/bridge into observer transport (local, redacted).
+    depends_on:
+      - T-101
+      - G2
+    parallel_group: null
+    allowed_paths:
+      - scripts/pd_fleet/
+    forbidden_paths:
+      - .env
+      - credentials/
+    inputs:
+      - activity contract (T-101)
+      - observer transport (B15 wire)
+    outputs:
+      - name: native-activity-source
+        description: Local spike emitting redacted activity events end-to-end.
+        required: true
+    acceptance_criteria:
+      - No network; redaction verified; events land in observer transport locally.
+    validation_commands:
+      - python3 -m pytest tests/ -k control_plane -q
+    blocked_when:
+      - G2 not approved.
+    retry_policy:
+      max_attempts: 2
+      backoff_seconds: 1
+      retryable_errors: []
+    owner: coder-hermes
+    status: pending
+
+  - id: T-202
+    wave: 2
+    role: reviewer
+    objective: Independent fresh-eyes review of W1-W2 (evidence; no bypass).
+    depends_on:
+      - T-201
+    parallel_group: null
+    allowed_paths: []
+    forbidden_paths:
+      - .env
+    inputs:
+      - mission artifacts
+    outputs:
+      - name: review-report
+        description: Review findings (verified/deferred/blocked).
+        required: true
+    acceptance_criteria:
+      - Findings grounded in fresh evidence; divergences reported, not smoothed.
+    validation_commands: []
+    blocked_when: []
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: reviewer-hermes
+    status: pending
+
+  - id: T-301
+    wave: 3
+    role: orchestrator
+    objective: Steering contract (design only) - commands, gates, audit, security model.
+    depends_on:
+      - G2
+    parallel_group: null
+    allowed_paths:
+      - .spec/pd-fleet-control-plane-v1/
+    forbidden_paths:
+      - .env
+    inputs:
+      - T-102 surface design
+    outputs:
+      - name: steering-contract
+        description: Design doc; zero implementation in v1.
+        required: true
+    acceptance_criteria:
+      - Boundary explicit: implementation requires separate authorization.
+    validation_commands: []
+    blocked_when:
+      - G2 not approved.
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: orchestrator-isis
+    status: pending
+
+  - id: T-401
+    wave: 4
+    role: orchestrator
+    objective: VERIFICATION.md + records (checkpoints, vault, ROADMAP ref).
+    depends_on:
+      - T-202
+      - T-301
+    parallel_group: null
+    allowed_paths:
+      - .spec/pd-fleet-control-plane-v1/
+    forbidden_paths:
+      - .env
+    inputs:
+      - wave evidence
+    outputs:
+      - name: verification
+        description: Verified/deferred/blocked split.
+        required: true
+    acceptance_criteria:
+      - No claim without executed command + fresh evidence.
+    validation_commands:
+      - pd validate --deep -f pd-fleet-control-plane-v1
+    blocked_when: []
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: orchestrator-isis
+    status: pending
+
+gates:
+  - id: G1
+    kind: review
+    scope: plan
+    owner: vitor
+    status: pending
+    required_evidence:
+      - SPEC + PLAN approved by the owner.
+  - id: G2
+    kind: review
+    scope: surface
+    owner: vitor
+    status: pending
+    required_evidence:
+      - Read-only swarm surface accepted from real sources (no fabricated fields).
+  - id: G3
+    kind: closeout
+    scope: plan
+    owner: orchestrator-isis
+    status: pending
+    required_evidence:
+      - VERIFICATION.md with verified/deferred/blocked split.

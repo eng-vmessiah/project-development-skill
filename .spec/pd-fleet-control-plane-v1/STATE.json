@@ -1,0 +1,30 @@
+{
+  "feature": "pd-fleet-control-plane-v1",
+  "phase": 0,
+  "status": "initialized",
+  "tasks": [
+    "T-000 \u2014 intake: SPEC/CONTEXT/PLAN/RESEARCH + plan.yaml (vision workspace + omp delta); G1 pending"
+  ],
+  "checkpoints": [
+    {
+      "date": "2026-10-09 11:50",
+      "phase": 0,
+      "note": "SPEC+PLAN drafted (W0); vision + omp delta as inputs; G1 pending",
+      "tasks_snapshot": []
+    }
+  ],
+  "created_at": "2026-10-09T11:49:03.997240",
+  "updated_at": "2026-10-09T11:50:22.752136",
+  "fleet_state": {
+    "updated_at": "2026-10-09T11:50:22.752136",
+    "schema_version": 1,
+    "agents": [],
+    "waves": [],
+    "tasks": [],
+    "gates": [],
+    "reports": [],
+    "attempts": [],
+    "blockers": [],
+    "evidence": []
+  }
+}
