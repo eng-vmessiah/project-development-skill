@@ -118,7 +118,9 @@ required).
 increment (the current increment is a read-only observer; steering is the next step) — they
 migrate into that increment's `.spec` when it is opened, per the standard PD flow. Stream-rule
 guardrails map to bridge gates; the advisor maps to council patterns; metaharness/pi-iso map to
-Mission Control and worktree isolation; the optional lane maps to the runtime-adapter boundary.
+Mission Control and worktree isolation; the optional lane maps to the runtime-adapter boundary. The control-plane increment is expected to surface **visually** — Board tabs
+(`pds`/`fleet`/`mc`) live widgets plus the war-room frontend, with actions through the
+existing board connector / tool-mode pattern — not only as CLI state.
 
 - [ ] **Agent Hub ↔ Fleet observer/TUI delta** — feature-by-feature comparison (per-worker
   status/cost/time, live transcript, steer/revive/kill without aborting the parent) against
