@@ -11,19 +11,22 @@ initialized
 
 ## Completed Tasks
 - [x] T-000 — intake: SPEC/CONTEXT/PLAN/RESEARCH + plan.yaml (vision workspace + omp delta); G1 pending
+- [x] T-101 — activity contract v1 (schema/redaction/fidelity) + fixtures (6 eventos; parse+keys ✓)
 
 ## Checkpoints
 - 2026-10-09 11:50: SPEC+PLAN drafted (W0); vision + omp delta as inputs; G1 pending
 - 2026-10-09 18:24: T-203 adicionada (Laya advisory routing spike) — ideia Vitor 09/10; RESEARCH#5
+- 2026-10-09 18:58: G1 APPROVED by owner ('vamos atuar') — SPEC aceito; waves 1+ destravadas; iniciando W1
+- 2026-10-09 18:58: T-101 DONE — ACTIVITY-CONTRACT.md + fixtures; próximo T-102 (superfície read-only)
 
 ## Timestamps
 - Created: 2026-10-09T11:49:03.997240
-- Updated: 2026-10-09T18:24:42.568331
+- Updated: 2026-10-09T18:58:50.880906
 
 ## Fleet State
 ```json
 {
-  "updated_at": "2026-10-09T18:24:42.568331",
+  "updated_at": "2026-10-09T18:58:50.880906",
   "schema_version": 1,
   "agents": [],
   "waves": [],

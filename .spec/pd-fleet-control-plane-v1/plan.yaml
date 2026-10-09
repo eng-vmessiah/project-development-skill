@@ -117,7 +117,7 @@ tasks:
       backoff_seconds: 1
       retryable_errors: []
     owner: coder-hermes
-    status: pending
+    status: done
 
   - id: T-102
     wave: 1
@@ -341,9 +341,10 @@ gates:
     kind: review
     scope: plan
     owner: vitor
-    status: pending
+    status: approved
     required_evidence:
       - SPEC + PLAN approved by the owner.
+      - "Owner-approved 2026-10-09 (desktop session: 'vamos atuar'); waves 1+ unblocked."
   - id: G2
     kind: review
     scope: surface

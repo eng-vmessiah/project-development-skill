@@ -3,7 +3,8 @@
   "phase": 0,
   "status": "initialized",
   "tasks": [
-    "T-000 \u2014 intake: SPEC/CONTEXT/PLAN/RESEARCH + plan.yaml (vision workspace + omp delta); G1 pending"
+    "T-000 \u2014 intake: SPEC/CONTEXT/PLAN/RESEARCH + plan.yaml (vision workspace + omp delta); G1 pending",
+    "T-101 \u2014 activity contract v1 (schema/redaction/fidelity) + fixtures (6 eventos; parse+keys \u2713)"
   ],
   "checkpoints": [
     {
@@ -19,12 +20,29 @@
       "tasks_snapshot": [
         "T-000 \u2014 intake: SPEC/CONTEXT/PLAN/RESEARCH + plan.yaml (vision workspace + omp delta); G1 pending"
       ]
+    },
+    {
+      "date": "2026-10-09 18:58",
+      "phase": 0,
+      "note": "G1 APPROVED by owner ('vamos atuar') \u2014 SPEC aceito; waves 1+ destravadas; iniciando W1",
+      "tasks_snapshot": [
+        "T-000 \u2014 intake: SPEC/CONTEXT/PLAN/RESEARCH + plan.yaml (vision workspace + omp delta); G1 pending"
+      ]
+    },
+    {
+      "date": "2026-10-09 18:58",
+      "phase": 0,
+      "note": "T-101 DONE \u2014 ACTIVITY-CONTRACT.md + fixtures; pr\u00f3ximo T-102 (superf\u00edcie read-only)",
+      "tasks_snapshot": [
+        "T-000 \u2014 intake: SPEC/CONTEXT/PLAN/RESEARCH + plan.yaml (vision workspace + omp delta); G1 pending",
+        "T-101 \u2014 activity contract v1 (schema/redaction/fidelity) + fixtures (6 eventos; parse+keys \u2713)"
+      ]
     }
   ],
   "created_at": "2026-10-09T11:49:03.997240",
-  "updated_at": "2026-10-09T18:24:42.568331",
+  "updated_at": "2026-10-09T18:58:50.880906",
   "fleet_state": {
-    "updated_at": "2026-10-09T18:24:42.568331",
+    "updated_at": "2026-10-09T18:58:50.880906",
     "schema_version": 1,
     "agents": [],
     "waves": [],
