@@ -114,6 +114,12 @@ authoritative; nothing here activates a runtime or adapter. Caveats: young proje
 fast releases (pin versions if ever tried) and a wide execution surface (sandbox discipline
 required).
 
+**Mapping:** items 1–2 are discovery inputs for the next PD Fleet **Supervisor/control-plane**
+increment (the current increment is a read-only observer; steering is the next step) — they
+migrate into that increment's `.spec` when it is opened, per the standard PD flow. Stream-rule
+guardrails map to bridge gates; the advisor maps to council patterns; metaharness/pi-iso map to
+Mission Control and worktree isolation; the optional lane maps to the runtime-adapter boundary.
+
 - [ ] **Agent Hub ↔ Fleet observer/TUI delta** — feature-by-feature comparison (per-worker
   status/cost/time, live transcript, steer/revive/kill without aborting the parent) against
   the B15 wire/observer/canary surface; feeds the next fleet-TUI phase.
