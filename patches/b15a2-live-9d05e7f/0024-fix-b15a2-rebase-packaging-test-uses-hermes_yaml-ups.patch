@@ -1,0 +1,23 @@
+From 704f229a40b275275b7934083b7a219ad1c5b4b0 Mon Sep 17 00:00:00 2001
+From: engmessias <vmessiaswt@gmailcom>
+Date: Thu, 8 Oct 2026 21:57:05 -0300
+Subject: [PATCH 24/24] fix(b15a2-rebase): packaging test uses hermes_yaml
+ (upstream unified YAML on ruamel; pyyaml absent in test env)
+
+---
+ tests/plugins/test_pd_fleet_hermes_packaging.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tests/plugins/test_pd_fleet_hermes_packaging.py b/tests/plugins/test_pd_fleet_hermes_packaging.py
+index 7730e3b55b..1b6d87d806 100644
+--- a/tests/plugins/test_pd_fleet_hermes_packaging.py
++++ b/tests/plugins/test_pd_fleet_hermes_packaging.py
+@@ -7,7 +7,7 @@ import sys
+ from pathlib import Path
+ 
+ import pytest
+-import yaml
++import hermes_yaml as yaml
+ 
+ from hermes_cli.plugins import PluginManager
+ from tools.registry import registry as tool_registry
