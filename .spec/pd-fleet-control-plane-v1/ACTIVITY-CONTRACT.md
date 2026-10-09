@@ -64,3 +64,14 @@ steering consumer in v1.
 `fixtures/activity-events.example.jsonl` — deterministic, hand-written, one event per kind +
 partial-external example. Validated by parse + required-key/enum checks (this repo session);
 formal pytest lands with T-103.
+
+## Local transport v1 (T-201)
+
+- **Bus:** append-only JSONL at `~/.hermes/activity/events.jsonl` (one contract event per line).
+- **Watermark:** `~/.hermes/activity/state.json` — per `agent_id|run_id` last emitted `ts`; re-runs are idempotent.
+- **Emitter:** `python3 scripts/pd_fleet/activity_emit.py [--dry-run]` — reads `~/.hermes/state.db`
+  READ-ONLY (sessions / messages.tool_name / gateway_heartbeats); never message content, never user ids;
+  local only, no network. `--json` gives a machine summary.
+- **Consumer:** `scripts/plan_cockpit_sync.py` (`_hermes_agents_from_events`) aggregates the bus into the
+  swarm surface; an absent/empty bus renders as explicit "sem fonte".
+- The `pd-fleet-tui` wire stays a future transport for the same payloads; v1 does not require it.

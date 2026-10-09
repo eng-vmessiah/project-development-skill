@@ -371,6 +371,68 @@ def _pilot_agents() -> tuple[list[dict], str | None]:
     return agents, (None if found else "sem runs")
 
 
+def _hermes_agents_from_events() -> list[dict]:
+    """Aggregate the local activity bus (~/.hermes/activity/events.jsonl) into swarm rows."""
+    bus = Path.home() / ".hermes" / "activity" / "events.jsonl"
+    if not bus.exists():
+        return []
+    try:
+        lines = bus.read_text(encoding="utf-8").strip().splitlines()[-1000:]
+    except OSError:
+        return []
+    agg: dict[str, dict] = {}
+    rank = {"running": 3, "waiting": 2, "done": 1, "blocked": 1, "failed": 0}
+    for line in lines:
+        try:
+            ev = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if ev.get("source") != "hermes":
+            continue
+        aid = str(ev.get("agent_id") or "hermes:?")
+        ts = str(ev.get("ts") or "")
+        cur = agg.get(aid)
+        if cur is None:
+            agg[aid] = {"ts": ts, "status": ev.get("status"), "action": ev.get("action"),
+                        "meta": ev.get("meta") or {}, "count": 1, "runs": {str(ev.get("run_id") or "")}}
+            continue
+        cur["count"] += 1
+        cur["runs"].add(str(ev.get("run_id") or ""))
+        if ts > cur["ts"]:
+            cur["ts"] = ts
+            cur["meta"] = ev.get("meta") or cur["meta"]
+            if ev.get("action"):
+                cur["action"] = ev.get("action")
+        if rank.get(str(ev.get("status")), -1) > rank.get(str(cur["status"]), -1) and ev.get("status"):
+            cur["status"] = ev.get("status")
+    now = datetime.now(timezone.utc)
+    rows = []
+    for aid, cur in sorted(agg.items(), key=lambda kv: kv[1]["ts"], reverse=True)[:6]:
+        status = cur["status"]
+        if not status:  # heartbeat freshness at display time
+            try:
+                age = (now - datetime.fromisoformat(cur["ts"])).total_seconds()
+                status = "ok" if age <= 300 else "stale"
+            except ValueError:
+                status = "?"
+        meta = cur["meta"] or {}
+        bits = []
+        if meta.get("model"):
+            bits.append(str(meta["model"]))
+        nruns = len({r for r in cur["runs"] if r})
+        if nruns > 1:
+            bits.append(f"{nruns} sessões")
+        elif nruns == 1:
+            bits.append("1 sessão")
+        if meta.get("host"):
+            bits.append(str(meta["host"]))
+        bits.append(f"{cur['count']} eventos")
+        rows.append({"agente": aid, "fonte": "hermes", "fidelity": "high", "status": status,
+                     "heartbeat": cur["ts"], "acao": cur["action"] or "—",
+                     "arquivos": "—", "nota": " · ".join(bits)})
+    return rows
+
+
 def swarm(runs_root: Path) -> dict:
     """Per-agent activity from real sources (read-only). Empty sources stay explicit."""
     now = datetime.now(timezone.utc)
@@ -393,9 +455,13 @@ def swarm(runs_root: Path) -> dict:
     if pi_note:
         notes.append(f"pilot-runs: {pi_note}")
 
-    agents.append({"agente": "sessões Hermes", "fonte": "hermes", "fidelity": "high",
-                   "status": "sem fonte", "heartbeat": "—", "acao": "—", "arquivos": "—",
-                   "nota": "emitter de eventos = T-201 (pendente)"})
+    hermes_rows = _hermes_agents_from_events()
+    if hermes_rows:
+        agents.extend(hermes_rows)
+    else:
+        agents.append({"agente": "sessões Hermes", "fonte": "hermes", "fidelity": "high",
+                       "status": "sem fonte", "heartbeat": "—", "acao": "—", "arquivos": "—",
+                       "nota": "sem eventos locais — rode scripts/pd_fleet/activity_emit.py"})
     return {"schema": "activity-swarm:v1",
             "generated_at": now.isoformat(timespec="seconds"),
             "rows": agents, "notes": notes}

@@ -13,11 +13,11 @@ steering designed, not built. FleetPlan v1-compatible; machine manifest in `plan
 - [x] T-101 · coder · Activity event contract v1 ✅ 09/10 (`ACTIVITY-CONTRACT.md` + `fixtures/activity-events.example.jsonl`; parse+keys ✓; diff ✓; pytest formal em T-103) · deps: G1 · paths: `.spec/pd-fleet-control-plane-v1/`, `docs/` · acceptance: R1 — documented + deterministic fixtures.
 - [x] T-102 · coder · Read-only swarm surface ✅ 09/10 (`swarm()` no collector → `swarm/agents.{md,json}`: monitor + kanban(ro) + pilot; vazio explícito; widgets `fleet-swarm-md`/`fleet-swarm-table` na aba fleet (v83) com bindings file verificados; payload `swarm-widgets.json`) · deps: T-101 · paths: `scripts/`, `.spec/pd-studio/` · acceptance: R2 — renders real data, no fabricated fields.
 - [x] T-103 · test-engineer · Anti-fabrication + determinism tests ✅ 09/10 (`tests/test_control_plane_swarm.py` — 7 novos: vazio explícito, kanban ro, pilot counts, determinismo, shapes · focado: **21 passed**; guarda de contrato live em `.spec/…/tests/` (**2 passed**); determinismo do collector normalizado p/ o swarm) · deps: T-102 · paths: `tests/` · validation: focused pytest.
-- [ ] **G2 — Read-only surface acceptance (owner: Vitor)** — pending.
+- [x] **G2 — Read-only surface acceptance (owner: Vitor)** — ✅ 09/10 (owner: "ok" — W2 destravada).
 
 ## Wave 2 — Hermes-native activity source (local spike)
 
-- [ ] T-201 · coder · Emit R1 events from Hermes sessions/bridge into observer transport (local, redacted, no network) · deps: T-101, G2 · paths: `scripts/pd_fleet/` · acceptance: R3 — local end-to-end emission with redaction · validation: spike log + tests.
+- [x] T-201 · coder · Emit R1 events ✅ 09/10 (`scripts/pd_fleet/activity_emit.py`: state.db ro → bus `~/.hermes/activity/events.jsonl`; redação 0/0/0; watermark idempotente 21→0; collector agrega → Board mostra `hermes:desktop` running + `gateway:default`; 5 testes novos; focado **26 passed**; contrato §Local transport v1) · deps: T-101, G2 · paths: `scripts/pd_fleet/` · acceptance: R3 — local end-to-end emission with redaction.
 - [ ] T-203 · coder · Laya advisory slots for activity routing (event→sink, flush timing, notify/persist gates) — spike on real states; wire only if validated; sink allowlist + caps in code · deps: T-101, T-201 · paths: `scripts/pd_fleet/`, `.spec/pd-fleet-control-plane-v1/` · acceptance: slots validated on real states (agreement vs deterministic rule measured; zero wire) · validation: spike log + logged decisions (calibration dataset).
 - [ ] T-202 · reviewer · Independent fresh-eyes review of W1–W2 incl. the Laya spike (evidence; no bypass) · deps: T-201, T-203.
 

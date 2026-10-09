@@ -6,7 +6,8 @@
     "T-000 \u2014 intake: SPEC/CONTEXT/PLAN/RESEARCH + plan.yaml (vision workspace + omp delta); G1 pending",
     "T-101 \u2014 activity contract v1 (schema/redaction/fidelity) + fixtures (6 eventos; parse+keys \u2713)",
     "T-102 \u2014 superf\u00edcie swarm read-only (swarm/agents.* + widgets fleet-swarm-*; fontes reais; vazio expl\u00edcito)",
-    "T-103 \u2014 testes do swarm: unit (7 novos; focado 21 passed) + guarda de contrato live (2 passed); determinismo; vazio expl\u00edcito"
+    "T-103 \u2014 testes do swarm: unit (7 novos; focado 21 passed) + guarda de contrato live (2 passed); determinismo; vazio expl\u00edcito",
+    "T-201 \u2014 emitter nativo Hermes (activity_emit.py; bus ~/.hermes/activity; redacted; watermark; collector consome; 26 passed)"
   ],
   "checkpoints": [
     {
@@ -58,12 +59,34 @@
         "T-101 \u2014 activity contract v1 (schema/redaction/fidelity) + fixtures (6 eventos; parse+keys \u2713)",
         "T-102 \u2014 superf\u00edcie swarm read-only (swarm/agents.* + widgets fleet-swarm-*; fontes reais; vazio expl\u00edcito)"
       ]
+    },
+    {
+      "date": "2026-10-09 19:49",
+      "phase": 0,
+      "note": "G2 APPROVED by owner ('ok') \u2014 superf\u00edcie read-only aceita; W2 destravada (T-201 emitter + T-203 Laya)",
+      "tasks_snapshot": [
+        "T-000 \u2014 intake: SPEC/CONTEXT/PLAN/RESEARCH + plan.yaml (vision workspace + omp delta); G1 pending",
+        "T-101 \u2014 activity contract v1 (schema/redaction/fidelity) + fixtures (6 eventos; parse+keys \u2713)",
+        "T-102 \u2014 superf\u00edcie swarm read-only (swarm/agents.* + widgets fleet-swarm-*; fontes reais; vazio expl\u00edcito)",
+        "T-103 \u2014 testes do swarm: unit (7 novos; focado 21 passed) + guarda de contrato live (2 passed); determinismo; vazio expl\u00edcito"
+      ]
+    },
+    {
+      "date": "2026-10-09 19:54",
+      "phase": 0,
+      "note": "T-201 DONE \u2014 emitter nativo vivo (bus local; reda\u00e7\u00e3o 0/0/0; idempotente); superf\u00edcie com hermes:desktop/gateway:cron; W2 em curso; pr\u00f3ximo T-203 (Laya)",
+      "tasks_snapshot": [
+        "T-000 \u2014 intake: SPEC/CONTEXT/PLAN/RESEARCH + plan.yaml (vision workspace + omp delta); G1 pending",
+        "T-101 \u2014 activity contract v1 (schema/redaction/fidelity) + fixtures (6 eventos; parse+keys \u2713)",
+        "T-102 \u2014 superf\u00edcie swarm read-only (swarm/agents.* + widgets fleet-swarm-*; fontes reais; vazio expl\u00edcito)",
+        "T-103 \u2014 testes do swarm: unit (7 novos; focado 21 passed) + guarda de contrato live (2 passed); determinismo; vazio expl\u00edcito"
+      ]
     }
   ],
   "created_at": "2026-10-09T11:49:03.997240",
-  "updated_at": "2026-10-09T19:47:37.333618",
+  "updated_at": "2026-10-09T19:54:31.471619",
   "fleet_state": {
-    "updated_at": "2026-10-09T19:47:37.333618",
+    "updated_at": "2026-10-09T19:54:31.471619",
     "schema_version": 1,
     "agents": [],
     "waves": [],

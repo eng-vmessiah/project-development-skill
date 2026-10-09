@@ -213,7 +213,7 @@ tasks:
       backoff_seconds: 1
       retryable_errors: []
     owner: coder-hermes
-    status: pending
+    status: done
 
   - id: T-203
     wave: 2
@@ -349,9 +349,10 @@ gates:
     kind: review
     scope: surface
     owner: vitor
-    status: pending
+    status: approved
     required_evidence:
       - Read-only swarm surface accepted from real sources (no fabricated fields).
+      - "Owner-accepted 2026-10-09 (desktop session: 'ok'); wave 2 unblocked."
   - id: G3
     kind: closeout
     scope: plan
