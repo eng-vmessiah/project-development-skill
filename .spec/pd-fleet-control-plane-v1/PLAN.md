@@ -20,7 +20,7 @@ steering designed, not built. FleetPlan v1-compatible; machine manifest in `plan
 - [x] T-201 · coder · Emit R1 events ✅ 09/10 (`scripts/pd_fleet/activity_emit.py`: state.db ro → bus `~/.hermes/activity/events.jsonl`; redação 0/0/0; watermark idempotente 21→0; collector agrega → Board mostra `hermes:desktop` running + `gateway:default`; 5 testes novos; focado **26 passed**; contrato §Local transport v1) · deps: T-101, G2 · paths: `scripts/pd_fleet/` · acceptance: R3 — local end-to-end emission with redaction.
 - [x] T-203 · coder · Laya advisory spike ✅ 09/10 — Laya real (torch/multilingual), 21 eventos do bus: **sink 3/21 (14%)** · **notify 15/21 (71%)** (p≥0.5) · latência mediana ~262ms · **zero wire** · artefatos `spike-laya/{RESULTS.md,decisions.jsonl}` · veredito: **não wire** sem fine-tune/labels (zero-shot fraca confirmada); 5 testes (stub). · deps: T-101, T-201 · paths: `scripts/pd_fleet/`, `.spec/pd-fleet-control-plane-v1/` · acceptance: slots validated on real states (agreement vs deterministic rule measured; zero wire).
 - [ ] T-202 · reviewer · Independent fresh-eyes review of W1–W2 incl. the Laya spike (evidence; no bypass) · deps: T-201, T-203.
-- [ ] (futuro, pós-W2) Lanes externas via parsers tipo agent-trail (adapter OpenCode primeiro) — RESEARCH#6.
+- [ ] (futuro, pós-W2) Lanes externas: (a) parsers tipo agent-trail spec (OpenCode primeiro) + (b) observação tipo Kitchen p/ lanes Codex/Claude (roles/todos) — RESEARCH#6/#7.
 
 ## Wave 3 — Steering contract (design only)
 

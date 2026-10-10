@@ -24,16 +24,25 @@
    states BEFORE wiring (weak zero-shot). Local, ~93ms warm CPU, zero egress; tooling live
    (`laya_decide`, plugin laya v1.2.0; skill `decision-model-integration`).
 
-6. **agent-trail — open interchange format for coding-agent sessions** (reference, 09/10/2026;
-   github.com/agent-trail/agent-trail): draft spec (Apache-2.0) + Bun tooling for session JSONL
-   trails; adapters already parse **OpenCode, Claude Code, Pi (omp upstream), Codex** session
-   stores. Borrow: (a) **adapters = the external-lane path** for real activity rows (fidelity
-   upgrade over raw tail; OpenCode adapter reads file + sqlite sessions); (b) **live-capture
-   protocol** (`stream.state: open|closed` + `<pending>` hash -> finalize); (c) **two-tier
-   content_hash** + `redacted_from`/`fork_from` lineage tiers; (d) **writer-strict vs
-   reader-tolerant conformance (R0-R2/W)** for our contract consumers; (e) redaction as a
-   lineage-producing pipeline. Do NOT depend on it: repo stalled since 2026-07-12, single
-   contributor, 0 stars, CLI unpublished (npm) — vendor patterns, not the package.
+6. **Agenttrail (sodiumsun/agenttrail) — local observability for coding agents** (09/10/2026;
+   754 stars, MIT, npm `agenttrail` 0.2.0 + `agenttrail-kitchen` 0.1.0-alpha.3): two views —
+   **Map** (`PLAN.md` + file changes + optional Claude hooks; component progress) and
+   **Kitchen** (3D roles-as-chefs view: native todos as tickets, role contributions, deliveries;
+   127.0.0.1-only, allowlisted fields, ~/.agenttrail). Observes Codex CLI + Claude Code logs
+   (Cursor hooks pending; Windows unverified). Patterns worth adopting: **role vs session-count
+   separation** ("chefs are responsibilities, not necessarily processes"), native-todo ingestion
+   as tasks, evidence discipline (delivered = todo reported complete != deployed; "progress
+   unknown" when no plan), labeled example-vs-live mode, and its lightweight PLAN.md convention
+   (stable `{ids}`, `files:` globs -> components, `by:` agents). Candidate to TRY standalone on
+   our Codex/Claude lanes; alpha quality, month-quiet repo (last push 2026-09-09).
+
+7. **agent-trail/agent-trail (session-interchange spec — found while searching the above)**
+   (draft 0.1.0, Apache-2.0; stalled since 2026-07-12, single contributor, CLI unpublished):
+   borrow the **adapters (OpenCode / Claude Code / Pi / Codex session stores)**, the
+   **live-capture protocol** (`stream.state: open|closed` + `<pending>` hash -> finalize), the
+   **two-tier content_hash + fork/redacted lineage**, and **writer-strict vs reader-tolerant
+   conformance (R0-R2/W)** for our contract consumers and the external-lane seam.
+   Vendor patterns, not the package.
 
 ## Gap (what is actually new)
 
