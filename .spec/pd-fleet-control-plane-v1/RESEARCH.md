@@ -24,6 +24,17 @@
    states BEFORE wiring (weak zero-shot). Local, ~93ms warm CPU, zero egress; tooling live
    (`laya_decide`, plugin laya v1.2.0; skill `decision-model-integration`).
 
+6. **agent-trail — open interchange format for coding-agent sessions** (reference, 09/10/2026;
+   github.com/agent-trail/agent-trail): draft spec (Apache-2.0) + Bun tooling for session JSONL
+   trails; adapters already parse **OpenCode, Claude Code, Pi (omp upstream), Codex** session
+   stores. Borrow: (a) **adapters = the external-lane path** for real activity rows (fidelity
+   upgrade over raw tail; OpenCode adapter reads file + sqlite sessions); (b) **live-capture
+   protocol** (`stream.state: open|closed` + `<pending>` hash -> finalize); (c) **two-tier
+   content_hash** + `redacted_from`/`fork_from` lineage tiers; (d) **writer-strict vs
+   reader-tolerant conformance (R0-R2/W)** for our contract consumers; (e) redaction as a
+   lineage-producing pipeline. Do NOT depend on it: repo stalled since 2026-07-12, single
+   contributor, 0 stars, CLI unpublished (npm) — vendor patterns, not the package.
+
 ## Gap (what is actually new)
 
 - Standardized cross-runtime **activity event** (the missing seam) + its display.
