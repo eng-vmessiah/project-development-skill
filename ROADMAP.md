@@ -91,6 +91,24 @@ sandbox, or human G1–G6 approval. See
 [`docs/PD-FLEET-V2-VERIFICATION.md`](docs/PD-FLEET-V2-VERIFICATION.md) for current
 verification and provenance pointers.
 
+### Benchmark inputs (observation only)
+
+External products observed as reference are treated as **evidence of patterns**, never as
+requirements: no code, copy, layout or branding is carried over, and no observation is a claim about
+the local system's behaviour.
+
+- [`cockpit-btg-benchmark-v1`](.spec/cockpit-btg-benchmark-v1/SPEC.md) — a mission control plane
+  observed through a screen recording (frames private; the source is not in this repo). Gap analysis
+  against `pd_fleet` and `isis core` found three real gaps, ordered by risk:
+  1. **effect reconciliation** — a tool that cannot prove its effect becomes an explicit *unknown*
+     requiring a human verdict (`executed` / `not executed`) with payload hash (P0, safety);
+  2. **mission route** — an investigation mission may conclude without dispatch, worker or lease
+     (P1, cost);
+  3. **execution-tree projection** — the lineage events already exist locally; the derivation does
+     not (P2).
+  Gates with human decisions, hashed evidence, checkpoints and attempts already exist here and are
+  explicitly **not** to be rebuilt.
+
 ### Deferred runtime and operational work
 
 The following require separate scope, design, security evidence, and explicit
