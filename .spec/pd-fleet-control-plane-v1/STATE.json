@@ -9,7 +9,9 @@
     "T-103 \u2014 testes do swarm: unit (7 novos; focado 21 passed) + guarda de contrato live (2 passed); determinismo; vazio expl\u00edcito",
     "T-201 \u2014 emitter nativo Hermes (activity_emit.py; bus ~/.hermes/activity; redacted; watermark; collector consome; 26 passed)",
     "T-203 \u2014 spike Laya advisory (Laya real; sink 14%/notify 71%; zero wire; decis\u00f5es logadas; 5 testes)",
-    "T-202 \u2014 fresh-eyes review W1\u2013W2: APPROVED WITH RESERVATIONS; RISCO-1..4 + NIT-1..3 fixed, NIT-4 deferido ao T-401"
+    "T-202 \u2014 fresh-eyes review W1\u2013W2: APPROVED WITH RESERVATIONS; RISCO-1..4 + NIT-1..3 fixed, NIT-4 deferido ao T-401",
+    "T-301 \u2014 steering contract v1 (design-only) com grounding executavel e 2 reviews independentes",
+    "T-402 \u2014 coletor conta completed como terminal (T-202 drift), com teste de regressao"
   ],
   "checkpoints": [
     {
@@ -109,12 +111,28 @@
         "T-203 \u2014 spike Laya advisory (Laya real; sink 14%/notify 71%; zero wire; decis\u00f5es logadas; 5 testes)",
         "T-202 \u2014 fresh-eyes review W1\u2013W2: APPROVED WITH RESERVATIONS; RISCO-1..4 + NIT-1..3 fixed, NIT-4 deferido ao T-401"
       ]
+    },
+    {
+      "date": "2026-11-02 13:22",
+      "phase": 0,
+      "note": "T-301 landed (ff f35a743) + T-402 collector fix (1435 passed) + 3 mismatches do audit corrigidos",
+      "tasks_snapshot": [
+        "T-000 \u2014 intake: SPEC/CONTEXT/PLAN/RESEARCH + plan.yaml (vision workspace + omp delta); G1 pending",
+        "T-101 \u2014 activity contract v1 (schema/redaction/fidelity) + fixtures (6 eventos; parse+keys \u2713)",
+        "T-102 \u2014 superf\u00edcie swarm read-only (swarm/agents.* + widgets fleet-swarm-*; fontes reais; vazio expl\u00edcito)",
+        "T-103 \u2014 testes do swarm: unit (7 novos; focado 21 passed) + guarda de contrato live (2 passed); determinismo; vazio expl\u00edcito",
+        "T-201 \u2014 emitter nativo Hermes (activity_emit.py; bus ~/.hermes/activity; redacted; watermark; collector consome; 26 passed)",
+        "T-203 \u2014 spike Laya advisory (Laya real; sink 14%/notify 71%; zero wire; decis\u00f5es logadas; 5 testes)",
+        "T-202 \u2014 fresh-eyes review W1\u2013W2: APPROVED WITH RESERVATIONS; RISCO-1..4 + NIT-1..3 fixed, NIT-4 deferido ao T-401",
+        "T-301 \u2014 steering contract v1 (design-only) com grounding executavel e 2 reviews independentes",
+        "T-402 \u2014 coletor conta completed como terminal (T-202 drift), com teste de regressao"
+      ]
     }
   ],
   "created_at": "2026-10-09T11:49:03.997240",
-  "updated_at": "2026-11-02T01:59:37.146896",
+  "updated_at": "2026-11-02T13:22:57.655481",
   "fleet_state": {
-    "updated_at": "2026-11-02T01:59:37.146896",
+    "updated_at": "2026-11-02T13:22:57.655481",
     "schema_version": 1,
     "agents": [],
     "waves": [],

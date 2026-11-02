@@ -66,3 +66,55 @@ events with p>=0.5) is confirmed as read. T-401 keeps NIT-4.
 
 `implemented`, `verified`, `deferred`, `blocked` are distinct; without human gate approval the
 state is `NOT READY/PARTIAL`, never PASS.
+
+## T-301 — steering contract (02/11)
+
+- Deliverable: `STEERING-CONTRACT.md` (419 lines) — five verbs (steer/pause/resume/kill/retry),
+  tiers T0–T3 default-deny, command envelope with idempotency key, `owner_epoch` fencing,
+  owned vs attached targets, hash-chained audit, explicit "design only, zero action surface".
+- **D-006** — `resume` is a first-class verb: a pause without an exit pushes operators into `kill`.
+- **D-007** — a verb's effect is observed through the sink's health snapshot first and the R1 bus
+  second; R1 `kind:status` has no `paused`/`cancelling`/`cancelled`, so extending the enum (or
+  echoing `command_id` in `meta`) is a named v2 requirement, not something v1 pretends to have.
+- Grounding is executable, not prose: `steering/probes/run_probes.py` → `TOTAL=6 PASS=5 FAIL=1`.
+  The single FAIL is the refuted claim kept on purpose — `sandbox.py` refuses URLs in `env` and
+  redacts them in output, but **accepts a URL inside an allowlisted argv**, so it is not a network
+  boundary. §8/§10 were corrected instead of quietly dropping the claim.
+- Review chain (house rule: reviewer from a different family than the author):
+  GLM-5.3-Flash via OpenCode → **PASS_WITH_RESERVATIONS** (0 BLOCKER, 1 HIGH, 3 MEDIUM, 2 LOW,
+  1 NIT) → all seven disposed → **Vigia** (role `Revisor PD`, on the Maestri canvas) delta review
+  → **PASS**, 6/7 CLOSED, ST-06 CLOSED with a wording reservation, 2 new NITs both fixed.
+- Commits `4c2876f` + `f35a743` on `feat/pd-t301-steering`, landed on `main` by fast-forward.
+  Zero action surface shipped: `CAPABILITIES_V1` is still `{"observation"}` (probe-confirmed).
+
+## T-402 — collector counts `completed` as terminal (02/11)
+
+- Root cause found by the closeout audit (independent subagent): `plan_cockpit_sync.py` counted only
+  `status == "done"`, while FleetPlan's canonical terminal value is `completed`. T-202 was
+  `completed`, so the published mission surface said **6/9** and rendered T-202 as ⏳ pending while
+  PLAN.md had it `[x]`.
+- Fix: `_is_task_done()` accepting both spellings (canonical `completed`, legacy `done`) at the four
+  counting/rendering sites; regression test `test_plan_yaml_counts_completed_as_terminal`.
+- Evidence: focused `15 passed`; full suite `1435 passed / 1 skipped`; collector now reports **7/9**.
+- The other three audit mismatches: G1/wave attribution fixed in PLAN.md (gate belongs to the wave it
+  unblocks, matching G2); the un-IDed "lanes externas" bullet became a plain bullet so it stops
+  inflating the `pd validate` task count; the `done`/`completed` vocabulary split is now covered by
+  code, not by convention.
+
+## Closeout audit — gaps carried into T-401 (02/11)
+
+All nine claims in PLAN/CONTEXT reproduced on `main` (pytest 1434/1 skipped at the time, `pd validate`
+10/11, determinism with both timestamps popped, live `hermes:desktop` = `stale` because the bus event
+is 24 days old, `docs/ACTIVITY-EVENTS.md` linked, ruff 21 pre-existing / 0 new on the touched files).
+
+- **`pd validate --deep` does not validate `plan.yaml` at all** — the 11 checks cover SPEC/PLAN/
+  CONTEXT/STATE/VERIFICATION/tests. The only machine check is the FleetPlan dogfood load, which is why
+  a status-token drift could live for weeks. T-401 must run the dogfood load and say so.
+- All five SPEC success-criteria checkboxes are still `- [ ]`; four are evidenced by now (swarm
+  surface, activity contract, Hermes emitter, steering contract). The fifth is `pd validate` green +
+  `VERIFICATION.md`, which is T-401's own deliverable — it can only be ticked at the end.
+- `docs/PLAN-COCKPIT.md` references `docs/ACTIVITY-EVENTS.md` as a code path under `## Related`
+  rather than a markdown link (NIT, cosmetic).
+- `STATE.json` `phase: 0 / status: initialized` with an empty `fleet_state` is the house norm for
+  closed missions in this repo (plan-cockpit-v1 and b15b-gateway look identical) — not a defect.
+

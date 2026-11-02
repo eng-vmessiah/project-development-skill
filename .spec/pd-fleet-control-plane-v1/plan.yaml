@@ -49,7 +49,8 @@ waves:
   - id: wave-3
     tasks:
       - T-301
-    status: pending
+      - T-402
+    status: completed
   - id: wave-4
     tasks:
       - T-401
@@ -304,7 +305,37 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: orchestrator-isis
-    status: pending
+    status: completed
+
+  - id: T-402
+    wave: 3
+    role: coder
+    objective: "Collector treats `completed` as a terminal task status (T-202 drift), with regression test."
+    depends_on: []
+    parallel_group: null
+    allowed_paths:
+      - scripts/
+      - tests/
+    forbidden_paths:
+      - .env
+    inputs:
+      - plan_cockpit_sync.py task counting
+      - T-202 review finding
+    outputs:
+      - name: terminal-status-fix
+        description: Both spellings count; a regression test pins it.
+        required: true
+    acceptance_criteria:
+      - "Mission surface reports the same done count as plan.yaml; test fails if only `done` counts."
+    validation_commands:
+      - /usr/bin/python3 -m pytest tests/test_plan_cockpit_sync.py -q
+    blocked_when: []
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    owner: orchestrator-isis
+    status: completed
 
   - id: T-401
     wave: 4
