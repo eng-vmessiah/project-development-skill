@@ -35,7 +35,7 @@ waves:
       - T-101
       - T-102
       - T-103
-    status: pending
+    status: completed
     gates:
       - G1
   - id: wave-2
@@ -43,7 +43,7 @@ waves:
       - T-201
       - T-203
       - T-202
-    status: pending
+    status: completed
     gates:
       - G2
   - id: wave-3
@@ -275,7 +275,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: reviewer-hermes
-    status: pending
+    status: completed
 
   - id: T-301
     wave: 3

@@ -29,6 +29,8 @@
 - `hermes:cli` status/done · baseline=`ledger` · laya=`stream_only` (conf 0.6623)
 - `hermes:cli` status/done · baseline=`ledger` · laya=`stream_only` (conf 0.7109)
 
+- … e mais 3 de 18 (lista capada em 15)
+
 ## Artefatos
 
 - `decisions.jsonl` (1 linha por evento: baseline × laya × latência)

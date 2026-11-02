@@ -16,6 +16,7 @@ initialized
 - [x] T-103 — testes do swarm: unit (7 novos; focado 21 passed) + guarda de contrato live (2 passed); determinismo; vazio explícito
 - [x] T-201 — emitter nativo Hermes (activity_emit.py; bus ~/.hermes/activity; redacted; watermark; collector consome; 26 passed)
 - [x] T-203 — spike Laya advisory (Laya real; sink 14%/notify 71%; zero wire; decisões logadas; 5 testes)
+- [x] T-202 — fresh-eyes review W1–W2: APPROVED WITH RESERVATIONS; RISCO-1..4 + NIT-1..3 fixed, NIT-4 deferido ao T-401
 
 ## Checkpoints
 - 2026-10-09 11:50: SPEC+PLAN drafted (W0); vision + omp delta as inputs; G1 pending
@@ -27,15 +28,16 @@ initialized
 - 2026-10-09 19:49: G2 APPROVED by owner ('ok') — superfície read-only aceita; W2 destravada (T-201 emitter + T-203 Laya)
 - 2026-10-09 19:54: T-201 DONE — emitter nativo vivo (bus local; redação 0/0/0; idempotente); superfície com hermes:desktop/gateway:cron; W2 em curso; próximo T-203 (Laya)
 - 2026-10-09 20:07: T-203 DONE — spike Laya medido (sink 3/21 · notify 15/21 · ~262ms; veredito NÃO WIRE); artefatos spike-laya/; W2: falta T-202
+- 2026-11-02 01:59: T-202 fechado: review APPROVED WITH RESERVATIONS; RISCO-1 (staleness running/waiting), RISCO-2 (recencia>rank), RISCO-3 (janela por atividade), RISCO-4 (docs/ACTIVITY-EVENTS.md) e NIT-1..3 corrigidos; full suite 1434 passed; live swarm hermes:desktop=stale; T-401 fica com NIT-4 + revisao independente do delta
 
 ## Timestamps
 - Created: 2026-10-09T11:49:03.997240
-- Updated: 2026-10-09T20:07:02.267869
+- Updated: 2026-11-02T01:59:37.146896
 
 ## Fleet State
 ```json
 {
-  "updated_at": "2026-10-09T20:07:02.267869",
+  "updated_at": "2026-11-02T01:59:37.146896",
   "schema_version": 1,
   "agents": [],
   "waves": [],
