@@ -118,12 +118,10 @@ must be safe path segments.
 
 ### Fleet V2: local-first, runtime-agnostic, and fail-closed
 
-Fleet V2 is currently **merged as a local/experimental capability**. It is not
-an operational production release, has no provider or live-network readiness
-claim, and has no human G1–G6 approval recorded here.
-The safe default is local simulation with an explicit plan and output directory;
-no shell, network, external provider, credentials, or undeclared validation
-command is invoked. The executable V2 local path is:
+Fleet V2 is a **local/experimental capability**; the scope boundary is stated once, in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#fleet-v2-local-boundary-and-recovery).
+The safe default is local simulation with an explicit plan and output directory.
+The executable V2 local path is:
 
 ```bash
 python3 scripts/pd.py v2 run-local --plan ./fleet-plan.json \

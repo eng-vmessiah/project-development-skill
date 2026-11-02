@@ -179,6 +179,6 @@ O scheduler deve verificar a capability antes de usá-la e bloquear de forma exp
 
 ## Estado atual
 
-O contrato de Runtime Adapter e o caminho fake/local independente de Hermes estão implementados e verificados localmente. O Fleet V2 como produto continua experimental e default-deny. B15a.2 confirmou o transporte TUI stdio/JSON-RPC, a fronteira de sessão e um checkpoint host-side local para staging/publicação lazy namespaced; o pacote PD ainda não registra RPC, o patch não está instalado/ativado, e a capacidade Fleet permanece `NOT_READY_HERMES_SEAM`. Essa limitação não deve degradar o funcionamento do PD Core ou do Fleet local.
+O contrato de Runtime Adapter e o caminho fake/local estão implementados e verificados localmente. O Fleet V2 como produto continua experimental e default-deny — fronteira declarada uma vez em [`ARCHITECTURE.md`](ARCHITECTURE.md#fleet-v2-local-boundary-and-recovery). B15a.2: transporte TUI stdio/JSON-RPC confirmado; o pacote PD ainda não registra RPC, o patch não está instalado e a capacidade Fleet permanece `NOT_READY_HERMES_SEAM`.
 
 Evidência local atual: suíte `tests/fleet` verde; evidência de discovery B15a.2 em [`PD-FLEET-B15A2-TUI-SEAM.md`](PD-FLEET-B15A2-TUI-SEAM.md). A contagem exata deve ser atualizada junto com cada nova regressão. Essa evidência não implica plugin instalado, provider/runtime Hermes, dispatch live, produção ou aprovação de promoção.

@@ -12,7 +12,7 @@ Repositório: `project-development-skill`. Leia antes de editar:
 
 - `README.md`, `ROADMAP.md`, `skills/pd/SKILL.md` e templates em `skills/pd/templates/`;
 - `docs/PD-AS-IS-TO-BE.md`, `docs/PD-FLEET-ORCHESTRATION-PLAN.md` e este histórico (`docs/PD-FIRST-CASE-PROMPT.md`);
-- `.spec/pd-fleet-orchestration/SPEC.md`, `PLAN.md`, `STATE.md`, `CONTEXT.md`, `GRILL-001.md` e `STATE.json`;
+- `.spec/archive/pd-fleet-orchestration/SPEC.md`, `PLAN.md`, `STATE.md`, `CONTEXT.md`, `GRILL-001.md` e `STATE.json`;
 - `scripts/pd.py`, `scripts/pd_fleet/`, `examples/pd-fleet/` e `tests/fleet/`.
 
 Baseline conhecido ao iniciar esta sessão: **272 testes passam**, porém isso não é evidência de cobertura dos requisitos R1–R18 nem autorização para declarar PASS. O estado real e os findings de T15/T16/T17 abaixo prevalecem sobre documentação otimista ou gates declarativos.

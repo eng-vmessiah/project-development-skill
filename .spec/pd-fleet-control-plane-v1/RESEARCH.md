@@ -5,7 +5,7 @@
 1. **Owner vision (09/10/2026)** — vault `control-plane-workspace.md`: workspace visual =
    plan modules (waves/tasks/gates) + swarm vivo (heartbeat/acao/arquivos por agente) +
    steering (gated). "ISIS/fleet e pra ser um workspace."
-2. **oh-my-pi / omp — Agent Hub delta** (UX/feature ruler; repo ROADMAP section): roster with
+2. **oh-my-pi / omp — Agent Hub delta** (UX/feature ruler; `.spec/research/omp-evaluation.md`): roster with
    status/cost/time per worker · live transcript · steer/revive/kill without aborting the
    parent · `agent://<id>/<path>` typed yields · worktree isolation (pi-iso) · TTSR stream
    rules · advisor model. Not installed/integrated; pin-versions caveat.

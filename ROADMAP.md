@@ -83,31 +83,19 @@ The current boundary is intentionally local and non-production:
 - **OMH** is reference material for workflow patterns and learning only. It is not
   installed, integrated, scheduled, synchronized, or authoritative.
 
-Fleet V2 remains **PARTIAL/OPEN**, local/experimental, and default-deny. Its
-simulated runner, contracts, checkpoints, gates, inspection commands, and offline
-documentation checker are local capabilities only. They do not constitute provider
-execution, live-network dispatch, production deployment, a strong production
-sandbox, or human G1–G6 approval. See
-[`docs/PD-FLEET-V2-VERIFICATION.md`](docs/PD-FLEET-V2-VERIFICATION.md) for current
-verification and provenance pointers.
+Fleet V2 remains **PARTIAL/OPEN**, local/experimental and default-deny — the boundary
+(what is simulated, what is denied) is stated once in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#fleet-v2-local-boundary-and-recovery).
+Verification pointers: [`docs/PD-FLEET-V2-VERIFICATION.md`](docs/PD-FLEET-V2-VERIFICATION.md).
 
-### Benchmark inputs (observation only)
+### Benchmark and research inputs (observation only)
 
-External products observed as reference are treated as **evidence of patterns**, never as
-requirements: no code, copy, layout or branding is carried over, and no observation is a claim about
-the local system's behaviour.
-
-- [`cockpit-btg-benchmark-v1`](.spec/cockpit-btg-benchmark-v1/SPEC.md) — a mission control plane
-  observed through a screen recording (frames private; the source is not in this repo). Gap analysis
-  against `pd_fleet` and `isis core` found three real gaps, ordered by risk:
-  1. **effect reconciliation** — a tool that cannot prove its effect becomes an explicit *unknown*
-     requiring a human verdict (`executed` / `not executed`) with payload hash (P0, safety);
-  2. **mission route** — an investigation mission may conclude without dispatch, worker or lease
-     (P1, cost);
-  3. **execution-tree projection** — the lineage events already exist locally; the derivation does
-     not (P2).
-  Gates with human decisions, hashed evidence, checkpoints and attempts already exist here and are
-  explicitly **not** to be rebuilt.
+External products observed as reference are **evidence of patterns**, never requirements:
+no code, copy, layout or branding is carried over. Discovery lives outside the public
+roadmap — [`cockpit-btg-benchmark-v1`](.spec/cockpit-btg-benchmark-v1/SPEC.md) (gap
+analysis, 3 ordered gaps) and [`.spec/research/omp-evaluation.md`](.spec/research/omp-evaluation.md)
+(oh-my-pi / OMH / TTSR / advisor, evaluated 2026-10-09). None of it is installed,
+integrated, scheduled or authoritative.
 
 ### Deferred runtime and operational work
 
@@ -123,38 +111,6 @@ approval; they are not prerequisites for PD Core or the local Fleet mode:
 - [ ] Strong sandboxing, deployment, shared persistence, multi-host workers, and HA
 - [ ] Operational observability, canary/rollback, runbooks, and G1–G6 evidence
 - [ ] OMH adapter, runtime/state synchronization, or scheduling integration
-
-### Fleet harness research inputs — oh-my-pi (omp)
-
-Reference input only (same standing as OMH): [oh-my-pi](https://github.com/can1357/oh-my-pi)
-(MIT coding harness, Rust+TS; evaluated 2026-10-09). Not installed, not integrated, not
-authoritative; nothing here activates a runtime or adapter. Caveats: young project with very
-fast releases (pin versions if ever tried) and a wide execution surface (sandbox discipline
-required).
-
-**Mapping:** items 1–2 are discovery inputs for the next PD Fleet **Supervisor/control-plane**
-increment (the current increment is a read-only observer; steering is the next step) — they
-migrate into that increment's `.spec` when it is opened, per the standard PD flow. Stream-rule
-guardrails map to bridge gates; the advisor maps to council patterns; metaharness/pi-iso map to
-Mission Control and worktree isolation; the optional lane maps to the runtime-adapter boundary. The control-plane increment is expected to surface **visually** — Board tabs
-(`pds`/`fleet`/`mc`) live widgets plus the war-room frontend, with actions through the
-existing board connector / tool-mode pattern — not only as CLI state. Tracked as `.spec/pd-fleet-control-plane-v1/` (opened 2026-10-09).
-
-- [ ] **Agent Hub ↔ Fleet observer/TUI delta** — feature-by-feature comparison (per-worker
-  status/cost/time, live transcript, steer/revive/kill without aborting the parent) against
-  the B15 wire/observer/canary surface; feeds the next fleet-TUI phase.
-- [ ] **Typed, addressable worker results** — evaluate `agent://<id>/<path>`-style addressing
-  plus schema-validated yields as a contract pattern for observer transport and handoffs.
-- [ ] **Stream-rule guardrails (TTSR)** — evaluate abort → inject rule → retry-from-the-same-
-  point stream rules as a bridge gate mechanism without per-turn context tax.
-- [ ] **Advisor-model pattern** — a second model watching every turn on its own context;
-  compare with the council/sparring patterns already in use.
-- [ ] **Benchmark harness and reflink isolation** — compare metaharness (runners, REST/SSE,
-  dashboard) against Mission Control / plan-cockpit; compare reflink-based isolation (pi-iso)
-  against current worktree techniques.
-- [ ] **(Optional) omp as candidate worker lane** — bounded comparative trial with the same
-  provider/model before any adapter work; any activation follows the runtime-adapter boundary
-  above and requires separate scope plus explicit approval.
 
 ## Known limitations
 

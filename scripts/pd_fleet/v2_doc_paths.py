@@ -15,7 +15,9 @@ from typing import Iterable
 
 SCHEMA_VERSION = "pd-fleet-doc-paths:v1"
 V2_DOCS = ".spec/pd-fleet-orchestration-v2"
-V1_PREFIX = ".spec/pd-fleet-orchestration/"
+# v1 vive em dois lugares: o nome historico e o diretorio de arquivo. A regra vale para os dois.
+V1_PREFIXES = (".spec/pd-fleet-orchestration/", ".spec/archive/pd-fleet-orchestration/")
+V1_ROOTS = (".spec/pd-fleet-orchestration", ".spec/archive/pd-fleet-orchestration")
 FIELD_RE = re.compile(r"\*\*(Create|Exact files|Allowed paths):?\*\*\s*:?\s*(.*)")
 TASK_RE = re.compile(r"^\s*#{1,6}\s+(T2-\d+)\b", re.IGNORECASE)
 CODE_RE = re.compile(r"`([^`]+)`")
@@ -153,7 +155,7 @@ def check_repo(repo_root: str | Path) -> dict[str, object]:
                     violations.append(_violation("BROKEN_ANCHOR", rel_doc, task, f"anchor does not exist: #{fragment}"))
 
     for kind, path, task, doc in declarations:
-        if path.startswith(V1_PREFIX) or path == ".spec/pd-fleet-orchestration":
+        if path.startswith(V1_PREFIXES) or path.rstrip("/") in V1_ROOTS:
             if path.endswith("/*"):
                 continue
             violations.append(_violation("V1_FORBIDDEN", doc, task, f"V1 path is forbidden: {path}"))

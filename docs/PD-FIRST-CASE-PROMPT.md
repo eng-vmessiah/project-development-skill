@@ -2,7 +2,7 @@
 
 > Este é o prompt histórico de execução para iniciar a implementação em uma sessão nova, a partir da branch de planejamento. Ele assume que o executor deve ler o repositório antes de alterar qualquer arquivo.
 >
-> **Estado real (R3, 2026-07-17):** as remediações locais T1–T13, R1/R2 e matching de role/capabilities estão implementadas; a suíte tinha **278 testes passando** naquela data (hoje a suíte está em 1442 passed / 1 skipped). A evidência fresca está em [`.spec/pd-fleet-orchestration/VERIFICATION.md`](../.spec/pd-fleet-orchestration/VERIFICATION.md). Ainda assim, este documento não autoriza declarar PASS sem verification gate: R14/R18 permanecem PARTIAL por caveats documentados, `validation_commands` são declarativos, timestamps/paths podem variar na saída bruta e não há provider externo por default. O histórico T14/T15/T16/T17 abaixo é preservado deliberadamente.
+> **Estado real (R3, 2026-07-17):** as remediações locais T1–T13, R1/R2 e matching de role/capabilities estão implementadas; a suíte tinha **278 testes passando** naquela data (hoje a suíte está em 1442 passed / 1 skipped). A evidência fresca está em [`.spec/archive/pd-fleet-orchestration/VERIFICATION.md`](../.spec/archive/pd-fleet-orchestration/VERIFICATION.md). Ainda assim, este documento não autoriza declarar PASS sem verification gate: R14/R18 permanecem PARTIAL por caveats documentados, `validation_commands` são declarativos, timestamps/paths podem variar na saída bruta e não há provider externo por default. O histórico T14/T15/T16/T17 abaixo é preservado deliberadamente.
 
 ## Papel
 

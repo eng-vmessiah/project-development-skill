@@ -235,6 +235,9 @@ installed, integrated, scheduled, synchronized, or a source of truth.
 
 ## Fleet V2 local boundary and recovery
 
+**This is the canonical statement of the local-only boundary.** Other documents point here
+instead of restating it.
+
 Fleet V2 is local-first and **PARTIAL/OPEN**: parsing, normalization,
 reconciliation, checkpointing, and simulation stay within an explicit output root.
 Shell, network, credentials, external providers, and live dispatch remain denied;

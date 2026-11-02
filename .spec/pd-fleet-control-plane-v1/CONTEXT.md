@@ -3,7 +3,7 @@
 ## Source of truth
 
 - Owner vision (09/10/2026): vault `Projects/project-development-skill/control-plane-workspace.md`.
-- Repo input: `ROADMAP.md` -> "Fleet harness research inputs — oh-my-pi (omp)" (+ Mapping).
+- Repo input: `.spec/research/omp-evaluation.md` (moved out of `ROADMAP.md` on 2026-11-02; the section used to be "Fleet harness research inputs — oh-my-pi (omp)").
 - Existing machinery: `scripts/pd_fleet/` (supervisor/observer, read-only increment);
   `scripts/plan_cockpit_sync.py` (collector + mc widgets); `docs/PLAN-COCKPIT.md`; board
   connector / tool-mode pattern (commit `fc6e618`); war-room / Swarm Kanban (frontend track).
