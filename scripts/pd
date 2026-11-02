@@ -1,4 +1,8 @@
 #!/bin/bash
 # PD wrapper script
+# Pin the interpreter: `python3` on PATH resolves to the Hermes canary venv
+# (3.14, no PyYAML). ~/.venvs/pd has pyyaml + jsonschema for the fleet tooling.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-python3 "$SCRIPT_DIR/pd.py" "$@"
+PY=~/.venvs/pd/bin/python3
+[ -x "$PY" ] || PY=python3
+exec "$PY" "$SCRIPT_DIR/pd.py" "$@"
