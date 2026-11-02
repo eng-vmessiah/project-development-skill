@@ -230,6 +230,8 @@ def run(bus: Path, out_dir: Path, backend: str = "real", limit: int = 25,
                      f"laya=`{r['laya_sink']}` (conf {r['laya_sink_confidence']})")
     if not disagreements:
         lines.append("- (nenhum)")
+    elif len(disagreements) > 15:
+        lines.append(f"- … e mais {len(disagreements) - 15} de {len(disagreements)} (lista capada em 15)")
     lines += ["", "## Artefatos", "", "- `decisions.jsonl` (1 linha por evento: baseline × laya × latência)"]
     (out_dir / "RESULTS.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     return {"rows": rows, "summary": summary, "disagreements": len(disagreements)}

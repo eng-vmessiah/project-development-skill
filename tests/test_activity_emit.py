@@ -6,6 +6,7 @@ import json
 import sqlite3
 import sys
 import time
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -84,8 +85,9 @@ def test_collector_reads_bus(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     assert pc._hermes_agents_from_events() == []
     bus = tmp_path / ".hermes/activity/events.jsonl"
     bus.parent.mkdir(parents=True)
+    fresh = datetime.now(UTC).isoformat(timespec="seconds")
     bus.write_text(json.dumps({
-        "v": 1, "event_id": "e1", "ts": "2026-10-09T19:50:00+00:00", "agent_id": "hermes:desktop",
+        "v": 1, "event_id": "e1", "ts": fresh, "agent_id": "hermes:desktop",
         "run_id": "s1", "source": "hermes", "fidelity": "high", "kind": "status",
         "action": "terminal", "status": "running", "meta": {"model": "m", "msgs": 7},
     }) + "\n", encoding="utf-8")
@@ -93,6 +95,60 @@ def test_collector_reads_bus(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     assert len(rows) == 1 and rows[0]["agente"] == "hermes:desktop"
     assert rows[0]["status"] == "running" and rows[0]["acao"] == "terminal"
     assert set(rows[0]) == ROW_KEYS
+
+
+def test_collector_downgrades_old_running_to_stale(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    bus = tmp_path / ".hermes/activity/events.jsonl"
+    bus.parent.mkdir(parents=True)
+    old = (datetime.now(UTC) - timedelta(days=3)).isoformat(timespec="seconds")
+    bus.write_text(json.dumps({
+        "v": 1, "event_id": "e-stale", "ts": old, "agent_id": "hermes:desktop",
+        "run_id": "s1", "source": "hermes", "fidelity": "high", "kind": "status",
+        "action": "terminal", "status": "running", "meta": {},
+    }) + "\n", encoding="utf-8")
+    rows = pc._hermes_agents_from_events()
+    assert rows[0]["status"] == "stale"
+
+
+def test_collector_newest_event_beats_older_rank(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    bus = tmp_path / ".hermes/activity/events.jsonl"
+    bus.parent.mkdir(parents=True)
+    now = datetime.now(UTC)
+    running = {"v": 1, "event_id": "e-run", "ts": (now - timedelta(minutes=10)).isoformat(timespec="seconds"),
+               "agent_id": "hermes:desktop", "run_id": "s1", "source": "hermes", "fidelity": "high",
+               "kind": "status", "action": "terminal", "status": "running", "meta": {}}
+    failed = {"v": 1, "event_id": "e-fail", "ts": (now - timedelta(minutes=2)).isoformat(timespec="seconds"),
+              "agent_id": "hermes:desktop", "run_id": "s2", "source": "hermes", "fidelity": "high",
+              "kind": "status", "action": "terminal", "status": "failed", "meta": {}}
+    bus.write_text(json.dumps(running) + "\n" + json.dumps(failed) + "\n", encoding="utf-8")
+    rows = pc._hermes_agents_from_events()
+    assert rows[0]["status"] == "failed"
+
+
+def test_activity_emit_window_uses_activity_not_ended_at(tmp_path: Path) -> None:
+    now = time.time()
+    db = tmp_path / "state.db"
+    con = sqlite3.connect(db)
+    con.executescript("""
+        create table sessions (id text primary key, source text, user_id text, model text,
+            started_at real, ended_at real, message_count integer, tool_call_count integer);
+        create table messages (id integer primary key, session_id text, role text, content text,
+            tool_name text, timestamp real);
+        create table gateway_heartbeats (backend_id text primary key, pid integer, profile text,
+            host text, last_heartbeat real);
+    """)
+    # Session closed in bulk yesterday, but its last real activity is 60 days old.
+    con.execute("insert into sessions values ('old','desktop','u','m',?,?,2,1)",
+                (now - 60 * 86400, now - 86400))
+    con.execute("insert into messages values (1,'old','user','x',NULL,?)", (now - 60 * 86400,))
+    con.commit()
+    con.close()
+    out = tmp_path / "activity"
+    res = ae.emit(db, out)
+    assert res["emitted"] == 0
+    assert not (out / "events.jsonl").exists()
 
 
 def test_swarm_uses_bus_when_present(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

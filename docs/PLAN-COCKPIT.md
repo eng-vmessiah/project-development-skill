@@ -68,3 +68,9 @@ Selector flow: pick a mission in the form → the template message reaches the a
   `.spec/pd-studio/mc-widgets.json`; keep workspace backups (`~/backups/boardstate-workspace-v*.json`).
 - Table widgets: `bindings.rows` + `props.columns`; markdown: `bindings.content`; data in
   bindings, never props; boardstate `tool_call` items need the `name` field.
+
+## Related
+
+- `docs/ACTIVITY-EVENTS.md` — activity contract v1 (bus `~/.hermes/activity/events.jsonl`,
+  emitter window, redaction, consumer freshness rules) that feeds the swarm/fleet rows.
+

@@ -34,6 +34,9 @@ REPO = Path(__file__).resolve().parents[1]
 SPEC_DIR = REPO / ".spec"
 DEFAULT_RUNS_ROOT = REPO / ".pd-fleet-runs"
 
+HEARTBEAT_FRESH_S = 300  # status-less heartbeat rows: ok within 5 min
+STATUS_FRESH_S = 3600  # non-terminal status rows: older than 1h is stale
+
 CHECKPOINT_RE = re.compile(r"^CHECKPOINT-(\d{8})-(\d{4})\.md$")
 CHECKBOX_RE = re.compile(r"^- \[(x| )\]", re.MULTILINE)
 HEADING_RE = re.compile(r"^#\s+(.+)$", re.MULTILINE)
@@ -381,7 +384,8 @@ def _hermes_agents_from_events() -> list[dict]:
     except OSError:
         return []
     agg: dict[str, dict] = {}
-    rank = {"running": 3, "waiting": 2, "done": 1, "blocked": 1, "failed": 0}
+    # Most recent event wins; rank only breaks ties on the same timestamp.
+    rank = {"failed": 5, "blocked": 4, "waiting": 3, "running": 2, "done": 1}
     for line in lines:
         try:
             ev = json.loads(line)
@@ -398,23 +402,28 @@ def _hermes_agents_from_events() -> list[dict]:
             continue
         cur["count"] += 1
         cur["runs"].add(str(ev.get("run_id") or ""))
+        newer = ts >= cur["ts"]
         if ts > cur["ts"]:
             cur["ts"] = ts
             cur["meta"] = ev.get("meta") or cur["meta"]
             if ev.get("action"):
                 cur["action"] = ev.get("action")
-        if rank.get(str(ev.get("status")), -1) > rank.get(str(cur["status"]), -1) and ev.get("status"):
-            cur["status"] = ev.get("status")
+        status_new = ev.get("status")
+        if status_new and (newer or rank.get(str(status_new), -1) > rank.get(str(cur["status"]), -1)):
+            cur["status"] = status_new
     now = datetime.now(timezone.utc)
     rows = []
     for aid, cur in sorted(agg.items(), key=lambda kv: kv[1]["ts"], reverse=True)[:6]:
         status = cur["status"]
+        try:
+            age = (now - datetime.fromisoformat(cur["ts"])).total_seconds()
+        except (TypeError, ValueError):
+            age = None
         if not status:  # heartbeat freshness at display time
-            try:
-                age = (now - datetime.fromisoformat(cur["ts"])).total_seconds()
-                status = "ok" if age <= 300 else "stale"
-            except ValueError:
-                status = "?"
+            status = "ok" if age is not None and age <= HEARTBEAT_FRESH_S else (
+                "?" if age is None else "stale")
+        elif status in ("running", "waiting") and age is not None and age > STATUS_FRESH_S:
+            status = "stale"  # non-terminal status with an old ts is not current
         meta = cur["meta"] or {}
         bits = []
         if meta.get("model"):

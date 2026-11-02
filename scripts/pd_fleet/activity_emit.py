@@ -70,6 +70,8 @@ def session_events(con: sqlite3.Connection, now: float) -> list[dict]:
         if not stamps:
             continue
         last_ts = max(stamps)
+        if last_ts < cutoff:  # window is about recent ACTIVITY, not a recent ended_at
+            continue
         if ended_at is not None:
             status = "done"
         elif now - last_ts <= RUNNING_FRESH_S:

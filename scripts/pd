@@ -1,7 +1,8 @@
 #!/bin/bash
 # PD wrapper script
 # Pin the interpreter: `python3` on PATH resolves to the Hermes canary venv
-# (3.14, no PyYAML). ~/.venvs/pd has pyyaml + jsonschema for the fleet tooling.
+# (3.14, no PyYAML). ~/.venvs/pd has pyyaml + jsonschema for the fleet tooling
+# but NOT pytest — run tests with /usr/bin/python3 -m pytest.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PY=~/.venvs/pd/bin/python3
 [ -x "$PY" ] || PY=python3
