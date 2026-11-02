@@ -172,6 +172,10 @@ Rules:
   (R1 v1 has none — D-007).
 - `cancelling` is a distinct intermediate state so a kill that does not land is visible; the
   terminal `cancelled` requires the PGID to be empty (proven, not assumed).
+- `kill` **is** allowed from `paused` (ending a paused run is a real need) and goes through the
+  same `cancelling → cancelled` path; `pause` is not. A run paused by a human outside the fleet
+  is `unsupported` for `resume` and `refused` for further `pause` — the contract does not adopt
+  state it did not create.
 - Terminal states are sticky: no verb acts on a terminal target except `retry`, which creates a
   new attempt rather than reopening the old one.
 
@@ -326,7 +330,7 @@ Until all seven exist, the label for this area stays **`designed, not implemente
 
 | id | question | why it blocks |
 |---|---|---|
-| **Q1** | Is `steer` allowed to inject text into a *attached* Hermes session (one the fleet did not spawn), or is attach mode permanently observe-only? | decides whether the largest real-world target set is in scope at all |
+| **Q1** | v2 scope question, not a v1 contradiction: v1 makes attach mode observe-only (§3). Should a future version let `steer` reach an attached Hermes session (one the fleet did not spawn)? | decides whether the largest real-world target set is ever in scope |
 | **Q2** | For `kill`: is 10 s SIGTERM grace acceptable, and is a *human* approval required per kill, or a standing approval per mission run? | tier T2 policy; per-command approval is safest but heavy in an incident |
 | **Q3** | `retry` over a dirty worktree: v1 already fixed the conservative side (§2 — `never` without a recorded snapshot ref). Is that enough, or do you want an explicit snapshot command as a hard precondition? The answer can only tighten; relaxing it is a different contract revision. | decides the shape of T3's precondition, not whether the guard exists |
 | **Q4** | Retention: 12 months local + mission archival, or shorter? | privacy/disk vs auditability |
@@ -394,8 +398,22 @@ worktree), against the 10 canonical questions in §13 and the code cited in §10
 | ST-03 — approval scoped and expiring but not caller-bound | MEDIUM | fixed in §6: artifact names `agent_id`+`session_id`; residual risk (same-profile sessions) stated |
 | ST-04 — `observed` for `steer` lacked an operational definition | MEDIUM | fixed in §4: either sink snapshot or `meta.command_id`; otherwise `observed_state: null`, no claim |
 | ST-05 — `retry` "never" vs Q3 reopened the same condition | LOW | fixed in §12: Q3 can only tighten |
-| ST-06 — line-number citations drifted | LOW | fixed: citations now name symbols (`CAPABILITIES_V1`, `HumanDecision`, `reconcile_snapshot`, `dispatch()` block) |
+| ST-06 — line-number citations drifted | LOW | fixed: the four drifted citations now name symbols (`CAPABILITIES_V1`, `HumanDecision`, `reconcile_snapshot`, `dispatch()` block). §10 keeps verified line anchors (`sandbox.py:31,90,215`) — the delta review re-checked those as accurate, so the fix is scoped to the drifted ones, not a blanket symbol rewrite |
 | ST-07 — "or state plainly that it does not" was an untestable escape hatch | NIT | fixed in §11.6: the network statement is a tested gate item |
 
 The reviewer's explicit limits (not run: `pytest tests/`, `pd validate`, live `state.db`/bus; sandbox
 `run()` never called) are unchanged and are the same limits §14 declares.
+
+### Delta review (workspace lane)
+
+`PASS` — 6/7 findings CLOSED, ST-06 CLOSED with a wording reservation (fixed above), plus 2 new NITs.
+Executed by **Vigia** (role `Revisor PD`, OpenCode Review / GLM-5.3-Flash) on the Maestri canvas,
+read-only, against the floor worktree. New NITs, both fixed in this revision:
+
+- **§5 had no `kill` transition from `paused`**, and no statement about a human-paused run — fixed
+  above (kill is allowed from `paused`; `resume` refuses what we did not pause).
+- **Q1 read as a contradiction with §3** — fixed: Q1 is labelled a v2 scope question, since v1 makes
+  attach mode observe-only by design.
+
+Vigia's limits: no git, no `pytest`/`pd validate`, sandbox `run()` never called — same boundary §14
+declares.
