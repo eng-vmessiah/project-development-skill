@@ -36,6 +36,32 @@ Clean Code is code that has been **taken care of**. Someone has taken the time t
 
 ---
 
+## 0 · The Minimum Ladder (before writing anything)
+
+Borrowed from **Ponytail** (MIT, `DietrichGebert/ponytail`): the best code is the code you never wrote. Read first — trace the real flow this change touches — then **stop at the first rung that holds**:
+
+| # | Question | If yes |
+|---|---|---|
+| 1 | Does this need to exist? | no → skip it (YAGNI) |
+| 2 | Is it already in this codebase? | reuse it |
+| 3 | Does the standard library do it? | use it |
+| 4 | Does the platform do it? | use it |
+| 5 | Does an installed dependency do it? | use it |
+| 6 | Can it be one line? | write the one line |
+| 7 | Nothing above held | the minimum that works |
+
+Rules:
+
+- **Lazy about the solution, never about reading.** The ladder runs *after* understanding, not instead of it.
+- **Lazy is not negligent.** Trust-boundary validation, data-loss handling, security and accessibility are never on the chopping block.
+- **One small test stays behind** whenever the logic has a branch, a loop, a parser, money or security.
+- **Declare what you skipped.** End the reply with what was not done or not checked, and the risk of leaving it.
+- Smallest diff that solves the stated problem; no scaffolding for imagined needs.
+
+The published benchmark (-53% code, -45% tokens) is self-reported — direction, not fact.
+
+---
+
 ## I. Meaningful Names
 
 ### Rules

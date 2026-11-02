@@ -196,6 +196,28 @@ Does the resource ever exist?
 
 ---
 
+## Partial Failure and Optional Dependencies
+
+An endpoint that aggregates several sources must not fail wholesale because one optional source is unavailable. Decide the contract before writing the handler:
+
+| Situation | Response |
+|---|---|
+| Primary resource data unavailable (the reason the endpoint exists) | Fail: the real `4xx`/`5xx` |
+| Optional integration missing, expired, or disconnected | `200`, that section `null`, plus an explicit flag (`googleConnected: false`) |
+| One of N independent sub-queries fails | `200`, that field `null`, the other N-1 still populated |
+| An optional provider is down but product data is fine | `200` with the provider fields `null` — never block the product data |
+
+Rules:
+
+- **Isolate every source in its own guard.** One outer `try/catch` around the whole fan-out turns a single expired OAuth token into a dead screen. Wrap each source (`Promise.allSettled`, or a per-query helper that returns `null` and logs) so one failure degrades one field.
+- **Wrap counts and lookups in a safe helper.** Returning `null` on error keeps a missing table or a renamed column from turning the resource into a `500`.
+- **Signal WHY a field is empty.** `null` alone is ambiguous: the client cannot tell "zero" from "not connected". Add a flag or reason field so the UI explains the gap instead of rendering a silent zero.
+- **Test the degraded path explicitly.** Assert `200`, the flag, the nulled fields, and that unaffected fields are still populated — plus one case where a single sub-query rejects while the rest resolve.
+
+Anti-pattern: wrapping the whole handler in `try { ...provider... return stats } catch (e) { return handleProviderError(e) }`. A dashboard whose main content has nothing to do with that provider then returns an error instead of its own data.
+
+---
+
 ## IV. Versioning Strategies
 
 ### Strategy Comparison

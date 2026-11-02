@@ -72,6 +72,19 @@ describe('GET /users/me', () => {
 })
 ```
 
+## Route-Level Runtime Parity
+
+A focused jsdom test with hand-rolled mocks proves the component against the shape you *believe* the API returns. It does not prove the real route. AI-written tests and code share the same assumption, so both pass while the page crashes.
+
+1. After the focused test, render the actual route in the running app against the shared mock/backend at the contract width, not only in jsdom.
+2. Install `window.addEventListener('error', ...)` and `unhandledrejection` before navigating; assert `document.getElementById('root').children.length > 0` (empty text does not distinguish an error from "loading").
+3. A page that throws `Cannot read properties of undefined (reading 'find'|'length'|'emailAddress')` after a green test is usually a payload-shape mismatch: the page reads `data.items`/`data.files`/`data.threads` but the mock returns `[]`. Beware `[].keys`: it is `Array.prototype.keys` (a function), not a list, so `payload.keys.filter` fails in a different way.
+4. Normalize every collection at the boundary:
+   `const items = Array.isArray(data) ? data : data?.items ?? [];`
+   and guard `groupBy`/`for...of` with `Array.isArray` before iterating. Do not add a fallback only after the crash; start with the union type.
+5. Test both shapes in the focused test (bare array and `{items}`), so the page is robust to the API variant.
+6. Make the mock mirror the server's `c.json({...})` keys exactly, not a generic `[]`; a mock with invented keys makes the preview lie as much as a missing key makes it crash.
+
 ## Data Query Completeness
 
 Regression: AI added field to response schema but forgot to include it in the data query:
@@ -100,6 +113,40 @@ it('restores previous state on API failure', async () => {
   expect(getState()).toEqual(previousState)
 })
 ```
+
+## Checks that pass without proving
+
+A green check is only evidence if it fails when the thing it measures is broken. These four mechanisms
+produce green while proving nothing, and all of them survive a normal test run:
+
+1. **The pipeline hides the exit status.** `gate | tail -2 && git commit` reads the status of `tail`
+   (always 0), so a red gate gets committed. Redirect instead: `cmd > /tmp/out 2>&1; echo $?`, then read
+   the file; use `set -o pipefail` when a pipe is unavoidable. Same for `pytest ... | tail`.
+2. **The error is printed and the code is 0.** A check built on `grep -P` with a pattern the engine
+   rejects, or on `! cmd` around a command that errors, prints the failure and exits 0. Accept a check
+   only when a failing fixture makes it exit non-zero **and** the passing run has empty stderr; capture
+   both states.
+3. **The canary is a constant, not an assertion.** `assert total == N` over an artifact that legitimately
+   grows turns every addition into a red gate and trains everyone to bump the number. Assert a floor
+   (`>= 60`) to prove the parser found the artifact, and let a strict parser catch silent loss.
+4. **The parser absorbs a near-miss instead of refusing.** In documents with sections, content under an
+   unrecognized header can be silently attached to the previous section, so the import "succeeds" with the
+   wrong structure. An unknown header must close the current section, and the refusal must name the line
+   plus the item left orphaned. Test the near-miss in both positions: before any section, and between two
+   valid ones. A guard that only fires on the empty state proves nothing.
+
+5. **The suite resolves the production default.** Pinning a fixture value (a temp DB path, an ephemeral signing
+   key, a tmp token) makes the *value* hermetic but not the *target*: any test that lets the code fall through
+   to its default workspace/DB/ledger path writes real state, now signed or sealed with the test secret. It is
+   the worst kind of green — the write succeeds, the assertion passes, and the artifact can never be verified
+   again by the real key (quarantine is the only repair). Grep the tests for CLI/app entry points invoked
+   without an explicit `--workspace`/`--root`/`--db` argument, make the fixture chdir into `tmp_path` so every
+   default resolution lands there, and add a session-level guard: snapshot the production store (path, size,
+   sha256 per file) at session start and fail at `sessionfinish` if anything changed. Prove it by hashing the
+   store before and after one full run of the real gate, not by reading the test file.
+
+Rule: for every guard you add, write the fixture that must fail, run it, and paste both states. A fixture
+that cannot be made to fail marks a guard that is decoration.
 
 ## Key Anti-Patterns to Scan For
 

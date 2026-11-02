@@ -845,6 +845,33 @@ AFTER INSERT OR UPDATE OR DELETE ON users
 FOR EACH ROW EXECUTE FUNCTION audit_trigger_func();
 ```
 
+## Event and Funnel Tables (idempotent first-touch)
+
+For product analytics — activation funnels, "first time this user did X" — the table is an event log whose unit of truth is the FIRST occurrence per user per step, not the number of clicks.
+
+```sql
+CREATE TABLE IF NOT EXISTS activation_events (
+  id         TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(8)))),
+  user_id    TEXT NOT NULL,
+  step       TEXT NOT NULL,
+  metadata   TEXT DEFAULT '{}',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_activation_once ON activation_events(user_id, step);
+CREATE INDEX IF NOT EXISTS idx_activation_user ON activation_events(user_id, created_at);
+```
+
+Rules:
+
+- **The unique index is the guarantee, not the application code.** Write with `INSERT OR IGNORE` (SQLite) or `INSERT ... ON CONFLICT DO NOTHING` (Postgres), and treat `rowsAffected === 0` as "already recorded" — a normal `200`, not an error.
+- **Never move the timestamp on replay.** A retry must not `UPDATE ... SET created_at`; the first timestamp is the measurement.
+- **No reclaim or delete path.** Unlike audit rows, these are tiny and permanent; expiring them destroys the funnel.
+- **Whitelist the step names in one place and share the list with the client.** A silently written unknown step is worse than a `400`: the funnel looks populated and nobody notices the typo.
+- **Make the client write fire-and-forget.** Instrumentation that can throw breaks the flow it is measuring — return `false` on failure instead of surfacing an error.
+- **Degrade the read, not the write.** A failed funnel read yields the empty/unknown state; it must not block the screen that hosts the metric.
+
+Why this beats `GROUP BY step` counting: with the unique index the denominator stays exact under retries and double-clicks, and "which step blocks this user right now" is one ordered scan rather than a distinct count over inflated rows.
+
 ---
 
 ## X. Query Optimization

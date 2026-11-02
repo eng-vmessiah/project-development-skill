@@ -189,6 +189,20 @@ function Dashboard() {
 }
 ```
 
+### Route-level splitting in a SPA router (measured workflow)
+
+A single router file that imports every page statically makes the entry chunk carry the whole product: opening the home screen downloads the reports, the store and the flow editor. Fixing this is usually the largest single frontend win available, and it is cheap.
+
+1. **Measure the baseline first.** `npx vite build` and record the entry `index-*.js` size, the chunk count and the CSS size. Those are the numbers the claim gets graded against later.
+2. **Convert pages, not the shell.** `const Page = lazy(() => import('./pages/Page'))` for each route page; leave layout, providers and the error boundary static.
+3. **Put `Suspense` inside the per-route error boundary**, so a chunk-load failure reaches the boundary instead of tearing down the tree to a blank screen.
+4. **Keep the entry paths eager** — login, auth callback, onboarding, and the first screen after login. Deferring those trades a big chunk for a blank first paint plus an extra round-trip, which is worse.
+5. **Give the fallback a fixed `min-height`** so the shell does not jump when the chunk lands; a spinner flash is worse CLS than a static block.
+6. **Re-run the route sweep and any test that parses router source.** `path="..."` strings survive lazy conversion, so coverage tests keep passing; the render sweep only has to await the suspended subtree.
+7. **Report the entry chunk, chunk count and CSS separately from `vendor`.** Vendor (react + router) does not shrink from this change. If a budget names vendor, a few kB of growth there is a real miss even when the entry chunk dropped 80% — report both numbers honestly, and never split vendor into two chunks just so every chunk lands under the line.
+
+Measured shape of a real run: 42 page imports → 38 lazy, entry chunk 1.133 kB → 214 kB (−81%), 8 → 60 chunks, CSS 66 kB → 50 kB, while vendor grew 169 → 173 kB.
+
 ### Code Splitting
 
 ```javascript

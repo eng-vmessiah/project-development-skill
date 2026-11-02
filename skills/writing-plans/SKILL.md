@@ -194,6 +194,43 @@ Check:
 - [ ] Commands are exact with expected output
 - [ ] No missing context
 - [ ] DRY, YAGNI, TDD principles applied
+- [ ] **Traceability** (abaixo) — toda task declara os requisitos que fecha
+- [ ] **Baseline** (abaixo) — toda promessa de "antes/depois" tem um "antes" medido
+
+## Requirement Traceability (mandatory quando existe um SPEC)
+
+Quando o plano convive com um documento de requisitos, toda task declara `covers:` com os
+IDs que fecha, e a matriz de fechamento sai daí — nunca escrita à mão:
+
+```markdown
+- [ ] **T-010** · frontend · deps: T-002,T-003 · paths: `src/components/Layout.tsx`
+      · covers: U1,U2,S6
+      · acceptance: …
+      · validation: …
+```
+
+**Audite antes de declarar o plano pronto.** Não diga "o plano está completo" porque
+leu — rode a auditoria: `python3 scripts/check_plan_traceability.py SPEC.md PLAN.md`.
+Ela falha em três defeitos que a revisão humana passa:
+
+- **Task sem `covers:`** — o executor não consegue dizer para que ela serve.
+- **Requisito sem task dona** — o defeito que se repete: critérios com forma de
+  verificação ("typecheck limpo", "suíte verde") parecem condições de fundo, ninguém
+  reivindica eles, e eles caem do escopo em silêncio. Todo critério precisa de uma task
+  dona, normalmente a de fechamento.
+- **`covers: todos` / `covers: all`** — valor que não é ID de requisito. Lê como cobertura
+e garante nenhuma; a auditoria rejeita. Liste os IDs.
+
+Um teste de lint no control plane (`.spec/<feature>/tests/`) que asserta as mesmas três
+propriedades é melhor que um script rodado uma vez: falha em toda edição posterior que
+orfa um requisito. Aponte `pd validate --deep` para ele em missão PD.
+
+## Baseline antes de qualquer promessa de "antes/depois"
+
+Se algum critério de aceite diz "melhorou", "reduziu", "mais limpo que", o plano precisa
+de uma **T-000** que capture o "antes" medido como primeira task — antes de qualquer
+mudança: contagens, tamanhos, screenshots, resultado da suíte. Um "antes" capturado depois
+da primeira edição não existe, e a promessa de melhoria vira infalsificável.
 
 ### Step 7: Save the Plan
 
