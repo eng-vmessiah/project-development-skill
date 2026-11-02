@@ -3,6 +3,12 @@
 **Status:** final · 2026-10-05 · Feature `b15b-gateway` (12 tasks / 7 waves / gates G-0→G-3).
 **Regra-mãe honrada:** `local_verified` **nunca** substitui `NOT_READY_HERMES_SEAM`; buckets de evidência separados (contract/fake/TUI/seam/live).
 
+> **Nota de status (2026-11-02, auditoria de docs):** as afirmações de "checkout vivo `966a079d9c`,
+> seam instalada, inert" **não valem mais**. O checkout foi substituído (main @ `cb757fa`, 496 commits
+> atras de `origin/main`), `966a079d9c` esta dangling e `grep fleet_tui|fleet.observe` nao encontra o
+> seam. Trate como "seam removida pelo update do host; reinstalar/reverificar antes de usar". O
+> registro abaixo permanece como evidência historica de 2026-10-05, nao como estado atual.
+
 ## Verified (com evidência)
 
 | Fase | Entregável | Evidência |

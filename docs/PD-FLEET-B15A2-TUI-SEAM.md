@@ -4,6 +4,14 @@
 **Scope:** documentation plus a local, unactivated Hermes source patch; no installed-runtime or live TUI activation
 **Date:** 2026-07-31
 
+> **Revision note (2026-11-02, audit):** this analysis was written against Hermes `v0.18.2`
+> (`e444d165`). The current install is `v0.22.5+197` (`cb757fa`); the referenced host patch commit
+> `f66d3d4b06` no longer exists in that checkout (`Not a valid object name`) and
+> `PluginContext.register_tui_rpc` is absent — the seam survives only as the replay artifact
+> `patches/0010-hermes-lazy-namespaced-tui-rpc-seam.patch`. In 0.22.x there is also no `@method(...)`
+> decorator: handlers are module functions registered by name (`tui_gateway/server.py`). Read the
+> decisions below as the 31/07 analysis, not as current runtime state.
+
 ## Decision
 
 B15a.2 confirms the transport and session boundary needed for a future

@@ -29,8 +29,9 @@ pd advance -f <mission>                                       # phase change
 pd validate --deep -f <mission>                               # structure check
 ```
 
-Also flip the task's `status: done` in `plan.yaml` and `- [x]` in `PLAN.md` — the collector
-reads those. Legacy missions (no plan.yaml) stay labeled `source: plan-md/state-md`; never
+Also flip the task's `status: completed` in `plan.yaml` and `- [x]` in `PLAN.md` — the collector
+reads those, and `pd validate --deep` rejects any status outside `LifecycleState` (`done` is not
+one of them). Legacy missions (no plan.yaml) stay labeled `source: plan-md/state-md`; never
 backfill fabricated history.
 
 ## Sync & publish (collector)
@@ -53,7 +54,8 @@ Manual at PD checkpoints: `--write --widgets --publish`.
 
 Board tab "Mission Control — PD": Overview · Features · Tasks · Timeline · Fleet runs ·
 Escolher missão (action-form selector) · Plano da missão (selecionada) · Tasks da missão
-(selecionada). The last three read live `file` bindings (no cache — fresh data on load).
+(selecionada). Two of the last three read live `file` bindings (no cache — fresh data on load);
+the selector is a `builtin:action-form` with no bindings.
 
 Selector flow: pick a mission in the form → the template message reaches the agent → run
 `--publish --mission '<name>'` → the mission widgets update.
@@ -71,6 +73,6 @@ Selector flow: pick a mission in the form → the template message reaches the a
 
 ## Related
 
-- `docs/ACTIVITY-EVENTS.md` — activity contract v1 (bus `~/.hermes/activity/events.jsonl`,
+- [docs/ACTIVITY-EVENTS.md](ACTIVITY-EVENTS.md) — activity contract v1 (bus `~/.hermes/activity/events.jsonl`,
   emitter window, redaction, consumer freshness rules) that feeds the swarm/fleet rows.
 

@@ -86,7 +86,7 @@ Fleet V2 runner is explicitly opt-in and simulated/default-deny.
 Phase 0: Setup (worktree) → Phase 1: Brainstorming → Phase 2: Planning (.spec/)
 → Phase 3: Structure (.templates/) → Phase 4: Coding (wave-based)
 → Phase 5: Testing (TDD + bug-driven) → Phase 6: Validation (evidence-based)
-→ Phase 7: Merge & Deploy
+→ Phase 7: Merge (delivery decision; deploy is out of scope)
 ```
 
 ## Philosophy

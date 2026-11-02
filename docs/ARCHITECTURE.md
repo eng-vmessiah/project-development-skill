@@ -36,8 +36,8 @@ pd
 ├── Phase 2: Planning (references: plan, writing-plans)
 ├── Phase 3: Structure
 ├── Phase 4: Coding (references: subagent-driven-development)
-├── Phase 5: Testing (references: test-driven-development, ai-regression-testing)
-├── Phase 6: Validation (references: requesting-code-review, systematic-debugging)
+├── Phase 5: Testing (references: test-driven-development, debugging-discipline)
+├── Phase 6: Validation (references: requesting-code-review)
 └── Phase 7: Merge
 ```
 

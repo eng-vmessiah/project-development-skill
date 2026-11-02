@@ -43,8 +43,11 @@ ou `fleet-local`.
   __init__.py
 ```
 
-The repository-side reference package lives under `plugins/pd-fleet-hermes/`;
-it is local contract evidence only and is not installed into `~/.hermes/plugins/`.
+The repository-side reference package lives under `plugins/pd-fleet-hermes/`.
+It **is** installed at `~/.hermes/plugins/pd-fleet-hermes/` and listed in `plugins.enabled`
+(`~/.hermes/config.yaml`), byte-identical to the repo copy, lifecycle-only hooks
+(`default_enabled: false`). The lifecycle seam is therefore active in that profile while the
+Fleet capability itself remains `NOT_READY_HERMES_SEAM` — installed is not the same as ready.
 
 Na primeira versão B15a, o plugin pode registrar somente hooks de lifecycle Hermes
 aprovados pelo seam público; não registra tools invocáveis pelo modelo, comandos
@@ -62,6 +65,11 @@ ou acessar rede/credenciais/provider/subprocessos por padrão. RPC namespaced do
 depende de um seam explícito do Hermes, pois não é oferecido pelo `PluginContext` atual.
 
 ## Modos operacionais
+
+> **Estado real:** estes tres modos sao conceituais. Nenhuma chave `pd.enabled`, `fleet.*` ou
+> `hermes.integration` do `pd.yaml` e lida pelo codigo (`PDConfig._load_config` so mescla
+> `phases/directories/required_files/hooks/validation`). O unico seletor implementado e
+> `pd v2 run-local --provider {local,disabled}`.
 
 ### `pd-only`
 
@@ -125,12 +133,15 @@ O contrato deve ser pequeno e capability-based. Um adapter pode implementar some
 
 ```python
 class RuntimeAdapter(Protocol):
-    def capabilities(self) -> Capabilities: ...
-    def start_task(self, request: TaskRequest) -> TaskHandle: ...
-    def get_status(self, handle: TaskHandle) -> TaskStatus: ...
-    def collect_report(self, handle: TaskHandle) -> AgentReport: ...
-    def stop(self, handle: TaskHandle) -> None: ...
+    name: str
+    profile: RuntimeProviderProfile
+    def capabilities(self) -> frozenset[str]: ...
+    def build_argv(self, envelope: RuntimeTaskEnvelope) -> tuple[str, ...]: ...
+    def execute(self, envelope: RuntimeTaskEnvelope, *, runner) -> RuntimeResult: ...
 ```
+
+(the implemented Protocol is `scripts/pd_fleet/runtime_adapter.py`; the Hermes adapter declares
+`session_snapshot` / `session_replay` / `session_heartbeat`, not observe/attach/lifecycle)
 
 Capacidades Hermes específicas não podem ser presumidas pelo Fleet:
 

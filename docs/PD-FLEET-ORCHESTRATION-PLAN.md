@@ -236,7 +236,7 @@ Transições inválidas devem ser rejeitadas pelo CLI/validador.
 As remediações T1–T13, R1/R2 e matching de `role`/`capabilities` foram registradas como parte
 do caminho local histórico. A evidência então registrada está em
 [`.spec/pd-fleet-orchestration/VERIFICATION.md`](../.spec/pd-fleet-orchestration/VERIFICATION.md):
-a suíte completa registra 278 testes passando, o exemplo local é executável sem provider externo
+a suíte completa registrava 278 testes naquela data (hoje: 1442 passed / 1 skipped), o exemplo local é executável sem provider externo
 e o CLI `fleet-run` foi exercitado em normal, `--dry-run` e `--resume`. Esses registros não
 constituem evidência de produção ou de runtime live.
 
