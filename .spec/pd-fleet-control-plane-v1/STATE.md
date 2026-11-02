@@ -19,6 +19,7 @@ initialized
 - [x] T-202 — fresh-eyes review W1–W2: APPROVED WITH RESERVATIONS; RISCO-1..4 + NIT-1..3 fixed, NIT-4 deferido ao T-401
 - [x] T-301 — steering contract v1 (design-only) com grounding executavel e 2 reviews independentes
 - [x] T-402 — coletor conta completed como terminal (T-202 drift), com teste de regressao
+- [x] T-401 — VERIFICATION.md (verified/deferred/blocked/not-claimed) + records; pd verify e validate 11/11
 
 ## Checkpoints
 - 2026-10-09 11:50: SPEC+PLAN drafted (W0); vision + omp delta as inputs; G1 pending
@@ -32,15 +33,16 @@ initialized
 - 2026-10-09 20:07: T-203 DONE — spike Laya medido (sink 3/21 · notify 15/21 · ~262ms; veredito NÃO WIRE); artefatos spike-laya/; W2: falta T-202
 - 2026-11-02 01:59: T-202 fechado: review APPROVED WITH RESERVATIONS; RISCO-1 (staleness running/waiting), RISCO-2 (recencia>rank), RISCO-3 (janela por atividade), RISCO-4 (docs/ACTIVITY-EVENTS.md) e NIT-1..3 corrigidos; full suite 1434 passed; live swarm hermes:desktop=stale; T-401 fica com NIT-4 + revisao independente do delta
 - 2026-11-02 13:22: T-301 landed (ff f35a743) + T-402 collector fix (1435 passed) + 3 mismatches do audit corrigidos
+- 2026-11-02 13:25: G3 closeout: VERIFICATION.md 11/11, pd verify ok, 10/10 tasks, G1-G3 approved
 
 ## Timestamps
 - Created: 2026-10-09T11:49:03.997240
-- Updated: 2026-11-02T13:22:57.655481
+- Updated: 2026-11-02T13:25:19.519991
 
 ## Fleet State
 ```json
 {
-  "updated_at": "2026-11-02T13:22:57.655481",
+  "updated_at": "2026-11-02T13:25:19.519991",
   "schema_version": 1,
   "agents": [],
   "waves": [],

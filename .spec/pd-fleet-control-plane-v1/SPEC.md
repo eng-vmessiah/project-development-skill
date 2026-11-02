@@ -49,8 +49,8 @@ R6. **Records** — VERIFICATION.md (verified/deferred/blocked), checkpoints via
 
 ## Success criteria
 
-- [ ] Swarm surface renders real per-agent activity for at least one live local mission, no fabricated fields.
-- [ ] Activity contract documented + fixtures passing.
-- [ ] Hermes-native spike emits redacted events end-to-end (local).
-- [ ] Steering contract reviewed; zero action surface shipped in v1.
-- [ ] `pd validate --deep` green; VERIFICATION.md with explicit deferred items.
+- [x] Swarm surface renders real per-agent activity for at least one live local mission, no fabricated fields. *(T-102/T-103 — `swarm/agents.md` 10 rows, missing source = `sem fonte`; VERIFICATION.md#r2.)*
+- [x] Activity contract documented + fixtures passing. *(T-101/T-103 — `ACTIVITY-CONTRACT.md`, `docs/ACTIVITY-EVENTS.md`, fixtures; VERIFICATION.md#r1.)*
+- [x] Hermes-native spike emits redacted events end-to-end (local). *(T-201 — 21 events on `~/.hermes/activity/events.jsonl`, watermark idempotent; VERIFICATION.md#r3.)*
+- [x] Steering contract reviewed; zero action surface shipped in v1. *(T-301 — GLM `PASS_WITH_RESERVATIONS` + Vigia delta `PASS`; `CAPABILITIES_V1` still `{observation}`; VERIFICATION.md#r4.)*
+- [x] `pd validate --deep` green; VERIFICATION.md with explicit deferred items. *(T-401 — 11/11 on 02/11; VERIFICATION.md with verified/deferred/blocked/not-claimed.)*

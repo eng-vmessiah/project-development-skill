@@ -30,5 +30,5 @@ steering designed, not built. FleetPlan v1-compatible; machine manifest in `plan
 
 ## Wave 4 — Closeout
 
-- [ ] T-401 · orchestrator · VERIFICATION.md (verified/deferred/blocked) + records (checkpoints, vault, ROADMAP ref) · deps: T-202, T-301.
-- [ ] **G3 — Closeout (owner: orchestrator-isis)** — pending.
+- [x] T-401 · orchestrator · VERIFICATION.md + records ✅ 02/11 (`VERIFICATION.md` com verified/deferred/blocked/not-claimed e comando de reprodução em cada linha; `pd validate --deep` **11/11**, `pd verify` **all passed**; 11 checkpoints, vault W1–W3, `ROADMAP.md:141`) · deps: T-202, T-301.
+- [x] **G3 — Closeout (owner: orchestrator-isis)** — ✅ 02/11. 10/10 tasks, 5/5 waves, G1–G3 approved; 6 itens deferred explícitos e 2 blocked externos (Maestri 0.28.2; publish aguardando o dono).

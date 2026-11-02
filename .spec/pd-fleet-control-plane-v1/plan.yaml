@@ -54,7 +54,7 @@ waves:
   - id: wave-4
     tasks:
       - T-401
-    status: pending
+    status: completed
     gates:
       - G3
 
@@ -365,7 +365,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: orchestrator-isis
-    status: pending
+    status: completed
 
 gates:
   - id: G1
@@ -388,6 +388,6 @@ gates:
     kind: closeout
     scope: plan
     owner: orchestrator-isis
-    status: pending
+    status: approved
     required_evidence:
       - VERIFICATION.md with verified/deferred/blocked split.
