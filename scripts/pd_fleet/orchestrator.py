@@ -996,6 +996,10 @@ class FleetOrchestrator:
         """Return the canonical digest used to bind human gate scope."""
         return self._plan_digest(self)
 
+    def gate_scope(self) -> dict[str, Any]:
+        """Public view of the scope a human gate must carry to bind to this run."""
+        return self._gate_scope()
+
     def _gate_scope(self) -> dict[str, Any]:
         return {"schema_version": "pd-fleet-gate-scope:v1", "plan_hash": self.plan_hash(),
                 "tasks": sorted(task.id for task in self.plan.tasks),

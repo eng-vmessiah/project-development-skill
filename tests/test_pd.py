@@ -278,6 +278,105 @@ class TestPDValidateDeep:
         assert "wave" in check["detail"]
 
 
+class TestPDFleetRunGates:
+    """`pd fleet-run` must be able to carry a human gate — otherwise a review gate can never pass."""
+
+    @staticmethod
+    def _manifest() -> str:
+        return (
+            'schema_version: "1"\n'
+            "agents:\n"
+            "  - id: orchestrator-isis\n"
+            "    role: orchestrator\n"
+            "    capabilities: [planning]\n"
+            "    status: available\n"
+            "waves:\n"
+            "  - id: wave-1\n"
+            "    tasks: [T-001]\n"
+            "    status: pending\n"
+            "    gates: [G1]\n"
+            "tasks:\n"
+            "  - id: T-001\n"
+            "    wave: 1\n"
+            "    role: orchestrator\n"
+            "    objective: noop\n"
+            "    depends_on: []\n"
+            "    inputs: []\n"
+            "    outputs:\n"
+            "      - name: noop\n"
+            "        description: nothing\n"
+            "        required: true\n"
+            '    acceptance_criteria: ["noop"]\n'
+            "    validation_commands:\n"
+            "      - /usr/bin/true\n"
+            "    blocked_when: []\n"
+            "    status: pending\n"
+            "gates:\n"
+            "  - id: G1\n"
+            "    kind: review\n"
+            "    scope: plan\n"
+            "    owner: vitor\n"
+            "    status: approved\n"
+            "    required_evidence: [spec]\n"
+        )
+
+    def _prep(self, temp_dir, pd_cli, capsys):
+        pd_cli.run(["init", "feat-g"])
+        fd = temp_dir / ".spec" / "feat-g"
+        (fd / "plan.yaml").write_text(self._manifest())
+        capsys.readouterr()
+        return fd
+
+    def test_review_gate_blocks_without_human_gate(self, temp_dir, pd_cli, capsys):
+        self._prep(temp_dir, pd_cli, capsys)
+        pd_cli.run(["fleet-run", "-f", "feat-g", "--dry-run", "--json", "--run-id", "run-1"])
+        data = extract_json(capsys.readouterr().out)
+        assert data is not None
+        assert data["blocked"] == ["T-001"]
+        assert data["gate_templates"]["G1"]["run"] == "run-1"
+        assert "hint" in data
+
+    def test_human_gate_unblocks_the_wave(self, temp_dir, pd_cli, capsys):
+        fd = self._prep(temp_dir, pd_cli, capsys)
+        pd_cli.run(["fleet-run", "-f", "feat-g", "--dry-run", "--json", "--run-id", "run-1"])
+        first = extract_json(capsys.readouterr().out)
+        assert first is not None
+        gates = first["gate_templates"]
+        gates["G1"]["owner"] = "vitor"
+        gates["G1"]["identity"] = "vitor@local"
+        gate_file = fd / "gate.json"
+        gate_file.write_text(json.dumps(gates))
+        pd_cli.run(["fleet-run", "-f", "feat-g", "--dry-run", "--json", "--run-id", "run-1",
+                    "--human-gate", str(gate_file)])
+        second = extract_json(capsys.readouterr().out)
+        assert second is not None
+        assert second["blocked"] == []
+        assert second["statuses"] == {"T-001": "pending"}
+
+    def test_human_gate_for_another_run_is_refused(self, temp_dir, pd_cli, capsys):
+        fd = self._prep(temp_dir, pd_cli, capsys)
+        pd_cli.run(["fleet-run", "-f", "feat-g", "--dry-run", "--json", "--run-id", "run-1"])
+        first = extract_json(capsys.readouterr().out)
+        assert first is not None
+        gate_file = fd / "gate.json"
+        gate_file.write_text(json.dumps(first["gate_templates"]))
+        pd_cli.run(["fleet-run", "-f", "feat-g", "--dry-run", "--json", "--run-id", "run-2",
+                    "--human-gate", str(gate_file)])
+        second = extract_json(capsys.readouterr().out)
+        assert second is not None
+        assert second["blocked"] == ["T-001"]
+
+    def test_human_gate_for_unknown_gate_id_is_an_error(self, temp_dir, pd_cli, capsys):
+        fd = self._prep(temp_dir, pd_cli, capsys)
+        gate_file = fd / "gate.json"
+        gate_file.write_text(json.dumps({"G-OTHER": {"owner": "x"}}))
+        pd_cli.run(["fleet-run", "-f", "feat-g", "--dry-run", "--json", "--human-gate", str(gate_file)])
+        data = extract_json(capsys.readouterr().out)
+        assert data is not None
+        assert data["status"] == "invalid"
+        assert "G-OTHER" in data["error"]
+
+
 class TestPDJsonOutput:
     def test_status_json(self, temp_dir, pd_cli, capsys):
         pd_cli.run(["init", "test-feature"])

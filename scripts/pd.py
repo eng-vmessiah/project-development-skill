@@ -38,6 +38,7 @@ from pd_fleet.events import EventError, EventLog, MAX_QUERY
 from pd_fleet.supervisor import FleetSupervisor, SupervisorReport
 from pd_fleet.supervision import SupervisorDiagnosis
 from pd_fleet.run_event_reconciliation import reconcile_missing_store
+from pd_fleet.clock import clock_now
 
 
 def _wave_key(value: Any) -> str:
@@ -871,8 +872,14 @@ class PD:
         run_parser = subparsers.add_parser("fleet-run", parents=[global_parent], help="Run a FleetPlan locally")
         run_parser.add_argument("--plan", "--manifest", "--fleet-plan", dest="plan_path", default=None,
                                 help="Explicit path to a FleetPlan YAML/JSON manifest")
-        run_parser.add_argument("--resume", action="store_true", default=False,
+        run_parser.add_argument("--resume", action="store_true",
                                 help="Resume from the persisted fleet checkpoint")
+        run_parser.add_argument("--run-id", dest="run_id", default=None,
+                                help="Run id that a human gate must match (binds the gate to this run)")
+        run_parser.add_argument("--human-gate", dest="human_gate", default=None,
+                                help="JSON file {gate_id: human verification gate} authorizing review/grill gates")
+        run_parser.add_argument("--gate-template", dest="gate_template", action="store_true",
+                                help="Print a fillable human gate file for every governance gate and exit")
 
         # V2 is opt-in and isolated from legacy command semantics.
         v2_parser = subparsers.add_parser("v2", parents=[global_parent], help="V2 Fleet adapter")
@@ -1067,7 +1074,9 @@ class PD:
             elif cmd == "fleet-supervisor-status":
                 self._cmd_fleet_supervisor_status(state, parsed.plan_path, as_json)
             elif cmd == "fleet-run":
-                return self._cmd_fleet_run(state, parsed.plan_path, parsed.dry_run, parsed.resume, as_json)
+                return self._cmd_fleet_run(state, parsed.plan_path, parsed.dry_run, parsed.resume, as_json,
+                                           getattr(parsed, "run_id", None), getattr(parsed, "human_gate", None),
+                                           getattr(parsed, "gate_template", False))
             elif cmd == "validate":
                 self._cmd_validate(state, parsed.deep, as_json)
             elif cmd == "checkpoint":
@@ -1482,8 +1491,50 @@ class PD:
         print(f"   Remaining: {', '.join(artifact['remaining']) or 'none'}")
         print(f"   Next action: {artifact['next_action']}")
 
+    @staticmethod
+    def _load_human_gates(path_text: str | None) -> dict[str, dict[str, Any]]:
+        """Read the {gate_id: human verification gate} file; refuses anything else."""
+        if not path_text:
+            return {}
+        path = Path(path_text).expanduser()
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except OSError as exc:
+            raise PDError(f"human gate ilegível: {path}") from exc
+        except json.JSONDecodeError as exc:
+            raise PDError("human gate não é JSON válido") from exc
+        if not isinstance(data, dict) or not data:
+            raise PDError("human gate deve ser um objeto {gate_id: {...}}")
+        if any(type(key) is not str or not key.strip() or not isinstance(value, dict)
+               for key, value in data.items()):
+            raise PDError("human gate deve ser um objeto {gate_id: {...}} com valores-objeto")
+        return data
+
+    @staticmethod
+    def _gate_templates(plan: FleetPlan, scope: Mapping[str, Any] | None,
+                        run_id: str | None) -> dict[str, dict[str, Any]]:
+        """Fillable human gates for every governance (review/grill) gate in the manifest."""
+        stamp = clock_now().replace(microsecond=0).isoformat()
+        return {
+            gate.id: {
+                "owner": "who-decides",
+                "identity": "who-decides@local",
+                "decision": "APPROVED",
+                "scope": scope,
+                "run": run_id or "",
+                "evidence_digest": "0" * 64,
+                "artifact_digest": "0" * 64,
+                "created_at": stamp,
+                "updated_at": stamp,
+                "freshness_window": 3600,
+                "blockers": [],
+            }
+            for gate in plan.gates if str(gate.kind) in {"review", "grill"}
+        }
+
     def _cmd_fleet_run(self, state: PDState, plan_path: Optional[str], dry_run: bool,
-                       resume: bool, as_json: bool) -> int:
+                       resume: bool, as_json: bool, run_id: str | None = None,
+                       human_gate: str | None = None, gate_template: bool = False) -> int:
         """Run only the local simulated/default-deny fleet dispatcher."""
         path = self._fleet_plan_path(state, plan_path)
         def emit(payload: Dict[str, Any], text: str) -> int:
@@ -1504,6 +1555,21 @@ class PD:
                          "plan_path": str(path), "error": f"FleetPlan inválido: {exc}"},
                         f"❌ FleetPlan inválido: {exc}")
 
+        try:
+            gate_overrides = self._load_human_gates(human_gate)
+        except PDError as exc:
+            return emit({"status": "invalid", "feature": state.state.get("feature"),
+                         "plan_path": str(path), "error": str(exc)}, f"❌ {exc}")
+        plan_gates: dict[str, Any] = {gate.id: gate for gate in plan.gates}
+        if gate_overrides:
+            unknown = sorted(set(gate_overrides) - set(plan_gates))
+            if unknown:
+                return emit({"status": "invalid", "feature": state.state.get("feature"),
+                             "plan_path": str(path),
+                             "error": f"human gate para gate inexistente: {', '.join(unknown)}"},
+                            f"❌ human gate para gate inexistente: {', '.join(unknown)}")
+            plan_gates.update(gate_overrides)
+
         checkpoint = None
         if resume:
             fleet = normalize_fleet_state(state.state.get("fleet_state"))
@@ -1523,8 +1589,18 @@ class PD:
         hook = SnapshotHook()
         try:
             orchestrator = FleetOrchestrator(plan, hooks=hook, dry_run=dry_run, checkpoint=checkpoint,
+                                             gates=plan_gates, run_id=run_id,
                                              feature=state.state.get("feature", state.feature_dir.name),
                                              created_at=state.state.get("created_at", ""))
+            gate_scope = orchestrator.gate_scope() if plan.gates else None
+            templates = self._gate_templates(plan, gate_scope, run_id)
+            if gate_template:
+                payload = {"status": "gate_template", "feature": state.state.get("feature"),
+                           "plan_path": str(path), "run_id": run_id, "gate_scope": gate_scope,
+                           "gates": templates}
+                print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) if as_json
+                      else json.dumps(templates, ensure_ascii=False, indent=2, sort_keys=True))
+                return 0
             result = orchestrator.run()
             if hook.value is None:
                 orchestrator._checkpoint()
@@ -1550,7 +1626,11 @@ class PD:
         output = {"status": "dry_run" if dry_run else outcome, "feature": state.state.get("feature"),
                   "plan_path": str(path), "statuses": statuses, "fleet_state": snapshot,
                   "completed": sorted(result.completed), "blocked": sorted(result.blocked),
-                  "failed": sorted(result.failed)}
+                  "failed": sorted(result.failed), "run_id": run_id, "gate_scope": gate_scope,
+                  "gate_templates": templates}
+        if result.blocked and templates and not gate_overrides:
+            output["hint"] = ("gates de revisao bloqueiam: use --run-id e --human-gate "
+                              "(o arquivo pode sair de --gate-template --json)")
         if not dry_run:
             state.state["fleet_state"] = snapshot
             state.save()
@@ -1560,6 +1640,8 @@ class PD:
             print(f"🚢 Fleet {output['status']}: {output['feature']}")
             for task_id in sorted(statuses):
                 print(f"   {task_id}: {statuses[task_id]}")
+            if output.get("hint"):
+                print(f"   ⚠️  {output['hint']}")
         return 0 if outcome == "completed" else 1
 
     # ── commands: V2 adapter (canonical, read-only by default) ──────────
