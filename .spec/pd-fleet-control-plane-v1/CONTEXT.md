@@ -58,7 +58,9 @@ producing old ones and the consumer labels terminal rows historically.
 
 Delta verification: `pytest tests/ -q` 1434 passed / 1 skipped; `uvx ruff check` on the touched
 files equal to baseline (21 pre-existing, zero new); live publish re-run and inspected.
-Independent second-pass review of the delta stays open for T-401.
+Second pass closed: the reviewer confirmed the delta on 02/11 (`evidence: 9f60af3/961da60`) and
+closed T-202 on their side; the notify wording (`15/21` = agreement at threshold 0.5, not 15
+events with p>=0.5) is confirmed as read. T-401 keeps NIT-4.
 
 ## Status labels
 
