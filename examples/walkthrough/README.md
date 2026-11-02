@@ -6,7 +6,7 @@ Prova, num diretorio descartavel, que o ciclo do PD fecha **sem o autor**:
 init -> SPEC/PLAN/CONTEXT -> plan.yaml com gate de revisao
      -> bloqueio honesto (o gate vale) -> gate humano com escopo amarrado
      -> execucao -> complete-task -> checkpoint -> VERIFICATION.md
-     -> validate 12/12 -> verify
+     -> validate 13/13 -> verify
 ```
 
 ## Rodar
@@ -29,7 +29,7 @@ Exit 0 = ciclo fechou. Qualquer passo falha com o comando, o stdout e o stderr n
 | gate valido | a task executa de fato e o `fleet_state` persiste `completed` |
 | `complete-task` + `checkpoint` | o registro humano acompanha o estado da maquina |
 | `VERIFICATION.md` + `[x]` | criterio so e marcado depois da evidencia |
-| `validate` 12/12 + `verify` | os portoes finais fecham com o CLI sozinho |
+| `validate` 13/13 + `verify` | os portoes finais fecham com o CLI sozinho |
 
 ## O que ele NAO prova
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Comprehensive tests for PD CLI — all commands including new features."""
 
+import hashlib
 import json
 import os
 import shutil
@@ -344,6 +345,10 @@ class TestPDFleetRunGates:
         gates = first["gate_templates"]
         gates["G1"]["owner"] = "vitor"
         gates["G1"]["identity"] = "vitor@local"
+        # placeholder zero e recusado: o gate assina o sha256 do que foi revisado
+        digest = hashlib.sha256((fd / "SPEC.md").read_bytes()).hexdigest()
+        gates["G1"]["evidence_digest"] = digest
+        gates["G1"]["artifact_digest"] = digest
         gate_file = fd / "gate.json"
         gate_file.write_text(json.dumps(gates))
         pd_cli.run(["fleet-run", "-f", "feat-g", "--dry-run", "--json", "--run-id", "run-1",
@@ -359,7 +364,11 @@ class TestPDFleetRunGates:
         first = extract_json(capsys.readouterr().out)
         assert first is not None
         gate_file = fd / "gate.json"
-        gate_file.write_text(json.dumps(first["gate_templates"]))
+        signed = first["gate_templates"]
+        digest = hashlib.sha256((fd / "SPEC.md").read_bytes()).hexdigest()
+        signed["G1"]["evidence_digest"] = digest
+        signed["G1"]["artifact_digest"] = digest
+        gate_file.write_text(json.dumps(signed))
         pd_cli.run(["fleet-run", "-f", "feat-g", "--dry-run", "--json", "--run-id", "run-2",
                     "--human-gate", str(gate_file)])
         second = extract_json(capsys.readouterr().out)
@@ -375,6 +384,43 @@ class TestPDFleetRunGates:
         assert data is not None
         assert data["status"] == "invalid"
         assert "G-OTHER" in data["error"]
+
+
+    def test_placeholder_digest_does_not_authorize_the_wave(self, temp_dir, pd_cli, capsys):
+        """D6: o template vem com digest zero; aprovar sem trocar o hash nao prova nada."""
+        fd = self._prep(temp_dir, pd_cli, capsys)
+        pd_cli.run(["fleet-run", "-f", "feat-g", "--dry-run", "--json", "--run-id", "run-1"])
+        first = extract_json(capsys.readouterr().out)
+        assert first is not None
+        gate_file = fd / "gate.json"
+        gate_file.write_text(json.dumps(first["gate_templates"]))
+        pd_cli.run(["fleet-run", "-f", "feat-g", "--dry-run", "--json", "--run-id", "run-1",
+                    "--human-gate", str(gate_file)])
+        second = extract_json(capsys.readouterr().out)
+        assert second is not None
+        assert second["status"] == "invalid"
+        assert "placeholder" in second["error"]
+
+
+class TestPDStateIntegrity:
+    def test_out_of_range_phase_is_accepted_by_status_but_flagged_by_validate(self, temp_dir, pd_cli, capsys):
+        """D4: STATE.json corrompido nao pode render 'All checks passed'."""
+        pd_cli.run(["init", "feat-p"])
+        capsys.readouterr()
+        state_file = temp_dir / ".spec" / "feat-p" / "STATE.json"
+        data = json.loads(state_file.read_text())
+        data["phase"] = 99
+        state_file.write_text(json.dumps(data))
+
+        pd_cli.run(["status", "-f", "feat-p"])
+        assert "Unexpected error" not in capsys.readouterr().out
+
+        pd_cli.run(["validate", "--deep", "-f", "feat-p", "--json"])
+        report = extract_json(capsys.readouterr().out)
+        assert report is not None
+        check = next(c for c in report["checks"] if c["name"] == "STATE.json loads")
+        assert check["passed"] is False
+        assert "fora de faixa" in check["detail"]
 
 
 class TestPDJsonOutput:

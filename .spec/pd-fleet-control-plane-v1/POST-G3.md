@@ -39,3 +39,14 @@ passou a existir; não é regressão de código.
 
 Ele registra o estado do closeout — e estava certo quando foi escrito. A frase "a manifest check
 belongs in the CLI" foi cumprida aqui, não lá.
+
+## 2026-11-02 (2) — 13º check: `STATE.json loads`
+
+O review de código (`codigo-20261102.md`, D4) reproduziu `phase: 99` no `STATE.json`: `pd status`
+morria com `IndexError` enquanto `pd validate --deep` imprimia "All checks passed". O check de
+`STATE.md parseable` era `_add(..., True, "Loaded successfully")` incondicional.
+
+- `PDState._load_from_json` valida `phase` contra as fases configuradas (não confia no fallback).
+- `pd validate --deep` relê o `STATE.json` cru e reprova com `STATE.json loads` + motivo.
+- O check de `STATE.md` passou a exigir o header `## Phase` de fato (antes era sempre verdadeiro).
+- Total: **13/13** na missão. Suíte: 1447 passed / 1 skipped.

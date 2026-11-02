@@ -225,6 +225,14 @@ class PDConfig:
 # ─────────────────────────────────────────────────────────────────────────────
 # State management (STATE.json + STATE.md)
 # ─────────────────────────────────────────────────────────────────────────────
+def _state_phase_error(data: Any, phases: list[dict[str, Any]]) -> str | None:
+    """Return why a STATE.json payload is unusable, or None when the phase is in range."""
+    phase = data.get("phase") if isinstance(data, dict) else None
+    if type(phase) is not int or not (0 <= phase < len(phases)):
+        return f"phase {phase!r} fora de faixa (0..{max(0, len(phases) - 1)})"
+    return None
+
+
 class PDState:
     """Manages project state with a dual JSON/Markdown backend."""
 
@@ -276,6 +284,9 @@ class PDState:
             default = self._default_state()
             for key in default:
                 data.setdefault(key, default[key])
+            phase_error = _state_phase_error(data, self.config.get_phases())
+            if phase_error:
+                raise ValueError(f"STATE.json: {phase_error}")
             data["fleet_state"] = normalize_fleet_state(data.get("fleet_state"))
             return data
 
@@ -1513,7 +1524,11 @@ class PD:
     @staticmethod
     def _gate_templates(plan: FleetPlan, scope: Mapping[str, Any] | None,
                         run_id: str | None) -> dict[str, dict[str, Any]]:
-        """Fillable human gates for every governance (review/grill) gate in the manifest."""
+        """Fillable human gates for every governance (review/grill) gate in the manifest.
+
+        The digests carry the all-zero placeholder on purpose: `fleet-run` refuses a gate that
+        still has it, so the operator has to paste the sha256 of what was actually reviewed.
+        """
         stamp = clock_now().replace(microsecond=0).isoformat()
         return {
             gate.id: {
@@ -1568,6 +1583,16 @@ class PD:
                              "plan_path": str(path),
                              "error": f"human gate para gate inexistente: {', '.join(unknown)}"},
                             f"❌ human gate para gate inexistente: {', '.join(unknown)}")
+            placeholder = sorted(
+                gate_id for gate_id, gate in gate_overrides.items()
+                if str(gate.get("evidence_digest", "")).lower() in {"", "0" * 64}
+                or str(gate.get("artifact_digest", "")).lower() in {"", "0" * 64})
+            if placeholder:
+                detail = ("gate sem evidência real (digest placeholder): "
+                          f"{', '.join(placeholder)} — preencha evidence_digest/artifact_digest "
+                          "com o sha256 do artefato revisado")
+                return emit({"status": "invalid", "feature": state.state.get("feature"),
+                             "plan_path": str(path), "error": detail}, f"❌ {detail}")
             plan_gates.update(gate_overrides)
 
         checkpoint = None
@@ -2001,6 +2026,18 @@ class PD:
             checks.append({"name": name, "passed": passed, "detail": detail})
 
         # ── basic checks (always run) ──
+        # Load ran through the fallback path; re-read the raw file so a corrupt STATE.json
+        # cannot be reported as healthy just because a backup was loaded instead.
+        raw_state, raw_error = None, None
+        try:
+            raw_state = json.loads((feature_dir / "STATE.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raw_error = type(exc).__name__
+        if raw_state is not None:
+            raw_error = _state_phase_error(raw_state, state.config.get_phases())
+        _add("STATE.json loads", raw_error is None,
+             "phase in range" if raw_error is None else f"raw STATE.json unusable: {raw_error}")
+
         for fname in ["SPEC.md", "PLAN.md", "CONTEXT.md", "STATE.md", "STATE.json"]:
             _add(fname, (feature_dir / fname).exists(), f"{fname} exists")
 
@@ -2049,8 +2086,15 @@ class PD:
             else:
                 _add("Test files", False, "tests/ directory missing")
 
-            # STATE.md is parseable
-            _add("STATE.md parseable", True, "Loaded successfully")
+            # STATE.md exists and names a phase (it used to be an unconditional pass)
+            state_md = feature_dir / "STATE.md"
+            if state_md.exists():
+                md_text = state_md.read_text(encoding="utf-8", errors="replace")
+                names_phase = any(line.startswith("## Phase") for line in md_text.splitlines())
+                _add("STATE.md names a phase", names_phase,
+                     "phase header present" if names_phase else "no '## Phase' header in STATE.md")
+            else:
+                _add("STATE.md names a phase", False, "STATE.md missing")
 
             # CONTEXT.md has decisions recorded
             ctx = feature_dir / "CONTEXT.md"

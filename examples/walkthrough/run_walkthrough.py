@@ -14,6 +14,7 @@ O que ele NAO prova esta no README (dispatcher simulado, sem merge/publish/cockp
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -143,6 +144,9 @@ def main() -> int:
     gates = dry["gate_templates"]
     gates["G1"]["owner"] = "quem-executa"
     gates["G1"]["identity"] = "quem-executa@local"
+    # digest placeholder e recusado: assinar exige o sha256 do que foi lido
+    gates["G1"]["evidence_digest"] = hashlib.sha256((fd / "SPEC.md").read_bytes()).hexdigest()
+    gates["G1"]["artifact_digest"] = hashlib.sha256((fd / "plan.yaml").read_bytes()).hexdigest()
     write(fd / "gate.json", json.dumps(gates, indent=2, sort_keys=True))
     check("gate escrito", True, "gate.json com escopo e run do template")
 
@@ -176,7 +180,7 @@ def main() -> int:
 
     # 9. portoes finais
     final = run(["validate", "--deep", "-f", FEATURE], WORK).stdout
-    check("validate final", "All checks passed (12/12)" in final, "12/12")
+    check("validate final", "All checks passed (13/13)" in final, "13/13")
     verified = run(["verify", "-f", FEATURE], WORK).stdout
     check("verify final", "All checks passed" in verified, "todos os requisitos fechados")
 

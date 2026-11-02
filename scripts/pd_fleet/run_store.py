@@ -38,6 +38,8 @@ _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 _STATUSES = frozenset(("created", "running", "completed", "failed", "cancelled", "blocked"))
 _TASK_STATUSES = _STATUSES | frozenset(("pending", "ready", "blocked", "orphaned", "skipped"))
 _TERMINAL_TASK_STATUSES = frozenset(("completed", "failed", "blocked", "cancelled", "orphaned", "skipped"))
+# Um run nesses estados ja produziu resultado; trocar o status reescreve a historia.
+_TERMINAL_RUN_STATUSES = frozenset(("completed", "failed", "cancelled"))
 _REPORT_STATUSES = frozenset(("completed", "failed", "blocked"))
 _REPORT_FIELDS = frozenset(("status", "outputs", "evidence", "tests", "validation", "decision", "started_at", "completed_at", "reason", "error", "blocker"))
 _SENSITIVE = re.compile(r"(?i)(token|secret|password|credential|api[_ -]?key|authorization|private[_ -]?key)")
@@ -364,6 +366,9 @@ class FleetRunStore:
     def transition(self, run_id, status, owner, *, expected_generation=None):
         def change(s):
             if type(status) is not str or status not in _STATUSES: raise RunStoreError("invalid status")
+            current = s.get("status")
+            if current in _TERMINAL_RUN_STATUSES and current != status:
+                raise RunStoreError(f"run is terminal ({current}); {current} -> {status} is not allowed")
             s["status"] = status
         return self._mutate(run_id,owner,expected_generation,change)
     def update_task_status(self, run_id, task_id, status, owner, *, expected_generation=None):

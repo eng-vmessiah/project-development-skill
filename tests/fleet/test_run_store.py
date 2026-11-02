@@ -205,3 +205,13 @@ def test_fsync_failure_is_normalized_and_temp_cleaned(tmp_path: Path, monkeypatc
     # The replace happened before directory fsync; the failure is reported,
     # while the newly replaced primary remains a valid snapshot.
     assert s.load("r")["status"] == "running"
+
+
+def test_transition_refuses_to_rewrite_a_terminal_run(tmp_path: Path):
+    """D2: um run que ja terminou nao pode virar outro status — isso reescreve o resultado."""
+    store = FleetRunStore(tmp_path)
+    store.create("run-1", PLAN, "alice")
+    store.transition("run-1", "completed", "alice")
+    with pytest.raises(RunStoreError):
+        store.transition("run-1", "failed", "alice")
+    assert store.load("run-1")["status"] == "completed"

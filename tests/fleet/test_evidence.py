@@ -157,3 +157,13 @@ def test_unknown_and_conflicting_legacy_fields_are_rejected():
     with pytest.raises(EvidenceValidationError) as conflict:
         EvidenceRecord.from_dict(payload)
     assert conflict.value.code == "conflicting_alias"
+
+
+def test_sanitize_redacts_every_absolute_path_not_only_home_and_tmp():
+    """D5: a mesma string tem que ser redigida do mesmo jeito em evidence e no run_store."""
+    from pd_fleet.evidence import sanitize
+
+    for raw in ("/var/lib/postgresql/.pgpass", "/etc/shadow", "/root/.ssh/id_rsa", "/proc/1/environ"):
+        cleaned = sanitize(f"cat {raw}")
+        assert raw not in cleaned
+        assert "[REDACTED_PATH]" in cleaned

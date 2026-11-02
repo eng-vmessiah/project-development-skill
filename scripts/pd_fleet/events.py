@@ -360,7 +360,8 @@ class EventLog:
             record = json.loads(canonical)
             record["checksum"] = hashlib.sha256(canonical).hexdigest()
             line = _canonical(record) + b"\n"
-            if len(records) >= MAX_EVENTS or len(line) > MAX_PAYLOAD_BYTES:
+            # A linha persistida inclui o campo `checksum`, entao o teto e o do leitor.
+            if len(records) >= MAX_EVENTS or len(line) > MAX_LOG_LINE_BYTES:
                 raise EventError("append excede limites")
             with _open_append_nofollow(self._path) as handle:
                 handle.write(line)

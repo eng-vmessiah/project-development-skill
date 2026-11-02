@@ -10,7 +10,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 
 from pd_fleet.checkpoint import Checkpoint
-from pd_fleet.events import EventError, EventLog, FleetEvent
+from pd_fleet.events import MAX_PAYLOAD_BYTES, EventError, EventLog, FleetEvent
 from pd_fleet.lifecycle import LifecycleState, TaskLifecycle
 from pd_fleet.lifecycle_events import LifecycleEventRecorder
 from pd_fleet.event_diagnostics import EventDiagnosticsReport, diagnose_event_log
@@ -187,3 +187,15 @@ def test_report_rejects_adversarial_fields(kwargs):
     values.update(kwargs)
     with pytest.raises(ValueError):
         EventDiagnosticsReport(**values)
+
+
+def test_append_accepts_a_line_up_to_the_reader_limit(tmp_path: Path):
+    """D3: o limite do append tem que ser o do leitor, senao um evento valido nunca e gravado."""
+    log = EventLog(tmp_path / "events", "r1")
+    event = FleetEvent(
+        event_id="e1", run_id="r1", kind="probe", ordering_key="k", sequence=1,
+        payload={"value": ["a" * 255] * 253},
+    )
+    assert len(event.to_json()) <= MAX_PAYLOAD_BYTES
+    log.append(event)
+    assert len(log.replay(limit=10)) == 1

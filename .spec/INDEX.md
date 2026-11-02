@@ -8,7 +8,7 @@ declarar PASS sem verification gate.
 
 | missão | o que decide hoje | evidência |
 |---|---|---|
-| `pd-fleet-control-plane-v1` | contrato de atividade (`ACTIVITY-CONTRACT.md`), contrato de steering (design-only), 12º check do `validate --deep` | `VERIFICATION.md` (congelado no G3) + `POST-G3.md` (o que veio depois) |
+| `pd-fleet-control-plane-v1` | contrato de atividade (`ACTIVITY-CONTRACT.md`), contrato de steering (design-only), 12º e 13º checks do `validate --deep` | `VERIFICATION.md` (congelado no G3) + `POST-G3.md` (o que veio depois) |
 | `plan-cockpit-v1` | coletor `scripts/plan_cockpit_sync.py` e o painel Mission Control | `VERIFICATION.md` |
 | `b15b-gateway` | gateway Fleet V2 → Hermes; **ler a nota de status no topo** (a seam foi removida pelo update do host) | `VERIFICATION.md` (2026-10-05) |
 

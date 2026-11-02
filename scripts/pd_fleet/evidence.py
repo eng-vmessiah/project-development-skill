@@ -38,7 +38,8 @@ _SECRET_ASSIGNMENT = re.compile(
     r"(?:\"[^\"]*\"|'[^']*'|[^\s,;]+)"
 )
 _SECRET_TOKEN = re.compile(r"(?i)\b(?:sk|gh[psoru])[-_][A-Za-z0-9_-]{8,}\b")
-_ABSOLUTE_PATH = re.compile(r"(?<![A-Za-z0-9_.-])(?:/home/[^\s,;]+|/tmp/[^\s,;]+|[A-Za-z]:\\[^\s,;]+)")
+# Espelha run_store._redact: qualquer caminho absoluto/UNC, nao so /home e /tmp.
+_ABSOLUTE_PATH = re.compile(r"(?<![\w.])(?:~[/\\][^\s,;]+|/[^\s,;]+|[A-Za-z]:[/\\][^\s,;]+|\\\\[^\s,;]+)")
 _HEX = re.compile(r"^[0-9a-fA-F]{64}$")
 
 
