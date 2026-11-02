@@ -32,6 +32,18 @@ except ImportError:  # pragma: no cover
 
 REPO = Path(__file__).resolve().parents[1]
 SPEC_DIR = REPO / ".spec"
+
+#: FleetPlan's canonical terminal task state is ``completed``; ``done`` is the legacy spelling
+#: still present in older manifests. Both mean "this task is finished" — counting only one of
+#: them makes the surface under-report real work (the T-202 drift: plan.yaml said completed and
+#: the panel rendered 6/9).
+_TERMINAL_TASK_STATUSES = frozenset({"done", "completed"})
+
+
+def _is_task_done(status: object) -> bool:
+    return isinstance(status, str) and status in _TERMINAL_TASK_STATUSES
+
+
 DEFAULT_RUNS_ROOT = REPO / ".pd-fleet-runs"
 
 HEARTBEAT_FRESH_S = 300  # status-less heartbeat rows: ok within 5 min
@@ -135,7 +147,7 @@ def features() -> list[dict]:
             source = "plan-yaml"
             tasks = [t for t in (plan.get("tasks") or []) if isinstance(t, dict)]
             tasks_total = len(tasks)
-            tasks_done = sum(1 for t in tasks if t.get("status") == "done")
+            tasks_done = sum(1 for t in tasks if _is_task_done(t.get("status")))
             task_rows = [{"id": t.get("id"), "wave": t.get("wave"),
                           "role": t.get("role"), "status": t.get("status")}
                          for t in tasks]
@@ -557,7 +569,7 @@ def widget_payloads(snapshot: dict) -> list[dict]:
 
     pc = next((f for f in feats if f["feature"] == "plan-cockpit-v1"), None)
     pc_tasks = pc["tasks"] if pc else []
-    pc_done = sum(1 for t in pc_tasks if t.get("status") == "done")
+    pc_done = sum(1 for t in pc_tasks if _is_task_done(t.get("status")))
     ts = snapshot.get("generated_at", "")[:16].replace("T", " ")
     meta = snapshot["meta"]
     overview = (
@@ -595,7 +607,7 @@ def widget_payloads(snapshot: dict) -> list[dict]:
          "grid": {"x": 0, "y": 8, "w": 6, "h": 6},
          "bindings": {"rows": {"source": "static", "value": [
              {"id": t["id"], "wave": str(t["wave"]), "role": t["role"],
-              "status": "✅ done" if t.get("status") == "done" else "⏳ pending"}
+              "status": "✅ done" if _is_task_done(t.get("status")) else "⏳ pending"}
              for t in pc_tasks]}},
          "props": {"columns": ["id", "wave", "role", "status"]}},
         {"tab": "mc", "kind": "builtin:table", "id": "mc-timeline", "title": "Timeline — checkpoints (reais)",
@@ -669,7 +681,7 @@ def mission_files(snapshot: dict, mission: str) -> dict[str, str]:
         "waves": feat["waves"],
         "tasks": [
             {"id": t["id"], "wave": str(t["wave"]), "role": t["role"],
-             "status": "✅ done" if t.get("status") == "done" else "⏳ pending"}
+             "status": "✅ done" if _is_task_done(t.get("status")) else "⏳ pending"}
             for t in feat["tasks"]
         ],
     }

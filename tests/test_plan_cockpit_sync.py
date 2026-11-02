@@ -98,6 +98,44 @@ def test_plan_yaml_counts_and_gates(fake_repo: Path) -> None:
     assert row["waves"] == [{"id": "wave-1", "status": "pending", "tasks": 2}]
 
 
+def test_plan_yaml_counts_completed_as_terminal(fake_repo: Path) -> None:
+    """`completed` is FleetPlan's canonical terminal state; `done` is the legacy spelling.
+
+    Counting only `done` made the panel under-report real work (T-202 was `completed` in
+    plan.yaml and the mission surface rendered 6/9).
+    """
+    fdir = _feature(fake_repo, "feat-c")
+    _write(fdir / "plan.yaml", (
+        'schema_version: "1"\n'
+        "agents: []\n"
+        "waves:\n"
+        "  - id: wave-1\n"
+        "    tasks: [T-1, T-2, T-3]\n"
+        "    status: pending\n"
+        "tasks:\n"
+        "  - id: T-1\n"
+        "    wave: 1\n"
+        "    role: coder\n"
+        "    objective: x\n"
+        "    status: done\n"
+        "  - id: T-2\n"
+        "    wave: 1\n"
+        "    role: coder\n"
+        "    objective: y\n"
+        "    status: completed\n"
+        "  - id: T-3\n"
+        "    wave: 1\n"
+        "    role: coder\n"
+        "    objective: z\n"
+        "    status: pending\n"
+        "gates: []\n"
+    ))
+    snap = pc.build(fake_repo / ".pd-fleet-runs")
+    row = snap["features"][0]
+    assert (row["tasks_done"], row["tasks_total"]) == (2, 3)
+    assert [t["status"] for t in row["tasks"]] == ["done", "completed", "pending"]
+
+
 def test_plan_md_fallback_counts(fake_repo: Path) -> None:
     fdir = _feature(fake_repo, "feat-c")
     _write(fdir / "PLAN.md", "# P\n- [x] a\n- [ ] b\n- [x] c\n")
