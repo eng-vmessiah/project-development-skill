@@ -19,3 +19,8 @@ __pycache__/
 
 # Maestri: roles/estado local do workspace no canvas (não versionar)
 .maestri/
+
+# Walkthrough: workspace descartavel do exemplo ponta-a-ponta
+.walkthrough/
+# Revisoes: rascunho/repro descartavel de review (nao versionar)
+.review-scratch/
