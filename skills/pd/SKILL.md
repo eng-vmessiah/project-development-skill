@@ -48,6 +48,48 @@ Create this minimum control plane before coding:
 
 Create `README.md`, a timestamped `CHECKPOINT-<YYYYMMDD-HHMM>.md`, and `VERIFICATION.md` during the planning/verification gates before delivery. Add `RESEARCH.md`, `DECISIONS.md`, task files, and `tests/` when the change needs them. The exact artifact contract and templates are in `references/create-implementation-plan.md` and `references/writing-plans.md`.
 
+### Evidence and synthesis are separate artifacts
+
+Keep the raw findings out of the synthesized context:
+
+| Artifact | Nature | Holds |
+|---|---|---|
+| `DISCOVERY.md` | evidence | what was found in the repo, vault, issues and docs, with provenance |
+| `GRILLING.md` | evidence | questions asked, answers, objections, **explicit vetoes**, assumptions |
+| `CONTEXT.md` | synthesis | decisions, constraints, risks, read from the two above |
+
+A wrong synthesis must stay traceable to its raw input, so never fold the interview transcript into `CONTEXT.md` and delete the source. `GRILLING.md` is also the only place that records what the owner refused; without it the plan re-proposes a rejected idea a few weeks later.
+
+## Work units (do not invent a level)
+
+| Unit | Is | Decision owner |
+|---|---|---|
+| spec | isolation unit (one worktree per spec) | orchestrator |
+| stage | a pipeline gate with its own artifact (G0…G7) | gate owner |
+| wave | batch of tasks that may run together | scheduler |
+| task | the contract: acceptance and evidence | orchestrator |
+| session | the worker that receives commands and emits events | orchestrator |
+| mission | what is approved, measured and closed | human |
+
+Check the method's own vocabulary before naming a new level: a "round" invented alongside an existing gate/wave creates a parallel vocabulary and gets rejected on sight. Parallelism is computed, never chosen by the model: tasks run together only when their write sets are disjoint and they share no exclusive resource (migration, fixed port, state file, lockfile, integration branch). Integration is a queue, so a shared branch merges one wave at a time and the merged state is revalidated before the wave is called closed.
+
+## Verifiable spec and delta
+
+Write requirements so a machine can check them:
+
+```markdown
+### Requirement: <name> SHALL <behaviour>
+One or two normative sentences.
+
+#### Scenario: <name>
+- WHEN <condition>
+- THEN <observable result>
+```
+
+Each `Scenario` becomes one acceptance line in the plan and one check in the executor. A requirement with no scenario is untestable; a scenario with no `THEN` is prose. Validate the artifact before execution (`pd validate`, `isis spec validate`, or an `openspec validate` style checker): missing narrative, `WHEN` without `THEN`, and a delta without its section are rejections, not warnings.
+
+For changes to a living system, do not write a spec that dies with the mission: keep a living spec per domain and record the mission's proposal as a delta (`ADDED` / `MODIFIED` / `REMOVED` / `RENAMED`), applied to the living spec when the mission closes.
+
 ## Pipeline gates
 
 ```text
@@ -99,6 +141,47 @@ Write bite-sized tasks in `PLAN.md`. Every task must declare:
 
 Tasks in the same wave must be independent and have non-overlapping write ownership. A plan is not executable merely because it lists filenames; it must contain complete task contracts.
 
+### Split by read-set, not by folder
+
+A task's boundary is what it must read, not where the files live: two tasks that need the same context belong in one node; two tasks in the same folder that read disjoint context can run in parallel. Draw an edge only when one task consumes another's output; otherwise mark them parallel. This keeps each worker's context small and makes the write-set rule checkable.
+
+### Deterministic steps are code
+
+If a step has exactly one correct answer — merge, sort, dedupe, count, compare — implement it as code, not as a model call or a subagent. Model calls are for judgment; routing a deterministic step through an agent adds cost and a failure mode without adding information.
+
+### The plan file is parsed by machine
+
+`PLAN.md` is read by tooling (`pd`, or a repo importer such as `isis plan import --from-pd`), so two shapes are contracts and everything else is dropped in silence:
+
+```text
+## Wave <text>                        # ^## (Wave .+)$
+- [ ] **T-123 · title** — objective   # needs " · " after the id and an em dash separator
+```
+
+A heading written `## Stage 3`, or a task separated by `-` instead of `—`, parses to nothing and the importer exits 0. **An unrecognized heading is worse than dropped when it sits between waves:** the parser keeps the previous wave open and silently absorbs the tasks under the odd heading into it, so the plan counts right while the tasks belong to a wave they were never in. Test the odd heading in BOTH positions — before any wave and after a valid one.
+
+After editing, compare both counts before believing it landed:
+
+```bash
+isis plan import --from-pd PLAN.md --dry-run --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(sum(len(w["tasks"]) for w in d["waves"]))'
+grep -cE '^- \[[ x]\] \*\*T-[0-9]{3}' PLAN.md
+```
+
+**A task id cited in prose is counted as a task by the boundary ruler.** The importer reads task *lines*, but the spec×plan reconciliation typically scans `T-[0-9]{3}` anywhere in the file — so writing "removing T-902" inside another task's description makes the spec count one higher and turns the boundary contract red for a reason that has nothing to do with the change. Keep task ids out of prose (say "remove the task" instead).
+
+**A test that pins the total should pin a floor, not an equality.** `assert expected_tasks == N` breaks on every legitimate plan growth, and the failure lands in whichever commit happens to close the wave — so the count gets bumped reflexively, which is exactly how a deletion later passes unnoticed. Assert `expected_tasks >= N` with the reason, and let the strict importer (`unknown_heading`/`task_outside_wave`) be the thing that catches silent loss.
+
+### Checkbox is a mirror, state is the truth
+
+`STATE.json`'s task list is the completed set; the plan total comes from `PLAN.md`. Reconcile in classes with a script, never by hand:
+
+- completed in state, checkbox open → fixable, mark it;
+- checkbox closed, task absent from state → conflict, stop and investigate;
+- task in state, absent from plan → orphan, stop;
+- open checkbox and absent from state → pending, **not** a divergence.
+
+Report the classes separately; collapsing them into "plan has N and state has M" hides which side is wrong.
+
 For larger efforts, use the fleet and wave references:
 
 - `references/fleet-orchestration.md`
@@ -140,6 +223,16 @@ A failed task is not permission to skip forward.
 
 See `references/fleet-orchestration.md` for DAG scheduling and the repository's debugging skill for root-cause investigation, bounded retries, and rollback. The task contract's `retry_policy` is authoritative: use an explicit `max_attempts`, classify retryable errors, and record every attempt. A blocked task is not automatically retryable; resolve its prerequisite and transition it back to `ready` first.
 
+### Rulings, not stalls
+
+Inside an approved wave, decide instead of pausing for permission, and record every judgment call:
+
+```text
+Ruling: <what was decided> — <why> — <cost if wrong>
+```
+
+Stop only for: an irreversible or destructive action; a security-sensitive action; an effect outside the worktree (merge, push to a shared branch, publish); or a plan so broken that every path is a guess. Everything else is a ruling with a recorded cost. A worker parked on a question burns the whole window and buys nothing.
+
 ## Phase 5 — Testing and debugging
 
 Use RED → GREEN → REFACTOR for code changes:
@@ -171,7 +264,7 @@ Verify separately:
 
 Load `requesting-code-review` for independent fresh-eyes review. For non-trivial changes, use separate standards/quality and specification-compliance axes. Reviewer reports are leads until independently verified.
 
-Write `VERIFICATION.md` with `PASS`, `PARTIAL`, `BLOCKED`, or `DEFERRED` per requirement. Do not claim merge-ready or operationally released when provider, sandbox, human-approval, deployment, or external-dispatch gates remain unverified.
+Write `VERIFICATION.md` with `PASS`, `PARTIAL`, `BLOCKED`, or `DEFERRED` per requirement. After an accepted result, record the rule it proved — in the plan, a skill, or the repo notes — so the next run starts from it instead of rediscovering it. Do not claim merge-ready or operationally released when provider, sandbox, human-approval, deployment, or external-dispatch gates remain unverified.
 
 Detailed closeout guidance: `references/phase-closeout.md` and `references/multi-wave-closeout.md`.
 
@@ -187,6 +280,28 @@ Before delivery:
 - rerun the full verification on the exact commit;
 - state separately what is committed, pushed, merged, and deployed;
 - preserve a rollback path.
+
+### `pd verify` reads SPEC.md literally
+
+- **Any `- [ ]` in `SPEC.md` fails "All requirements addressed" — including non-goals.** The verifier only looks for the unchecked box, so a "Non-goals" list written as checkboxes turns into a false red and blocks delivery. Write non-goals as plain bullets (`- item`) with a one-line note that they are out of scope, and keep checkboxes for requirements and success criteria only.
+- **`pd advance` does not run `verify`.** It increments the phase and saves state; the two commands are independent. Run `pd verify` first and treat red as a blocker — advancing a phase with an open requirement leaves the state lying about the work.
+- **Delivered-but-unticked is bookkeeping, not scope.** Close `[x]` citing the task/evidence; do not reopen the requirement discussion. If the criterion text no longer matches reality (e.g. "no automatic commit" after a gated merge queue exists), rewrite it to what is true and cite the evidence — never tick it silently and never leave it open.
+
+### Promote a branch to master without checking it out (fast-forward)
+
+When `master` is an ancestor of the delivery branch and is not checked out in any worktree:
+
+```bash
+git worktree list                                    # master must not be checked out anywhere
+git merge-base --is-ancestor master <branch> && echo ff
+git branch -f master <branch>                        # fast-forward move, no merge commit
+git push origin <branch> && git push origin master
+git fetch origin && for r in HEAD master origin/master origin/<branch>; do git rev-parse --short "$r"; done
+```
+
+- With `master` checked out, use `git switch master && git merge --ff-only <branch>` instead; `git branch -f` refuses the checked-out branch.
+- **Verify all refs are equal after the push.** A successful push is not proof the refs aligned: print `HEAD`, local `master`, `origin/master` and `origin/<branch>` and require one SHA. A promotion that leaves the branch ahead by one is the same debt again.
+- Keep it fast-forward when possible: no merge commit means branch and master share the SHA, and a later revert/rollback is a single pointer move.
 
 ## CLI support
 
@@ -232,6 +347,8 @@ Use `references/security-hardening-wave.md` for the matrix and stop conditions.
 
 Treat external repositories as adoption decisions, not automatic installers. Audit a pinned revision, license, runtime, security surface, source-of-truth boundaries, and rollback before integration. Keep the first wave isolated, local, read-only or shadow, and credential-free where possible.
 
+For methodology frameworks (spec and planning tools), separate the artifact format from the process philosophy: adopt a schema that makes requirements machine-checkable (requirement + scenario, delta against a living spec) and reject any process rule that contradicts this pipeline's gates. Extract the ideas from skill collections instead of installing the whole pack into the discovery path, where every installed description taxes every prompt. When a context-scoped workspace is used inside PD, keep `.spec/<feature>/` as the only control plane and use stage contracts as bounded read/write instructions; never create a second state machine.
+
 Use `references/external-repo-adoption.md`.
 
 ## Product and AI planning
@@ -259,7 +376,11 @@ Use `references/skill-source-reconciliation.md` and `references/multi-platform-s
 - mixing provider-dependent verification with offline tests;
 - merging/rebasing or discarding WIP implicitly;
 - claiming a complete installation when references/templates were omitted;
-- claiming release readiness from tests alone.
+- claiming release readiness from tests alone;
+- `PLAN.md` task marks drifting from `STATE.json`, leaving two truths in the same control plane;
+- running `pd advance` on the owner's behalf (phase change is an owner decision);
+- inventing an orchestration level the method already names;
+- treating a gate as crossed because a checkpoint file exists.
 
 ## Final checklist
 
@@ -273,3 +394,4 @@ Use `references/skill-source-reconciliation.md` and `references/multi-platform-s
 - [ ] VERIFICATION.md distinguishes verified, deferred, and blocked scope
 - [ ] Delivery stage explicitly approved
 - [ ] STATE.md and STATE.json match observed reality
+- [ ] PLAN.md task marks and STATE.json agree (reconcile, do not hand-edit one side)
