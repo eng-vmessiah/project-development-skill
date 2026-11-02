@@ -16,3 +16,6 @@ Thumbs.db
 
 __pycache__/
 *.pyc
+
+# Maestri: roles/estado local do workspace no canvas (não versionar)
+.maestri/

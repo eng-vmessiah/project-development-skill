@@ -53,4 +53,4 @@ R6. **Records** — VERIFICATION.md (verified/deferred/blocked), checkpoints via
 - [x] Activity contract documented + fixtures passing. *(T-101/T-103 — `ACTIVITY-CONTRACT.md`, `docs/ACTIVITY-EVENTS.md`, fixtures; VERIFICATION.md#r1.)*
 - [x] Hermes-native spike emits redacted events end-to-end (local). *(T-201 — 21 events on `~/.hermes/activity/events.jsonl`, watermark idempotent; VERIFICATION.md#r3.)*
 - [x] Steering contract reviewed; zero action surface shipped in v1. *(T-301 — GLM `PASS_WITH_RESERVATIONS` + Vigia delta `PASS`; `CAPABILITIES_V1` still `{observation}`; VERIFICATION.md#r4.)*
-- [x] `pd validate --deep` green; VERIFICATION.md with explicit deferred items. *(T-401 — 11/11 on 02/11; VERIFICATION.md with verified/deferred/blocked/not-claimed.)*
+- [x] `pd validate --deep` green; VERIFICATION.md with explicit deferred items. *(T-401 — 11/11 on 02/11; 12/12 after the `plan.yaml` check landed post-G3 — see VERIFICATION.md addendum.)*

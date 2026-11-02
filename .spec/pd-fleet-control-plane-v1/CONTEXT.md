@@ -118,3 +118,13 @@ is 24 days old, `docs/ACTIVITY-EVENTS.md` linked, ruff 21 pre-existing / 0 new o
 - `STATE.json` `phase: 0 / status: initialized` with an empty `fleet_state` is the house norm for
   closed missions in this repo (plan-cockpit-v1 and b15b-gateway look identical) — not a defect.
 
+## Post-G3 — manifest check no CLI (02/11)
+
+- `pd validate --deep` ganhou um 12º check: o `plan.yaml` precisa carregar no modelo `FleetPlan`, todo
+  status de task/wave precisa estar em `LifecycleState` e toda referência task→wave / wave→task /
+  wave→gate precisa resolver. Era o buraco que deixou o drift de `done` viver semanas.
+- Os três manifestos do repo foram migrados de `done` para `completed` (45 linhas). `done` não existe
+  no enum, e é por isso que `pd fleet-run` recusava checkpoint com esse status.
+- Efeito colateral declarado: `b15b-gateway` e `plan-cockpit-v1` passam a marcar 11/12 (falham só em
+  `Test files`), onde antes marcavam 11/11 — o denominador mudou porque o check passou a existir.
+
