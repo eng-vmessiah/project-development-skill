@@ -13,7 +13,7 @@
     "bindings": {
       "content": {
         "source": "static",
-        "value": "# Mission Control — PD (plan-cockpit v1)\n\nVisão única do PD **derivada só de fontes reais** (nunca fabricar telemetria).\n\n- **Features:** 9 · **plan-cockpit-v1:** 0/0 tasks · **Checkpoints:** 40 · **Runs:** 1\n- Snapshot: **2026-10-09 22:27**\n- Fonte: `scripts/plan_cockpit_sync.py` → `.spec/pd-studio/plan-cockpit.json`"
+        "value": "# Mission Control — PD (plan-cockpit v1)\n\nVisão única do PD **derivada só de fontes reais** (nunca fabricar telemetria).\n\n- **Features:** 9 · **plan-cockpit-v1:** 13/13 tasks · **Checkpoints:** 47 · **Runs:** 1\n- Snapshot: **2026-11-02 16:23**\n- Fonte: `scripts/plan_cockpit_sync.py` → `.spec/pd-studio/plan-cockpit.json`"
       }
     }
   },
@@ -36,28 +36,28 @@
             "feature": "pd-fleet-control-plane-v1",
             "fase": "0",
             "status": "initialized",
-            "fonte": "plan-md",
-            "tasks": "3/12",
-            "cps": "3",
-            "gates": "—"
+            "fonte": "plan-yaml",
+            "tasks": "9/10",
+            "cps": "10",
+            "gates": "G1✅ G2✅ G3·"
           },
           {
             "feature": "b15b-gateway",
             "fase": "0",
             "status": "initialized",
-            "fonte": "plan-md",
+            "fonte": "plan-yaml",
             "tasks": "12/12",
             "cps": "23",
-            "gates": "—"
+            "gates": "G-0✅ G-1✅ G-2✅ G-3✅"
           },
           {
             "feature": "plan-cockpit-v1",
             "fase": "0",
             "status": "initialized",
-            "fonte": "plan-md",
-            "tasks": "13/14",
+            "fonte": "plan-yaml",
+            "tasks": "13/13",
             "cps": "13",
-            "gates": "—"
+            "gates": "G1✅ G2✅ G3✅"
           },
           {
             "feature": "pd-fleet-scope-alignment",
@@ -142,7 +142,86 @@
     "bindings": {
       "rows": {
         "source": "static",
-        "value": []
+        "value": [
+          {
+            "id": "T-000",
+            "wave": "0",
+            "role": "orchestrator",
+            "status": "✅ done"
+          },
+          {
+            "id": "T-101",
+            "wave": "1",
+            "role": "coder",
+            "status": "✅ done"
+          },
+          {
+            "id": "T-102",
+            "wave": "1",
+            "role": "test-engineer",
+            "status": "✅ done"
+          },
+          {
+            "id": "T-201",
+            "wave": "2",
+            "role": "orchestrator",
+            "status": "✅ done"
+          },
+          {
+            "id": "T-202",
+            "wave": "2",
+            "role": "coder",
+            "status": "✅ done"
+          },
+          {
+            "id": "T-203",
+            "wave": "2",
+            "role": "coder",
+            "status": "✅ done"
+          },
+          {
+            "id": "T-204",
+            "wave": "2",
+            "role": "orchestrator",
+            "status": "✅ done"
+          },
+          {
+            "id": "T-301",
+            "wave": "3",
+            "role": "orchestrator",
+            "status": "✅ done"
+          },
+          {
+            "id": "T-401",
+            "wave": "4",
+            "role": "coder",
+            "status": "✅ done"
+          },
+          {
+            "id": "T-402",
+            "wave": "4",
+            "role": "orchestrator",
+            "status": "✅ done"
+          },
+          {
+            "id": "T-403",
+            "wave": "4",
+            "role": "coder",
+            "status": "✅ done"
+          },
+          {
+            "id": "T-404",
+            "wave": "4",
+            "role": "reviewer",
+            "status": "✅ done"
+          },
+          {
+            "id": "T-501",
+            "wave": "5",
+            "role": "orchestrator",
+            "status": "✅ done"
+          }
+        ]
       }
     },
     "props": {
@@ -170,17 +249,17 @@
         "source": "static",
         "value": [
           {
-            "quando": "2026-10-09 18:58",
+            "quando": "2026-11-02 13:22",
             "feature": "pd-fleet-control-plane-v1",
             "detalhe": "Checkpoint"
           },
           {
-            "quando": "2026-10-09 18:24",
+            "quando": "2026-11-02 01:59",
             "feature": "pd-fleet-control-plane-v1",
             "detalhe": "Checkpoint"
           },
           {
-            "quando": "2026-10-09 11:50",
+            "quando": "2026-10-09 20:07",
             "feature": "pd-fleet-control-plane-v1",
             "detalhe": "Checkpoint"
           },

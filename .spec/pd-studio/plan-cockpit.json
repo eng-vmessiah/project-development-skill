@@ -1,6 +1,6 @@
 {
   "schema": "plan-cockpit:v1",
-  "generated_at": "2026-10-09T22:27:15+00:00",
+  "generated_at": "2026-11-02T16:23:24+00:00",
   "repo": "/home/vitor/project/project-development-skill",
   "runs_root": "/home/vitor/project/project-development-skill/.pd-fleet-runs",
   "features": [
@@ -8,30 +8,136 @@
       "feature": "pd-fleet-control-plane-v1",
       "phase": 0,
       "status": "initialized",
-      "source": "plan-md",
-      "tasks_done": 3,
-      "tasks_total": 12,
-      "checkpoints": 3,
+      "source": "plan-yaml",
+      "tasks_done": 9,
+      "tasks_total": 10,
+      "checkpoints": 10,
       "checkpoints_log": [
         {
-          "name": "CHECKPOINT-20261009-1150.md",
-          "ts": "2026-10-09T11:50+00:00",
-          "heading": "Checkpoint - 2026-10-09 11:50"
+          "name": "CHECKPOINT-20261009-2007.md",
+          "ts": "2026-10-09T20:07+00:00",
+          "heading": "Checkpoint - 2026-10-09 20:07"
         },
         {
-          "name": "CHECKPOINT-20261009-1824.md",
-          "ts": "2026-10-09T18:24+00:00",
-          "heading": "Checkpoint - 2026-10-09 18:24"
+          "name": "CHECKPOINT-20261102-0159.md",
+          "ts": "2026-11-02T01:59+00:00",
+          "heading": "Checkpoint - 2026-11-02 01:59"
         },
         {
-          "name": "CHECKPOINT-20261009-1858.md",
-          "ts": "2026-10-09T18:58+00:00",
-          "heading": "Checkpoint - 2026-10-09 18:58"
+          "name": "CHECKPOINT-20261102-1322.md",
+          "ts": "2026-11-02T13:22+00:00",
+          "heading": "Checkpoint - 2026-11-02 13:22"
         }
       ],
-      "waves": [],
-      "tasks": [],
-      "gates": [],
+      "waves": [
+        {
+          "id": "wave-0",
+          "status": "done",
+          "tasks": 1
+        },
+        {
+          "id": "wave-1",
+          "status": "completed",
+          "tasks": 3
+        },
+        {
+          "id": "wave-2",
+          "status": "completed",
+          "tasks": 3
+        },
+        {
+          "id": "wave-3",
+          "status": "completed",
+          "tasks": 2
+        },
+        {
+          "id": "wave-4",
+          "status": "pending",
+          "tasks": 1
+        }
+      ],
+      "tasks": [
+        {
+          "id": "T-000",
+          "wave": 0,
+          "role": "orchestrator",
+          "status": "done"
+        },
+        {
+          "id": "T-101",
+          "wave": 1,
+          "role": "coder",
+          "status": "done"
+        },
+        {
+          "id": "T-102",
+          "wave": 1,
+          "role": "coder",
+          "status": "done"
+        },
+        {
+          "id": "T-103",
+          "wave": 1,
+          "role": "test-engineer",
+          "status": "done"
+        },
+        {
+          "id": "T-201",
+          "wave": 2,
+          "role": "coder",
+          "status": "done"
+        },
+        {
+          "id": "T-203",
+          "wave": 2,
+          "role": "coder",
+          "status": "done"
+        },
+        {
+          "id": "T-202",
+          "wave": 2,
+          "role": "reviewer",
+          "status": "completed"
+        },
+        {
+          "id": "T-301",
+          "wave": 3,
+          "role": "orchestrator",
+          "status": "completed"
+        },
+        {
+          "id": "T-402",
+          "wave": 3,
+          "role": "coder",
+          "status": "completed"
+        },
+        {
+          "id": "T-401",
+          "wave": 4,
+          "role": "orchestrator",
+          "status": "pending"
+        }
+      ],
+      "gates": [
+        {
+          "id": "G1",
+          "kind": "review",
+          "status": "approved",
+          "owner": "vitor"
+        },
+        {
+          "id": "G2",
+          "kind": "review",
+          "status": "approved",
+          "owner": "vitor"
+        },
+        {
+          "id": "G3",
+          "kind": "closeout",
+          "status": "pending",
+          "owner": "orchestrator-isis"
+        }
+      ],
       "fleet_state": {
         "agents": 0,
         "waves": 0,
@@ -43,20 +149,20 @@
         "evidence": 0
       },
       "created_at": "2026-10-09T11:49:03.997240",
-      "updated_at": "2026-10-09T18:58:50.880906",
-      "last_commit": "6253d03 2026-10-09 feat(spec): control-plane — G1 aprovado ('vamos atuar'); T-101 activity contract v1 + fixtures (W1 em curso)",
+      "updated_at": "2026-11-02T13:22:57.655481",
+      "last_commit": "641a6ad 2026-11-02 docs(spec): T-301 fechado (ff f35a743) + T-402 + 3 mismatches do audit de fechamento",
       "pd_view": {
         "phase_name": "Setup",
-        "tasks_done": 2,
-        "tasks_total": 12,
-        "checkpoints": 4
+        "tasks_done": 9,
+        "tasks_total": 13,
+        "checkpoints": 11
       }
     },
     {
       "feature": "b15b-gateway",
       "phase": 0,
       "status": "initialized",
-      "source": "plan-md",
+      "source": "plan-yaml",
       "tasks_done": 12,
       "tasks_total": 12,
       "checkpoints": 23,
@@ -77,9 +183,143 @@
           "heading": "Checkpoint - 2026-10-05 15:18"
         }
       ],
-      "waves": [],
-      "tasks": [],
-      "gates": [],
+      "waves": [
+        {
+          "id": "wave-0",
+          "status": "done",
+          "tasks": 1
+        },
+        {
+          "id": "wave-1",
+          "status": "done",
+          "tasks": 3
+        },
+        {
+          "id": "wave-2",
+          "status": "done",
+          "tasks": 2
+        },
+        {
+          "id": "wave-3",
+          "status": "done",
+          "tasks": 2
+        },
+        {
+          "id": "wave-4",
+          "status": "done",
+          "tasks": 1
+        },
+        {
+          "id": "wave-5",
+          "status": "done",
+          "tasks": 1
+        },
+        {
+          "id": "wave-6",
+          "status": "done",
+          "tasks": 2
+        }
+      ],
+      "tasks": [
+        {
+          "id": "T-000",
+          "wave": 0,
+          "role": "orchestrator",
+          "status": "done"
+        },
+        {
+          "id": "T-101",
+          "wave": 1,
+          "role": "orchestrator",
+          "status": "done"
+        },
+        {
+          "id": "T-102",
+          "wave": 1,
+          "role": "orchestrator",
+          "status": "done"
+        },
+        {
+          "id": "T-103",
+          "wave": 1,
+          "role": "orchestrator",
+          "status": "done"
+        },
+        {
+          "id": "T-201",
+          "wave": 2,
+          "role": "coder",
+          "status": "done"
+        },
+        {
+          "id": "T-202",
+          "wave": 2,
+          "role": "coder",
+          "status": "done"
+        },
+        {
+          "id": "T-301",
+          "wave": 3,
+          "role": "coder",
+          "status": "done"
+        },
+        {
+          "id": "T-302",
+          "wave": 3,
+          "role": "coder",
+          "status": "done"
+        },
+        {
+          "id": "T-401",
+          "wave": 4,
+          "role": "coder",
+          "status": "done"
+        },
+        {
+          "id": "T-501",
+          "wave": 5,
+          "role": "coder",
+          "status": "done"
+        },
+        {
+          "id": "T-601",
+          "wave": 6,
+          "role": "coder",
+          "status": "done"
+        },
+        {
+          "id": "T-602",
+          "wave": 6,
+          "role": "reviewer",
+          "status": "done"
+        }
+      ],
+      "gates": [
+        {
+          "id": "G-0",
+          "kind": "review",
+          "status": "approved",
+          "owner": "vitor"
+        },
+        {
+          "id": "G-1",
+          "kind": "authorization",
+          "status": "approved",
+          "owner": "vitor"
+        },
+        {
+          "id": "G-2",
+          "kind": "approval",
+          "status": "approved",
+          "owner": "security"
+        },
+        {
+          "id": "G-3",
+          "kind": "authorization",
+          "status": "approved",
+          "owner": "vitor"
+        }
+      ],
       "fleet_state": {
         "agents": 0,
         "waves": 0,
@@ -104,9 +344,9 @@
       "feature": "plan-cockpit-v1",
       "phase": 0,
       "status": "initialized",
-      "source": "plan-md",
+      "source": "plan-yaml",
       "tasks_done": 13,
-      "tasks_total": 14,
+      "tasks_total": 13,
       "checkpoints": 13,
       "checkpoints_log": [
         {
@@ -125,9 +365,138 @@
           "heading": "Checkpoint - 2026-10-05 00:44"
         }
       ],
-      "waves": [],
-      "tasks": [],
-      "gates": [],
+      "waves": [
+        {
+          "id": "wave-0",
+          "status": "done",
+          "tasks": 1
+        },
+        {
+          "id": "wave-1",
+          "status": "done",
+          "tasks": 2
+        },
+        {
+          "id": "wave-2",
+          "status": "done",
+          "tasks": 4
+        },
+        {
+          "id": "wave-3",
+          "status": "done",
+          "tasks": 1
+        },
+        {
+          "id": "wave-4",
+          "status": "done",
+          "tasks": 4
+        },
+        {
+          "id": "wave-5",
+          "status": "done",
+          "tasks": 1
+        }
+      ],
+      "tasks": [
+        {
+          "id": "T-000",
+          "wave": 0,
+          "role": "orchestrator",
+          "status": "done"
+        },
+        {
+          "id": "T-101",
+          "wave": 1,
+          "role": "coder",
+          "status": "done"
+        },
+        {
+          "id": "T-102",
+          "wave": 1,
+          "role": "test-engineer",
+          "status": "done"
+        },
+        {
+          "id": "T-201",
+          "wave": 2,
+          "role": "orchestrator",
+          "status": "done"
+        },
+        {
+          "id": "T-202",
+          "wave": 2,
+          "role": "coder",
+          "status": "done"
+        },
+        {
+          "id": "T-203",
+          "wave": 2,
+          "role": "coder",
+          "status": "done"
+        },
+        {
+          "id": "T-204",
+          "wave": 2,
+          "role": "orchestrator",
+          "status": "done"
+        },
+        {
+          "id": "T-301",
+          "wave": 3,
+          "role": "orchestrator",
+          "status": "done"
+        },
+        {
+          "id": "T-401",
+          "wave": 4,
+          "role": "coder",
+          "status": "done"
+        },
+        {
+          "id": "T-402",
+          "wave": 4,
+          "role": "orchestrator",
+          "status": "done"
+        },
+        {
+          "id": "T-403",
+          "wave": 4,
+          "role": "coder",
+          "status": "done"
+        },
+        {
+          "id": "T-404",
+          "wave": 4,
+          "role": "reviewer",
+          "status": "done"
+        },
+        {
+          "id": "T-501",
+          "wave": 5,
+          "role": "orchestrator",
+          "status": "done"
+        }
+      ],
+      "gates": [
+        {
+          "id": "G1",
+          "kind": "review",
+          "status": "approved",
+          "owner": "vitor"
+        },
+        {
+          "id": "G2",
+          "kind": "authorization",
+          "status": "approved",
+          "owner": "vitor"
+        },
+        {
+          "id": "G3",
+          "kind": "closeout",
+          "status": "approved",
+          "owner": "orchestrator-isis"
+        }
+      ],
       "fleet_state": {
         "agents": 0,
         "waves": 0,
@@ -349,22 +718,22 @@
   ],
   "timeline": [
     {
-      "ts": "2026-10-09T18:58+00:00",
+      "ts": "2026-11-02T13:22+00:00",
       "kind": "checkpoint",
       "feature": "pd-fleet-control-plane-v1",
-      "detail": "Checkpoint - 2026-10-09 18:58"
+      "detail": "Checkpoint - 2026-11-02 13:22"
     },
     {
-      "ts": "2026-10-09T18:24+00:00",
+      "ts": "2026-11-02T01:59+00:00",
       "kind": "checkpoint",
       "feature": "pd-fleet-control-plane-v1",
-      "detail": "Checkpoint - 2026-10-09 18:24"
+      "detail": "Checkpoint - 2026-11-02 01:59"
     },
     {
-      "ts": "2026-10-09T11:50+00:00",
+      "ts": "2026-10-09T20:07+00:00",
       "kind": "checkpoint",
       "feature": "pd-fleet-control-plane-v1",
-      "detail": "Checkpoint - 2026-10-09 11:50"
+      "detail": "Checkpoint - 2026-10-09 20:07"
     },
     {
       "ts": "2026-10-05T15:18+00:00",
@@ -421,17 +790,17 @@
   ],
   "swarm": {
     "schema": "activity-swarm:v1",
-    "generated_at": "2026-10-09T22:27:15+00:00",
+    "generated_at": "2026-11-02T16:23:24+00:00",
     "rows": [
       {
         "agente": "host (Windows + WSL)",
         "fonte": "monitor",
         "fidelity": "high",
         "status": "ok",
-        "heartbeat": "2026-10-09T19:17:07-03:00",
-        "acao": "gpu 0% · wsl-ram 18% · win-cpu 7% · win-ram 70%",
+        "heartbeat": "2026-11-02T13:18:23-03:00",
+        "acao": "gpu 0% · wsl-ram 36% · win-cpu 31% · win-ram 94%",
         "arquivos": "—",
-        "nota": "watchdog 10 min · amostra há 10 min"
+        "nota": "watchdog 10 min · amostra há 5 min"
       },
       {
         "agente": "kanban",
@@ -474,14 +843,54 @@
         "nota": "run pilot-hermes-pd-fleet"
       },
       {
-        "agente": "sessões Hermes",
+        "agente": "hermes:desktop",
         "fonte": "hermes",
         "fidelity": "high",
-        "status": "sem fonte",
-        "heartbeat": "—",
+        "status": "stale",
+        "heartbeat": "2026-10-09T22:53:27+00:00",
+        "acao": "terminal",
+        "arquivos": "—",
+        "nota": "deepseek-v4.1-flash · 2 sessões · 2 eventos"
+      },
+      {
+        "agente": "gateway:default",
+        "fonte": "hermes",
+        "fidelity": "high",
+        "status": "stale",
+        "heartbeat": "2026-10-09T22:52:37+00:00",
         "acao": "—",
         "arquivos": "—",
-        "nota": "emitter de eventos = T-201 (pendente)"
+        "nota": "1 sessão · DESKTOP-551ISNM · 1 eventos"
+      },
+      {
+        "agente": "hermes:cron",
+        "fonte": "hermes",
+        "fidelity": "high",
+        "status": "done",
+        "heartbeat": "2026-10-09T21:07:25+00:00",
+        "acao": "terminal",
+        "arquivos": "—",
+        "nota": "deepseek-v4.1-flash · 11 sessões · 11 eventos"
+      },
+      {
+        "agente": "hermes:oneshot",
+        "fonte": "hermes",
+        "fidelity": "high",
+        "status": "done",
+        "heartbeat": "2026-10-08T22:56:05+00:00",
+        "acao": "laya_decide",
+        "arquivos": "—",
+        "nota": "deepseek-v4.1-flash · 1 sessão · 1 eventos"
+      },
+      {
+        "agente": "hermes:cli",
+        "fonte": "hermes",
+        "fidelity": "high",
+        "status": "done",
+        "heartbeat": "2026-07-10T23:49:33+00:00",
+        "acao": "read_file",
+        "arquivos": "—",
+        "nota": "gpt-5.6-luna · 6 sessões · 6 eventos"
       }
     ],
     "notes": [
@@ -490,10 +899,8 @@
   },
   "meta": {
     "feature_count": 9,
-    "checkpoint_events": 40,
+    "checkpoint_events": 47,
     "fleet_run_count": 1,
-    "warnings": [
-      "PyYAML unavailable — plan.yaml parsing disabled (sources labeled state-md/plan-md)"
-    ]
+    "warnings": []
   }
 }

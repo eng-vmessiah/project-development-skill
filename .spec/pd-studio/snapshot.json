@@ -1,10 +1,16 @@
 {
-  "generated_at": "2026-10-05T01:19:41+00:00",
+  "generated_at": "2026-10-05T22:31:17+00:00",
   "sources": {
     "repo": "/home/vitor/project/project-development-skill",
     "hermes_worktree": "/home/vitor/project/hermes-agent-b15a2-integration"
   },
   "features": [
+    {
+      "feature": "b15b-gateway",
+      "phase": 0,
+      "status": "initialized",
+      "tasks": 12
+    },
     {
       "feature": "pd-fleet-hermes-adapter-real-v1",
       "phase": 0,
@@ -40,6 +46,12 @@
       "phase": 0,
       "status": "initialized",
       "tasks": 0
+    },
+    {
+      "feature": "plan-cockpit-v1",
+      "phase": 0,
+      "status": "initialized",
+      "tasks": 12
     }
   ],
   "gates": [
@@ -129,39 +141,43 @@
   "commits": {
     "pd": [
       {
-        "commit": "1087796",
-        "summary": "feat(fleet): 3b-i fail-safe execution script (handoff to operator)"
+        "commit": "fc6e618",
+        "summary": "feat(board): connector pd (stdio MCP) — botões das abas pds/fleet/mc rodam os syncs por clique (tool-mode + autoConfirm); payloads reaplicáveis v2"
       },
       {
-        "commit": "38c0bfb",
-        "summary": "docs(fleet): B15a.2 3b-i live execution packet (authorization request)"
+        "commit": "d4b2e52",
+        "summary": "chore(pd-studio): board extras — Ações (action-form) nas abas pds/fleet + tab order; payloads reaplicáveis pós-reset"
       },
       {
-        "commit": "43bb445",
-        "summary": "feat(fleet): B15a.2 3a + 3b-prep executed — plugin installed (disabled) + live patch series"
+        "commit": "0a4059b",
+        "summary": "chore(b15b): STATE sync (post-checkpoint)"
       },
       {
-        "commit": "d1d2cdb",
-        "summary": "docs(fleet): B15a.2 Fase 3 runtime readiness packet (authorization request)"
+        "commit": "6e5ff81",
+        "summary": "fix(b15b): T-602 final review — plan.yaml task flips (12/12), PLAN.md checkboxes, doc drift LOW-1/2/3; feature CLOSED"
       },
       {
-        "commit": "28d8496",
-        "summary": "feat(pd-studio): v1 read-only sync script + snapshot for the Board tab"
+        "commit": "ec135b6",
+        "summary": "chore(b15b): wave-6 done — feature closeout (pending final review)"
       },
       {
-        "commit": "d9c33dc",
-        "summary": "docs(fleet): B15a.2 Fase 1 evidence packet + S6 review dispositions"
+        "commit": "5ec0d68",
+        "summary": "feat(b15b): T-602 — closeout: VERIFICATION.md (verified/deferred/open split) + G4 live closure; buckets honored"
       },
       {
-        "commit": "f7b466a",
-        "summary": "test(fleet): bind the D1 batch adapter to the real Hermes seam (B15a.2 S5)"
+        "commit": "dd97e28",
+        "summary": "chore(b15b): T-601 feedings"
       },
       {
-        "commit": "d9c6afd",
-        "summary": "docs(b15a2): host integration gap analysis (phase 1, local-only)"
+        "commit": "41f943f",
+        "summary": "feat(b15b): T-601 — LIVE validation executed: seam installed (966a079d9c), restart ok (~3s downtime), default-off live probe OK; evidence packet + raw log"
       }
     ],
     "hermes_b15a2": [
+      {
+        "commit": "8543a2a3ac",
+        "summary": "feat(fleet): explicit env-gated boot enable for the local canary (b15a2-3bii)"
+      },
       {
         "commit": "df97ad1a87",
         "summary": "feat(fleet): local canary composition root + Fase 2 review fixes (b15a2-F2)"
