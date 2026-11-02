@@ -13,7 +13,7 @@
     "bindings": {
       "content": {
         "source": "static",
-        "value": "# Mission Control — PD (plan-cockpit v1)\n\nVisão única do PD **derivada só de fontes reais** (nunca fabricar telemetria).\n\n- **Features:** 9 · **plan-cockpit-v1:** 13/13 tasks · **Checkpoints:** 47 · **Runs:** 1\n- Snapshot: **2026-11-02 16:23**\n- Fonte: `scripts/plan_cockpit_sync.py` → `.spec/pd-studio/plan-cockpit.json`"
+        "value": "# Mission Control — PD (plan-cockpit v1)\n\nVisão única do PD **derivada só de fontes reais** (nunca fabricar telemetria).\n\n- **Features:** 9 · **plan-cockpit-v1:** 13/13 tasks · **Checkpoints:** 47 · **Runs:** 1\n- Snapshot: **2026-11-02 16:25**\n- Fonte: `scripts/plan_cockpit_sync.py` → `.spec/pd-studio/plan-cockpit.json`"
       }
     }
   },
@@ -37,9 +37,9 @@
             "fase": "0",
             "status": "initialized",
             "fonte": "plan-yaml",
-            "tasks": "9/10",
+            "tasks": "10/10",
             "cps": "10",
-            "gates": "G1✅ G2✅ G3·"
+            "gates": "G1✅ G2✅ G3✅"
           },
           {
             "feature": "b15b-gateway",
