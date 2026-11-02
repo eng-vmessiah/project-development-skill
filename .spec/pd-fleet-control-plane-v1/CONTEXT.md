@@ -127,4 +127,7 @@ is 24 days old, `docs/ACTIVITY-EVENTS.md` linked, ruff 21 pre-existing / 0 new o
   no enum, e é por isso que `pd fleet-run` recusava checkpoint com esse status.
 - Efeito colateral declarado: `b15b-gateway` e `plan-cockpit-v1` passam a marcar 11/12 (falham só em
   `Test files`), onde antes marcavam 11/11 — o denominador mudou porque o check passou a existir.
+- **Regra que passou a valer**: `VERIFICATION.md` é congelado no estado em que o gate aprovou. Trabalho
+  posterior vive em `POST-G3.md` (datado), nunca como edição do artefato verificado — um review de
+  produto apontou corretamente que o adendo anterior era anti-evidência estrutural.
 

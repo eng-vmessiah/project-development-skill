@@ -57,7 +57,7 @@ promised).
 | full suite | `/usr/bin/python3 -m pytest tests/ -q` | **1435 passed, 1 skipped** (8.9 s). The skip is `tests/fleet/test_b15a2_host_seam_harness.py:22` — `tui_gateway` not importable, pre-existing |
 | new regression test for the panel bug | `pytest tests/test_plan_cockpit_sync.py -q` | **15 passed** (14 pre-existing + `test_plan_yaml_counts_completed_as_terminal`) |
 | lint equal to baseline | `uvx ruff check` on the touched files vs `origin/main` | 6 pre-existing `UP017` in `plan_cockpit_sync.py` on both sides; **zero new** |
-| structure check | `/usr/bin/python3 scripts/pd.py validate --deep -f pd-fleet-control-plane-v1` | **11/11** at closeout; **12/12** after the manifest check landed post-G3 (addendum) |
+| structure check | `/usr/bin/python3 scripts/pd.py validate --deep -f pd-fleet-control-plane-v1` | **11/11** with this file present |
 
 ### R6 — records
 
@@ -83,11 +83,9 @@ promised).
 4. **Laya advisory wiring** — measured, not wired: sink 3/21 (14%), notify 15/21 (71% agreement at
    threshold 0.5), median ~262 ms, zero wire. Deferred until fine-tune/labels exist; the thresholds are
    a calibration task, not a config toggle (`spike-laya/RESULTS.md`, `decisions.jsonl`).
-5. ~~**`plan.yaml` is not covered by `pd validate --deep`**~~ — **closed post-G3** (addendum below): the
-   CLI now validates the manifest (enum + cross-refs), and the three manifests' legacy `done` statuses
-   were migrated to the canonical `completed`. Original gap, for the record: the 11 checks never read
-   the manifest, so a status-token drift lived for weeks — this is how the panel showed 6/9 while 7
-   tasks were done.
+5. **`plan.yaml` is not covered by `pd validate --deep`** — the 11 checks never read the manifest, so a
+   status-token drift can live for weeks (this is how the panel showed 6/9 while 7 tasks were done).
+   Mitigation shipped in T-402 is a collector regression test; a manifest check belongs in the CLI.
 6. **`docs/PLAN-COCKPIT.md` references `docs/ACTIVITY-EVENTS.md` as a path, not a markdown link** —
    cosmetic, found by the closeout audit.
 
@@ -109,26 +107,3 @@ promised).
   allowlist unchanged (3 fixed sync scripts).
 - `local_verified` never stands in for live readiness: this mission ships a **surface + contract**, not
   an executor.
-
----
-
-## Addendum — post-G3 increment (02/11)
-
-Two debts declared above were closed after the mission was approved, by explicit owner instruction
-(“dívida pequena”), without reopening the mission:
-
-1. **`pd validate --deep` now validates `plan.yaml`** (12th check): the manifest must load with the
-   repo's own `FleetPlan` model, every task/wave status must be in `LifecycleState`, and every
-   task→wave, wave→task and wave→gate reference must resolve. Evidence: `pd-fleet-control-plane-v1`
-   **12/12**; tests `test_deep_validate_rejects_manifest_status_drift`,
-   `test_deep_validate_accepts_canonical_manifest`, `test_deep_validate_flags_task_pointing_at_missing_wave`;
-   full suite **1438 passed / 1 skipped**.
-2. **Legacy `done` migrated to `completed`** in all three manifests (45 lines: b15b-gateway 19,
-   pd-fleet-control-plane-v1 7, plan-cockpit-v1 19). `done` is not in `LifecycleState`, which is why
-   `pd fleet-run` rejected those checkpoints. After the migration every status is in the enum.
-   Side effect, reported rather than hidden: `b15b-gateway` and `plan-cockpit-v1` now score **11/12**
-   (they still have `Test files — 0 non-empty test file(s)`), where they used to read 11/11.
-
-Still open from this addendum's scope: the `docs/PLAN-COCKPIT.md` link cosmetic, and the branch
-`feat/pd-t301-steering` deletion (already contained in `main`).
-
