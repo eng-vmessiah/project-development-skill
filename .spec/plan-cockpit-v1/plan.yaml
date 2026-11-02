@@ -29,12 +29,12 @@ waves:
   - id: wave-0
     tasks:
       - T-000
-    status: done
+    status: completed
   - id: wave-1
     tasks:
       - T-101
       - T-102
-    status: done
+    status: completed
     gates:
       - G1
   - id: wave-2
@@ -43,24 +43,24 @@ waves:
       - T-202
       - T-203
       - T-204
-    status: done
+    status: completed
   - id: wave-3
     tasks:
       - T-301
-    status: done
+    status: completed
   - id: wave-4
     tasks:
       - T-401
       - T-402
       - T-403
       - T-404
-    status: done
+    status: completed
     gates:
       - G2
   - id: wave-5
     tasks:
       - T-501
-    status: done
+    status: completed
     gates:
       - G3
 
@@ -87,7 +87,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: orchestrator-isis
-    status: done
+    status: completed
 
   - id: T-101
     wave: 1
@@ -120,7 +120,7 @@ tasks:
       backoff_seconds: 1
       retryable_errors: []
     owner: coder-hermes
-    status: done
+    status: completed
 
   - id: T-102
     wave: 1
@@ -150,7 +150,7 @@ tasks:
       backoff_seconds: 1
       retryable_errors: []
     owner: tester-hermes
-    status: done
+    status: completed
 
   - id: T-201
     wave: 2
@@ -177,7 +177,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: orchestrator-isis
-    status: done
+    status: completed
 
   - id: T-202
     wave: 2
@@ -206,7 +206,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: coder-hermes
-    status: done
+    status: completed
 
   - id: T-203
     wave: 2
@@ -235,7 +235,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: coder-hermes
-    status: done
+    status: completed
 
   - id: T-204
     wave: 2
@@ -266,7 +266,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: orchestrator-isis
-    status: done
+    status: completed
 
   - id: T-301
     wave: 3
@@ -296,7 +296,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: orchestrator-isis
-    status: done
+    status: completed
 
   - id: T-401
     wave: 4
@@ -328,7 +328,7 @@ tasks:
       backoff_seconds: 1
       retryable_errors: []
     owner: coder-hermes
-    status: done
+    status: completed
 
   - id: T-402
     wave: 4
@@ -357,7 +357,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: orchestrator-isis
-    status: done
+    status: completed
 
   - id: T-403
     wave: 4
@@ -387,7 +387,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: coder-hermes
-    status: done
+    status: completed
 
   - id: T-404
     wave: 4
@@ -414,7 +414,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: reviewer-hermes
-    status: done
+    status: completed
 
   - id: T-501
     wave: 5
@@ -444,7 +444,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: orchestrator-isis
-    status: done
+    status: completed
 
 gates:
   - id: G1

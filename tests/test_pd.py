@@ -227,6 +227,56 @@ class TestPDValidateDeep:
         assert data is not None, "No JSON found"
         assert "checks" in data or "score" in data
 
+    @staticmethod
+    def _manifest(status: str) -> str:
+        return (
+            'schema_version: "1"\n'
+            "agents: []\n"
+            "waves:\n"
+            "  - id: wave-0\n"
+            "    tasks: [T-1]\n"
+            "    status: pending\n"
+            "tasks:\n"
+            "  - id: T-1\n"
+            "    wave: 0\n"
+            "    role: coder\n"
+            "    objective: x\n"
+            f"    status: {status}\n"
+            "gates: []\n"
+        )
+
+    def test_deep_validate_rejects_manifest_status_drift(self, temp_dir, pd_cli, capsys):
+        pd_cli.run(["init", "test-feature"])
+        fd = temp_dir / ".spec" / "test-feature"
+        (fd / "plan.yaml").write_text(self._manifest("done"))
+        pd_cli.run(["validate", "--deep", "--json"])
+        data = extract_json(capsys.readouterr().out)
+        assert data is not None
+        check = next(c for c in data["checks"] if c["name"] == "plan.yaml manifest")
+        assert check["passed"] is False
+        assert "status" in check["detail"]
+
+    def test_deep_validate_accepts_canonical_manifest(self, temp_dir, pd_cli, capsys):
+        pd_cli.run(["init", "test-feature"])
+        fd = temp_dir / ".spec" / "test-feature"
+        (fd / "plan.yaml").write_text(self._manifest("completed"))
+        pd_cli.run(["validate", "--deep", "--json"])
+        data = extract_json(capsys.readouterr().out)
+        assert data is not None
+        check = next(c for c in data["checks"] if c["name"] == "plan.yaml manifest")
+        assert check["passed"] is True
+
+    def test_deep_validate_flags_task_pointing_at_missing_wave(self, temp_dir, pd_cli, capsys):
+        pd_cli.run(["init", "test-feature"])
+        fd = temp_dir / ".spec" / "test-feature"
+        (fd / "plan.yaml").write_text(self._manifest("pending").replace("wave: 0", "wave: 9"))
+        pd_cli.run(["validate", "--deep", "--json"])
+        data = extract_json(capsys.readouterr().out)
+        assert data is not None
+        check = next(c for c in data["checks"] if c["name"] == "plan.yaml manifest")
+        assert check["passed"] is False
+        assert "wave" in check["detail"]
+
 
 class TestPDJsonOutput:
     def test_status_json(self, temp_dir, pd_cli, capsys):

@@ -29,7 +29,7 @@ waves:
   - id: wave-0
     tasks:
       - T-000
-    status: done
+    status: completed
   - id: wave-1
     tasks:
       - T-101
@@ -86,7 +86,7 @@ tasks:
       backoff_seconds: 0
       retryable_errors: []
     owner: orchestrator-isis
-    status: done
+    status: completed
 
   - id: T-101
     wave: 1
@@ -118,7 +118,7 @@ tasks:
       backoff_seconds: 1
       retryable_errors: []
     owner: coder-hermes
-    status: done
+    status: completed
 
   - id: T-102
     wave: 1
@@ -151,7 +151,7 @@ tasks:
       backoff_seconds: 1
       retryable_errors: []
     owner: coder-hermes
-    status: done
+    status: completed
 
   - id: T-103
     wave: 1
@@ -181,7 +181,7 @@ tasks:
       backoff_seconds: 1
       retryable_errors: []
     owner: tester-hermes
-    status: done
+    status: completed
 
   - id: T-201
     wave: 2
@@ -214,7 +214,7 @@ tasks:
       backoff_seconds: 1
       retryable_errors: []
     owner: coder-hermes
-    status: done
+    status: completed
 
   - id: T-203
     wave: 2
@@ -248,7 +248,7 @@ tasks:
       backoff_seconds: 1
       retryable_errors: []
     owner: coder-hermes
-    status: done
+    status: completed
 
   - id: T-202
     wave: 2

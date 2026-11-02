@@ -23,6 +23,7 @@ from typing import Optional, List, Dict, Any, Tuple, Mapping
 
 from pd_fleet.state import normalize_fleet_state
 from pd_fleet.models import FleetPlan, FleetPlanError
+from pd_fleet.lifecycle import LifecycleState
 from pd_fleet.validation import compute_ready_tasks
 from pd_fleet.orchestrator import FleetOrchestrator
 from pd_fleet.dispatch import SimulatedAdapter
@@ -37,6 +38,12 @@ from pd_fleet.events import EventError, EventLog, MAX_QUERY
 from pd_fleet.supervisor import FleetSupervisor, SupervisorReport
 from pd_fleet.supervision import SupervisorDiagnosis
 from pd_fleet.run_event_reconciliation import reconcile_missing_store
+
+
+def _wave_key(value: Any) -> str:
+    """Normalise a plan.yaml wave reference to its wave id (`0` and `wave-0` are the same wave)."""
+    text = str(value)
+    return text if text.startswith("wave-") else f"wave-{text}"
 
 try:
     import yaml
@@ -1973,6 +1980,40 @@ class PD:
                      "Has decisions" if has_decisions else "No decisions recorded")
             else:
                 _add("CONTEXT.md decisions", False, "File missing")
+
+            # plan.yaml manifest — the collector and `fleet-run` read it, but the CLI never
+            # validated it: a status outside the lifecycle enum (`done` instead of the canonical
+            # `completed`) survived for weeks and made the mission panel under-report (T-402).
+            manifest = feature_dir / "plan.yaml"
+            if not manifest.exists():
+                _add("plan.yaml manifest", True, "no manifest (legacy feature)")
+            elif yaml is None:
+                _add("plan.yaml manifest", False, "PyYAML unavailable")
+            else:
+                try:
+                    fleet_plan = FleetPlan.from_dict(yaml.safe_load(manifest.read_text()))
+                except (FleetPlanError, yaml.YAMLError) as exc:
+                    _add("plan.yaml manifest", False, f"invalid manifest: {type(exc).__name__}")
+                else:
+                    allowed = {state.value for state in LifecycleState}
+                    wave_ids = {w.id for w in fleet_plan.waves}
+                    task_ids = {t.id for t in fleet_plan.tasks}
+                    gate_ids = {g.id for g in fleet_plan.gates}
+                    problems = [f"task {t.id} status {t.status!r}"
+                                for t in fleet_plan.tasks if t.status not in allowed]
+                    problems += [f"{w.id} status {w.status!r}"
+                                 for w in fleet_plan.waves if w.status not in allowed]
+                    problems += [f"task {t.id} -> wave {t.wave!r}"
+                                 for t in fleet_plan.tasks
+                                 if t.wave is not None and _wave_key(t.wave) not in wave_ids]
+                    problems += [f"{w.id} -> task {tid}"
+                                 for w in fleet_plan.waves for tid in w.tasks if tid not in task_ids]
+                    problems += [f"{w.id} -> gate {gid}"
+                                 for w in fleet_plan.waves for gid in w.gates if gid not in gate_ids]
+                    _add("plan.yaml manifest", not problems,
+                         f"{len(fleet_plan.tasks)} tasks, {len(fleet_plan.waves)} waves, "
+                         f"{len(fleet_plan.gates)} gates" if not problems
+                         else "manifest drift: " + "; ".join(problems[:4]))
 
         # ── scoring ──
         passed_count = sum(1 for c in checks if c["passed"])
