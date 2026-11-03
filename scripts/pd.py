@@ -15,11 +15,12 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from contextlib import nullcontext
+import time
+from contextlib import contextmanager, nullcontext
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Tuple, Mapping
+from typing import Iterator, Optional, List, Dict, Any, Tuple, Mapping
 
 from pd_fleet.state import normalize_fleet_state
 from pd_fleet.models import FleetPlan, FleetPlanError
@@ -233,6 +234,85 @@ def _state_phase_error(data: Any, phases: list[dict[str, Any]]) -> str | None:
     return None
 
 
+try:  # WSL/Linux; Windows roda sem lock (degradado, nunca silencioso no POSIX)
+    import fcntl
+except ImportError:  # pragma: no cover
+    fcntl = None  # type: ignore[assignment]
+
+STATE_LOCK_NAME = ".state.lock"
+STATE_LOCK_TIMEOUT = 15.0
+
+
+@contextmanager
+def _state_lock(feature_dir: Path, timeout: float = STATE_LOCK_TIMEOUT) -> Iterator[None]:
+    """Exclusive cross-process lock around read-merge-write of the state files."""
+    if fcntl is None:  # pragma: no cover
+        yield
+        return
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = feature_dir / STATE_LOCK_NAME
+    deadline = time.monotonic() + timeout
+    with open(lock_path, "a+") as handle:
+        while True:
+            try:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise PDError(f"estado ocupado por outro processo: {lock_path}")
+                time.sleep(0.05)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def _merge_list(base: list, mine: list, theirs: list) -> list:
+    """Merge lists item by item; dict items with `id` are matched, the rest is append-only."""
+    keyed = all(isinstance(item, dict) and "id" in item for item in [*base, *mine, *theirs])
+    if not keyed:
+        merged = list(theirs)
+        for item in mine:
+            if item not in base and item not in merged:
+                merged.append(item)
+        return merged
+    base_by = {item["id"]: item for item in base}
+    mine_by = {item["id"]: item for item in mine}
+    theirs_by = {item["id"]: item for item in theirs}
+    order = [item["id"] for item in theirs if item["id"] not in mine_by]
+    order += [item["id"] for item in mine]
+    merged = []
+    for item_id in order:
+        if item_id in theirs_by and item_id in mine_by:
+            merged.append(_merge_state(base_by.get(item_id), mine_by[item_id], theirs_by[item_id]))
+        elif item_id in mine_by:
+            if item_id in base_by and mine_by[item_id] == base_by[item_id] and item_id in theirs_by:
+                continue  # removido pelo outro processo
+            merged.append(mine_by[item_id])
+        elif item_id in theirs_by:
+            merged.append(theirs_by[item_id])
+    return merged
+
+
+def _merge_state(base: Any, mine: Any, theirs: Any) -> Any:
+    """Three-way merge: what I changed wins, what the other process wrote is preserved."""
+    if isinstance(base, dict) and isinstance(mine, dict) and isinstance(theirs, dict):
+        merged: dict[str, Any] = {}
+        for key in [*theirs, *(k for k in mine if k not in theirs)]:
+            if key not in mine:
+                continue  # removido por mim
+            if key not in theirs:
+                merged[key] = mine[key]
+                continue
+            merged[key] = _merge_state(base.get(key), mine[key], theirs[key])
+        return merged
+    if isinstance(base, list) and isinstance(mine, list) and isinstance(theirs, list):
+        return _merge_list(base, mine, theirs)
+    if mine != base:
+        return mine
+    return theirs
+
+
 class PDState:
     """Manages project state with a dual JSON/Markdown backend."""
 
@@ -242,7 +322,8 @@ class PDState:
         self.state_file = feature_dir / STATE_FILE
         self.json_file = feature_dir / STATE_JSON_FILE
         self.read_only = read_only
-        self.state: Dict[str, Any] = self._load_state()
+        self.state: dict[str, Any] = self._load_state()
+        self._loaded_state: dict[str, Any] = deepcopy(self.state)
 
     # ── loading ──────────────────────────────────────────────────────────
 
@@ -353,8 +434,34 @@ class PDState:
     # ── saving ───────────────────────────────────────────────────────────
 
     def save(self) -> None:
-        """Save state to both STATE.json and STATE.md transactionally."""
-        candidate = deepcopy(self.state)
+        """Save state to both STATE.json and STATE.md transactionally.
+
+        Another process may have written the same feature while this one worked, so the write
+        happens under a cross-process lock and merges: my changes win, their additions survive.
+        (Locking only the write would still lose updates, because both sides read the same base.)
+        """
+        if self.read_only:
+            return
+        with _state_lock(self.feature_dir):
+            disk = self._read_state_for_merge()
+            merged = _merge_state(self._loaded_state, self.state, disk) if disk is not None else self.state
+            persisted = self._write_state(merged)
+        self.state = persisted
+        self._loaded_state = deepcopy(persisted)
+
+    def _read_state_for_merge(self) -> dict[str, Any] | None:
+        """Read the current STATE.json from disk without triggering the fallback path."""
+        if not self.json_file.exists():
+            return None
+        try:
+            data = json.loads(self.json_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        return data if isinstance(data, dict) else None
+
+    def _write_state(self, state: dict[str, Any]) -> dict[str, Any]:
+        """Persist one state payload (caller holds the lock) and return what was written."""
+        candidate = deepcopy(state)
         now = datetime.now().isoformat()
         candidate["updated_at"] = now
         candidate["fleet_state"] = normalize_fleet_state(candidate.get("fleet_state"))
@@ -368,7 +475,7 @@ class PDState:
         if not isinstance(md_text, str):
             raise TypeError("STATE.md deve ser texto")
         self._write_transaction(json_text + "\n", md_text)
-        self.state = candidate
+        return candidate
 
     def _write_json(self, data: Dict[str, Any]) -> None:
         """Atomically replace STATE.json, retaining the last valid backup."""

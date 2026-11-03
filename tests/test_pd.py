@@ -423,6 +423,34 @@ class TestPDStateIntegrity:
         assert "fora de faixa" in check["detail"]
 
 
+class TestPDStateConcurrency:
+    def test_parallel_complete_task_keeps_every_update(self, temp_dir, pd_cli, capsys):
+        """D1: sem lock entre processos, 8 `complete-task` em paralelo perdiam 2-4 tasks.
+
+        O repro do review de codigo rodava exatamente este cenario e metade dos updates
+        desaparecia com rc=0 em todos os processos. Agora o save faz lock + merge.
+        """
+        import subprocess
+        import sys
+
+        pd_cli.run(["init", "race"])
+        capsys.readouterr()
+        fd = temp_dir / ".spec" / "race"
+        script = Path(__file__).parents[1] / "scripts" / "pd.py"
+        procs = [
+            subprocess.Popen(
+                [sys.executable, str(script), "complete-task", "-f", "race", f"task-{index}"],
+                cwd=str(temp_dir), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            for index in range(8)
+        ]
+        codes = [proc.wait(timeout=120) for proc in procs]
+        assert codes == [0] * 8
+        state = json.loads((fd / "STATE.json").read_text())
+        recorded = [task for task in state["tasks"] if str(task).startswith("task-")]
+        assert len(recorded) == 8, state["tasks"]
+
+
 class TestPDJsonOutput:
     def test_status_json(self, temp_dir, pd_cli, capsys):
         pd_cli.run(["init", "test-feature"])
