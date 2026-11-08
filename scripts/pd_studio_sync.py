@@ -34,7 +34,8 @@ def _git(repo: Path, *args: str) -> str:
         out = subprocess.run(["git", "-C", str(repo), *args],
                              capture_output=True, text=True, timeout=15, check=True)
         return out.stdout.strip()
-    except Exception:
+    # Studio synchronization is best-effort when git is unavailable or the repository is invalid.
+    except Exception:  # noqa: BLE001
         return ""
 
 
@@ -49,7 +50,8 @@ def pd_features() -> list[dict]:
                 "status": data.get("status"),
                 "tasks": len(data.get("tasks", [])),
             })
-        except Exception:
+        # Individual feature records are skipped on any malformed or unreadable state.
+        except Exception:  # noqa: BLE001
             continue
     return feats
 

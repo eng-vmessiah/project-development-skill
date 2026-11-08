@@ -527,7 +527,8 @@ class PDState:
                         shutil.copy2(backup, target)
                     else:
                         target.unlink(missing_ok=True)
-                except Exception as exc:
+                # Recovery is best-effort across all filesystem failures and reports the first one.
+                except Exception as exc:  # noqa: BLE001
                     if recovery_error is None:
                         recovery_error = exc
             if recovery_error is not None:
@@ -1223,7 +1224,8 @@ class PD:
             else:
                 print(_red(f"❌ Error: {e}"))
             sys.exit(1)
-        except Exception as e:
+        # The CLI boundary preserves its stable unexpected-error message and exit code.
+        except Exception as e:  # noqa: BLE001
             if as_json:
                 print(json.dumps({"error": f"Unexpected: {e}"}, indent=2))
             else:
@@ -1661,7 +1663,8 @@ class PD:
             if data is None and yaml is None:
                 raise FleetPlanError("PyYAML não está instalado para ler o manifesto")
             plan = FleetPlan.from_dict(data)
-        except Exception as exc:
+        # Manifest loading treats arbitrary parser and schema-construction failures as invalid input.
+        except Exception as exc:  # noqa: BLE001
             return emit({"status": "invalid", "feature": state.state.get("feature"),
                          "plan_path": str(path), "error": f"FleetPlan inválido: {exc}"},
                         f"❌ FleetPlan inválido: {exc}")
@@ -1697,7 +1700,8 @@ class PD:
             if fleet.get("lifecycle"):
                 try:
                     checkpoint = Checkpoint.from_dict(fleet)
-                except Exception as exc:
+                # Checkpoint reconstruction fails closed for any malformed persisted state.
+                except Exception as exc:  # noqa: BLE001
                     return emit({"status": "invalid", "feature": state.state.get("feature"),
                                  "plan_path": str(path), "error": f"checkpoint inválido: {exc}"},
                                 f"❌ checkpoint inválido: {exc}")
@@ -1737,7 +1741,8 @@ class PD:
                                       for k, v in lifecycle.items()] if isinstance(lifecycle, dict) else []
             raw_snapshot["waves"] = [list(w) for w in result.waves]
             snapshot = normalize_fleet_state(raw_snapshot)
-        except Exception as exc:
+        # Fleet execution converts arbitrary integration failures into its stable failed result.
+        except Exception as exc:  # noqa: BLE001
             return emit({"status": "failed", "feature": state.state.get("feature"),
                          "plan_path": str(path), "error": str(exc)},
                         f"❌ Fleet execution failed: {exc}")
