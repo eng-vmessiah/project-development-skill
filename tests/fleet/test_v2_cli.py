@@ -101,6 +101,7 @@ def test_readonly_existing_run_store_loads_without_creating_lock(tmp_path):
     reader = PD._readonly_existing_run_store(root)
 
     assert reader.load("r") == expected
+    assert vars(reader).keys() == vars(writer).keys()
     assert reader._lock_fd == -1
     assert not (root / ".run_store.lock").exists()
 

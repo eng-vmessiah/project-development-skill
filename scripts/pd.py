@@ -17,7 +17,7 @@ import sys
 import tempfile
 import time
 from collections.abc import Iterator, Mapping
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
@@ -1276,19 +1276,7 @@ class PD:
     @staticmethod
     def _readonly_existing_run_store(root: Path) -> FleetRunStore:
         """Create a read-only FleetRunStore handle without its locking constructor."""
-        # FleetRunStore's normal constructor is intentionally for writers: it
-        # resolves paths, creates the root, and opens a lock.  This command has
-        # already lstat-preflighted an existing root, so construct only the
-        # fields used by ``load`` and replace its guard with a no-op.
-        store = FleetRunStore.__new__(FleetRunStore)
-        store.root = root.absolute()
-        store._clock = None
-        store._fault_injector = lambda _stage: None
-        store._lock = None
-        store._lock_path = store.root / ".run_store.lock"
-        store._lock_fd = -1
-        store._guard = lambda: nullcontext()
-        return store
+        return FleetRunStore(root, readonly=True)
 
     @staticmethod
     def _path_exists_without_following(path: Path) -> bool:

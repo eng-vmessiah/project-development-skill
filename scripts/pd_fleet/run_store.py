@@ -117,14 +117,20 @@ class FleetRunStore:
     schema_version = "pd-fleet-run:v2"
     _STRUCTURAL = frozenset(("schema_version","run_id","plan_hash","plan","generation","owner","event_sequence","updated_at","checksum"))
     _FIELDS = frozenset(("schema_version","run_id","plan_hash","plan","generation","owner","status","waves","tasks","leases","attempts","checkpoints","reports","events","gates","metrics","audit","event_sequence","updated_at","checksum"))
-    def __init__(self, root: str | Path, *, clock: Clock | None = None, fault_injector=None) -> None:
-        self.root = Path(root).expanduser().resolve()
-        self.root.mkdir(parents=True, exist_ok=True)
+    def __init__(self, root: str | Path, *, clock: Clock | None = None,
+                 fault_injector: Callable[[str], None] | None = None,
+                 readonly: bool = False) -> None:
+        path = Path(root).expanduser()
+        self.root = path.absolute() if readonly else path.resolve()
         self._clock = clock or _now
         self._fault_injector = fault_injector or (lambda _stage: None)
         self._lock = threading.RLock()
         self._lock_path = self.root / ".run_store.lock"
         self._lock_fd = -1
+        self._readonly = readonly
+        if readonly:
+            return
+        self.root.mkdir(parents=True, exist_ok=True)
         try:
             if self._lock_path.is_symlink(): raise PathContainmentError("lock path is symlink")
             self._lock_fd = os.open(self._lock_path, os.O_RDWR|os.O_CREAT|os.O_NOFOLLOW, 0o600)
@@ -152,6 +158,9 @@ class FleetRunStore:
     def __exit__(self, exc_type, exc, tb): self.close()
     @contextmanager
     def _guard(self):
+        if self._readonly:
+            yield
+            return
         with self._lock:
             if self._lock_fd < 0 or fcntl is None: raise RunStoreError("inter-process locking unavailable")
             try: fcntl.flock(self._lock_fd, fcntl.LOCK_EX)
