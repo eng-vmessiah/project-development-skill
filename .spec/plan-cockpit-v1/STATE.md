@@ -38,15 +38,16 @@ initialized
 - 2026-10-05 00:22: T-403 DONE — pilot run #4: 3/3 completed; cockpit shows pilot-hermes-pd-fleet
 - 2026-10-05 00:40: T-404 DONE — review applied + corrections; wave 4 complete
 - 2026-10-05 00:44: T-501 DONE — plan-cockpit v1 CLOSED (13/13; G3 approved)
+- 2026-11-08 19:20: P2: guard test do coletor + T-000 retroativa; validate 13/13; G1 e gate no denominador
 
 ## Timestamps
 - Created: 2026-10-04T23:05:58.575354
-- Updated: 2026-11-08T19:20:00.874568
+- Updated: 2026-11-08T19:20:52.972267
 
 ## Fleet State
 ```json
 {
-  "updated_at": "2026-11-08T19:20:00.874568",
+  "updated_at": "2026-11-08T19:20:52.972267",
   "schema_version": 1,
   "agents": [],
   "waves": [],
