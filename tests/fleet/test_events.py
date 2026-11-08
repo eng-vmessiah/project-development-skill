@@ -123,7 +123,8 @@ def test_r8_concurrent_same_event_is_stored_once_and_has_checksum(tmp_path):
         try:
             barrier.wait()
             log.append(event())
-        except Exception as exc:  # pragma: no cover - assertion below reports it
+        # The concurrency harness collects any worker failure for the parent assertion.
+        except Exception as exc:  # noqa: BLE001  # pragma: no cover - assertion below reports it
             errors.append(exc)
 
     threads = [threading.Thread(target=writer) for _ in range(8)]

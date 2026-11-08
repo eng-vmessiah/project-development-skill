@@ -43,7 +43,8 @@ def assert_facade_matches_direct(store, event_log, *, run_id="run-1", limit=MAX_
     supervisor = FleetSupervisor()
     try:
         expected = reconcile_run_events(store, event_log, run_id=run_id, limit=limit)
-    except Exception as direct_error:
+    # The contract helper compares facade behavior for every direct-call failure type.
+    except Exception as direct_error:  # noqa: BLE001
         with pytest.raises(type(direct_error)) as facade_error:
             supervisor.reconcile_events(store, event_log, run_id=run_id, limit=limit)
         assert str(facade_error.value) == str(direct_error)

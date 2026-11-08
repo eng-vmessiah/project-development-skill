@@ -128,7 +128,8 @@ def test_concurrent_duplicate_presentation(env):
         try:
             barrier.wait(timeout=5)
             results.append(_activate())
-        except BaseException as exc:
+        # The thread harness must surface every worker termination to the parent assertion.
+        except BaseException as exc:  # noqa: BLE001
             errors.append(exc)
 
     threads = [threading.Thread(target=worker) for _ in range(2)]
