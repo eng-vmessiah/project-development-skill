@@ -104,6 +104,8 @@ def test_readonly_existing_run_store_loads_without_creating_lock(tmp_path):
     assert vars(reader).keys() == vars(writer).keys()
     assert reader._lock_fd == -1
     assert not (root / ".run_store.lock").exists()
+    assert PD._v2_read_snapshot(str(root), "r") == expected
+    assert not (root / ".run_store.lock").exists()
 
 
 def test_run_local_max_parallel_bounds_fail_before_store_mutation(tmp_path, capsys):

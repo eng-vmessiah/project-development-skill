@@ -1879,8 +1879,7 @@ class PD:
         snapshot_path = run_dir / "snapshot.json"
         if not snapshot_path.exists() or snapshot_path.is_symlink() or not snapshot_path.is_file():
             raise RunStoreError("run snapshot unavailable")
-        probe = FleetRunStore.__new__(FleetRunStore)
-        probe.root = root.resolve()
+        probe = FleetRunStore(root, readonly=True)
         probe._max_snapshot_bytes = MAX_V2_INSPECT_SNAPSHOT_BYTES
         try:
             snapshot = probe._valid_snapshot(run_id)
