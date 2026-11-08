@@ -34,7 +34,7 @@ class SupervisorReport:
         try:
             intervention_items = tuple(self.interventions)
         except TypeError as exc:
-            raise ValueError("interventions must be bounded") from exc
+            raise TypeError("interventions must be bounded") from exc
         if len(intervention_items) > 32:
             raise ValueError("interventions must be bounded")
         proposals = tuple(item if isinstance(item, InterventionProposal) else InterventionProposal(**dict(item))

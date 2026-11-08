@@ -81,3 +81,5 @@ def test_supervisor_report_argument_type_errors_are_explicit() -> None:
         SupervisorReport(diagnosis=object())
     with pytest.raises(TypeError):
         SupervisorReport(diagnosis=SupervisorDiagnosis("healthy"), interventions="x")
+    with pytest.raises(TypeError):
+        SupervisorReport(diagnosis=SupervisorDiagnosis("healthy"), interventions=42)

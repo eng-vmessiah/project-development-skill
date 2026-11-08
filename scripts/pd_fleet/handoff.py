@@ -317,7 +317,7 @@ class HandoffStore:
         if owner_epoch is not None and (type(owner_epoch) is not int or owner_epoch < 0):
             raise ValueError("owner_epoch must be a non-negative integer")
         if expected_lineage is not None and not isinstance(expected_lineage, HandoffLineage):
-            raise ValueError("expected_lineage must be HandoffLineage")
+            raise TypeError("expected_lineage must be HandoffLineage")
         if expected_lineage is not None and expected_lineage.mission_run_id != self.run_id:
             raise ValueError("expected_lineage does not match run_id")
         if owner_epoch is not None and expected_lineage is not None and owner_epoch != expected_lineage.owner_epoch:

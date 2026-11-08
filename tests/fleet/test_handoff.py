@@ -243,3 +243,5 @@ def test_handoff_argument_type_errors_are_explicit(tmp_path) -> None:
         store.save(object(), status="ready", evidence_refs=[])
     with pytest.raises(TypeError):
         store.save(artifact, status="ready", evidence_refs="x")
+    with pytest.raises(TypeError):
+        HandoffStore(tmp_path, run_id="run-1", expected_lineage=object())
