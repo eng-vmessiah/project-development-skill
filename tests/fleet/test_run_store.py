@@ -207,6 +207,32 @@ def test_fsync_failure_is_normalized_and_temp_cleaned(tmp_path: Path, monkeypatc
     assert s.load("r")["status"] == "running"
 
 
+@pytest.mark.parametrize(
+    ("stage", "expected_status"),
+    [
+        ("backup_replace", "created"),
+        ("primary_replace", "running"),
+        ("directory_fsync", "running"),
+    ],
+)
+def test_write_fault_injection_preserves_a_valid_snapshot(tmp_path: Path, stage: str, expected_status: str):
+    store = FleetRunStore(tmp_path)
+    store.create("r", PLAN, "a")
+
+    def fail_at(current_stage):
+        if current_stage == stage:
+            raise OSError(stage)
+
+    store._fault_injector = fail_at
+    with pytest.raises(RunStoreError, match="cannot persist run snapshot"):
+        store.transition("r", "running", "a")
+
+    store._fault_injector = lambda _stage: None
+    assert store.load("r")["status"] == expected_status
+    assert not list((tmp_path / "r").glob("snapshot.json.tmp-*"))
+    assert not list((tmp_path / "r").glob("snapshot.json.bak-*"))
+
+
 def test_transition_refuses_to_rewrite_a_terminal_run(tmp_path: Path):
     """D2: um run que ja terminou nao pode virar outro status — isso reescreve o resultado."""
     store = FleetRunStore(tmp_path)

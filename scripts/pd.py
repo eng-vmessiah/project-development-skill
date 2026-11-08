@@ -1287,6 +1287,7 @@ class PD:
         store = FleetRunStore.__new__(FleetRunStore)
         store.root = root.absolute()
         store._clock = None
+        store._fault_injector = lambda _stage: None
         store._lock = None
         store._lock_path = store.root / ".run_store.lock"
         store._lock_fd = -1

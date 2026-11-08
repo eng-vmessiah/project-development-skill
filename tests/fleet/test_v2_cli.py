@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-from pd import PD
+from pd import PD, PDError
 from pd_fleet.run_store import FleetRunStore, RunStoreError
 
 
@@ -69,6 +69,40 @@ def test_run_local_uses_store_and_returns_completed_simulated_fleet(tmp_path, ca
     assert output == json.dumps(parsed, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
     assert FleetRunStore(store_root).load("r")["status"] == "completed"
     assert str(tmp_path) not in output
+
+
+def test_run_local_exception_handler_persists_failure_event_and_status(tmp_path, monkeypatch):
+    root = tmp_path / "store"
+    cli = PD()
+    args = cli.parser.parse_args([
+        "v2", "run-local", "--plan", str(write_plan(tmp_path)),
+        "--store", str(root), "--run-id", "r",
+    ])
+
+    def fail_run(_orchestrator):
+        raise RuntimeError("executor failed")
+
+    monkeypatch.setattr("pd.FleetOrchestrator.run", fail_run)
+    with pytest.raises(PDError, match="V2 run failed: RuntimeError"):
+        cli._cmd_v2(args)
+
+    snapshot = FleetRunStore(root).load("r")
+    assert snapshot["status"] == "failed"
+    assert snapshot["events"][-1]["event_id"] == "run_failed"
+    assert snapshot["events"][-1]["reason"] == "RuntimeError"
+
+
+def test_readonly_existing_run_store_loads_without_creating_lock(tmp_path):
+    root = tmp_path / "store"
+    with FleetRunStore(root) as writer:
+        expected = writer.create("r", plan(), "cli")
+    (root / ".run_store.lock").unlink()
+
+    reader = PD._readonly_existing_run_store(root)
+
+    assert reader.load("r") == expected
+    assert reader._lock_fd == -1
+    assert not (root / ".run_store.lock").exists()
 
 
 def test_run_local_max_parallel_bounds_fail_before_store_mutation(tmp_path, capsys):

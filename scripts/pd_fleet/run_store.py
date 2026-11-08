@@ -103,10 +103,11 @@ class FleetRunStore:
     schema_version = "pd-fleet-run:v2"
     _STRUCTURAL = frozenset(("schema_version","run_id","plan_hash","plan","generation","owner","event_sequence","updated_at","checksum"))
     _FIELDS = frozenset(("schema_version","run_id","plan_hash","plan","generation","owner","status","waves","tasks","leases","attempts","checkpoints","reports","events","gates","metrics","audit","event_sequence","updated_at","checksum"))
-    def __init__(self, root: str | Path, *, clock: Clock | None = None) -> None:
+    def __init__(self, root: str | Path, *, clock: Clock | None = None, fault_injector=None) -> None:
         self.root = Path(root).expanduser().resolve()
         self.root.mkdir(parents=True, exist_ok=True)
         self._clock = clock or _now
+        self._fault_injector = fault_injector or (lambda _stage: None)
         self._lock = threading.RLock()
         self._lock_path = self.root / ".run_store.lock"
         self._lock_fd = -1
@@ -335,9 +336,13 @@ class FleetRunStore:
                 finally: os.close(src)
                 os.fsync(bfd); os.close(bfd); bfd=-1
                 os.replace(btmp,backup); btmp=None
+                self._fault_injector("backup_replace")
             os.replace(temp,target); temp=None
+            self._fault_injector("primary_replace")
             dfd=os.open(d,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
-            try: os.fsync(dfd)
+            try:
+                self._fault_injector("directory_fsync")
+                os.fsync(dfd)
             finally: os.close(dfd); dfd=-1
         except (PathContainmentError, RunStoreError): raise
         except OSError as exc: raise RunStoreError("cannot persist run snapshot") from exc
