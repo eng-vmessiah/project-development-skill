@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Comprehensive tests for PD CLI — all commands including new features."""
 
+import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -16,6 +18,9 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from pd import (
+    _BASH_COMPLETION,
+    _FISH_COMPLETION,
+    _ZSH_COMPLETION,
     PD,
     PDConfig,
     PDState,
@@ -572,6 +577,25 @@ class TestPDConfig:
 
 
 class TestPDCompletion:
+    def test_every_parser_subcommand_is_in_every_completion(self, pd_cli):
+        subcommands = next(
+            action.choices
+            for action in pd_cli.parser._actions
+            if isinstance(action, argparse._SubParsersAction)
+        )
+
+        for shell, completion in {
+            "bash": _BASH_COMPLETION,
+            "zsh": _ZSH_COMPLETION,
+            "fish": _FISH_COMPLETION,
+        }.items():
+            missing = {
+                command
+                for command in subcommands
+                if re.search(rf"(?<![\w-]){re.escape(command)}(?![\w-])", completion) is None
+            }
+            assert not missing, f"{shell} completion is missing: {sorted(missing)}"
+
     def test_completion_bash(self, temp_dir, pd_cli, capsys):
         pd_cli.run(["completion", "bash"])
         out = capsys.readouterr().out.lower()

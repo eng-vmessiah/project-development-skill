@@ -668,7 +668,7 @@ _pd() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    commands="init status fleet-status fleet-ready fleet-supervisor-status fleet-supervisor-events fleet-supervisor-reconcile fleet-supervisor-readiness fleet-handoff-preview validate checkpoint verify advance complete-task config list delete history report diff completion"
+    commands="init status fleet-status fleet-ready fleet-supervisor-status fleet-supervisor-events fleet-supervisor-reconcile fleet-supervisor-readiness fleet-handoff-preview fleet-run v2 validate checkpoint verify advance complete-task config list delete history report diff completion"
 
     # Global flags
     if [[ "$cur" == -* ]]; then
@@ -732,6 +732,8 @@ _pd() {
         'fleet-supervisor-reconcile:Reconcile a fleet run snapshot and event log (read-only)'
         'fleet-supervisor-readiness:Show fleet supervisor readiness (read-only)'
         'fleet-handoff-preview:Preview a persisted handoff (read-only)'
+        'fleet-run:Run a FleetPlan locally'
+        'v2:V2 Fleet adapter'
         'validate:Validate progress'
         'checkpoint:Create checkpoint'
         'verify:Verify before completing'
@@ -828,6 +830,8 @@ complete -c pd -n '__fish_use_subcommand' -a 'fleet-supervisor-events' -d 'Diagn
 complete -c pd -n '__fish_use_subcommand' -a 'fleet-supervisor-reconcile' -d 'Reconcile a fleet run snapshot and event log (read-only)'
 complete -c pd -n '__fish_use_subcommand' -a 'fleet-supervisor-readiness' -d 'Show fleet supervisor readiness (read-only)'
 complete -c pd -n '__fish_use_subcommand' -a 'fleet-handoff-preview' -d 'Preview a persisted handoff (read-only)'
+complete -c pd -n '__fish_use_subcommand' -a 'fleet-run' -d 'Run a FleetPlan locally'
+complete -c pd -n '__fish_use_subcommand' -a 'v2' -d 'V2 Fleet adapter'
 complete -c pd -n '__fish_use_subcommand' -a 'validate' -d 'Validate progress'
 complete -c pd -n '__fish_use_subcommand' -a 'checkpoint' -d 'Create checkpoint'
 complete -c pd -n '__fish_use_subcommand' -a 'verify' -d 'Verify before completing'
