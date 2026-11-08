@@ -1,0 +1,6 @@
+# Ruff configuration for the PD repository.
+#
+# The CI matrix exercises Python 3.10, 3.11 and 3.12, so the lint target is the
+# floor (3.10). Without this pin Ruff assumes a newer target and UP017 rewrites
+# `datetime.timezone.utc` to `datetime.UTC`, which does not exist on 3.10.
+target-version = "py310"
