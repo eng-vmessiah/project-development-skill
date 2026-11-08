@@ -65,7 +65,7 @@ async def capture(cycle: bool) -> dict:
         try:
             persisted = json.loads(STATE.read_text())
         # Persisted studio state is optional and malformed or unreadable state is ignored.
-        except Exception:  # noqa: BLE001
+        except (OSError, json.JSONDecodeError, UnicodeError):
             persisted = {}
     async with websockets.connect(f"{WS_URL}?token={token}", max_size=8 * 1024 * 1024, open_timeout=15) as ws:
         act, err = result_or_error(await call(ws, 1, "fleet.session.activate", {"schema_version": WIRE}))

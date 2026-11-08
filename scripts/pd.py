@@ -528,7 +528,7 @@ class PDState:
                     else:
                         target.unlink(missing_ok=True)
                 # Recovery is best-effort across all filesystem failures and reports the first one.
-                except Exception as exc:  # noqa: BLE001
+                except OSError as exc:
                     if recovery_error is None:
                         recovery_error = exc
             if recovery_error is not None:
@@ -1701,7 +1701,7 @@ class PD:
                 try:
                     checkpoint = Checkpoint.from_dict(fleet)
                 # Checkpoint reconstruction fails closed for any malformed persisted state.
-                except Exception as exc:  # noqa: BLE001
+                except (KeyError, TypeError, ValueError) as exc:
                     return emit({"status": "invalid", "feature": state.state.get("feature"),
                                  "plan_path": str(path), "error": f"checkpoint inválido: {exc}"},
                                 f"❌ checkpoint inválido: {exc}")

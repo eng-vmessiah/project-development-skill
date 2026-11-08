@@ -77,7 +77,7 @@ def run_cmd(cmd: list[str]) -> tuple[bool, str]:
     except subprocess.TimeoutExpired:
         return False, f"timeout ({TIMEOUT}s): {' '.join(cmd)}"
     # The connector boundary must return a stable error for any subprocess launch failure.
-    except Exception as e:  # noqa: BLE001
+    except (OSError, subprocess.SubprocessError) as e:
         return False, f"erro ao executar: {e}"
     out = ((p.stdout or "") + ("\n" + p.stderr if p.stderr else "")).strip()
     header = f"[pd-board] exit={p.returncode} · {' '.join(cmd[1:])}"

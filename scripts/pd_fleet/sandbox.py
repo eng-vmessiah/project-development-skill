@@ -386,7 +386,7 @@ class LocalSandboxRunner:
                 try:
                     proc.wait(timeout=1.0)
                 # Sandbox cleanup is best-effort and must continue after arbitrary resource failures.
-                except Exception:  # noqa: BLE001
+                except (subprocess.TimeoutExpired, OSError):
                     pass
             return {"status": "failed", "returncode": -1,
                     "stdout": _redact(bytes(out).decode("utf-8", "replace"), tuple(self._env.values()) + self._secrets),
@@ -397,7 +397,7 @@ class LocalSandboxRunner:
                 try:
                     sel.close()
                 # Sandbox cleanup is best-effort and must continue after arbitrary resource failures.
-                except Exception:  # noqa: BLE001
+                except OSError:
                     pass
             if proc is not None:
                 for stream in (proc.stdout, proc.stderr):
