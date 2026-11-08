@@ -28,9 +28,9 @@ class SupervisorReport:
 
     def __post_init__(self) -> None:
         if not isinstance(self.diagnosis, SupervisorDiagnosis):
-            raise ValueError("diagnosis must be SupervisorDiagnosis")
+            raise TypeError("diagnosis must be SupervisorDiagnosis")
         if isinstance(self.interventions, (str, bytes)):
-            raise ValueError("interventions must be bounded")
+            raise TypeError("interventions must be bounded")
         try:
             intervention_items = tuple(self.interventions)
         except TypeError as exc:

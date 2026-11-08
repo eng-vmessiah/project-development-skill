@@ -2,6 +2,8 @@ import math
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 from pd_fleet.checkpoint import Checkpoint
 from pd_fleet.dispatch import (
@@ -196,3 +198,8 @@ def test_owner_matching_diagnostic_never_calls_repr_on_untrusted_owner():
     assert result.blocked == ("a",)
     assert "repr must not be called" not in result.reports[0]["reason"]
     assert "secret" not in result.reports[0]["reason"]
+
+
+def test_store_report_projection_rejects_non_mapping_source() -> None:
+    with pytest.raises(TypeError):
+        FleetOrchestrator._store_report_projection(object())

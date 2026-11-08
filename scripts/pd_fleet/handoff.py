@@ -105,7 +105,7 @@ def _thaw(value: Any) -> Any:
 
 def _items(name: str, values: Iterable[str]) -> tuple[str, ...]:
     if isinstance(values, (str, bytes)):
-        raise ValueError(f"{name} must be a list")
+        raise TypeError(f"{name} must be a list")
     result: list[str] = []
     for value in values:
         result.append(_sanitize_text(f"{name} item", value))
@@ -116,7 +116,7 @@ def _items(name: str, values: Iterable[str]) -> tuple[str, ...]:
 
 def _bounded_refs(values: Iterable[str]) -> tuple[str, ...]:
     if isinstance(values, (str, bytes)):
-        raise ValueError("evidence_refs must be a list")
+        raise TypeError("evidence_refs must be a list")
     result: list[str] = []
     for value in values:
         result.append(_ref(value))
@@ -218,9 +218,9 @@ class HandoffArtifact:
         object.__setattr__(self, "risks", _items("risks", self.risks))
         object.__setattr__(self, "evidence_refs", _bounded_refs(self.evidence_refs))
         if not isinstance(self.lineage, HandoffLineage):
-            raise ValueError("lineage must be HandoffLineage")
+            raise TypeError("lineage must be HandoffLineage")
         if not isinstance(self.safety, Mapping):
-            raise ValueError("safety must be a mapping")
+            raise TypeError("safety must be a mapping")
         object.__setattr__(self, "safety", _safe_metadata(self.safety))
 
     def to_dict(self) -> dict[str, Any]:
@@ -265,7 +265,7 @@ def validate_handoff_ownership(artifact: HandoffArtifact, *, mission_id: str, mi
                                owner_epoch: int) -> bool:
     """Fail closed against stale/mismatched supplied ownership; not a distributed lease/CAS."""
     if not isinstance(artifact, HandoffArtifact):
-        raise ValueError("artifact must be HandoffArtifact")
+        raise TypeError("artifact must be HandoffArtifact")
     expected = HandoffLineage(mission_id, mission_run_id, task_id, source_lane_id, attempt_id,
                               session_id, artifact.lineage.target_role, owner_epoch)
     if artifact.lineage != expected:
@@ -429,11 +429,11 @@ class HandoffStore:
 
     def save(self, artifact: HandoffArtifact, *, status: str, evidence_refs: Iterable[str]) -> HandoffEnvelope:
         if not isinstance(artifact, HandoffArtifact):
-            raise ValueError("artifact must be HandoffArtifact")
+            raise TypeError("artifact must be HandoffArtifact")
         self._check_owner(artifact)
         status = _sanitize_text("status", status)
         if isinstance(evidence_refs, (str, bytes)):
-            raise ValueError("evidence_refs must be a list")
+            raise TypeError("evidence_refs must be a list")
         refs = _bounded_refs(evidence_refs)
         payload = self._payload(artifact, status, refs)
         checksum = hashlib.sha256(_canonical_json(payload)).hexdigest()

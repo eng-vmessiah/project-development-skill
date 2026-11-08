@@ -80,7 +80,8 @@ class EventDiagnosticsReport:
             if value is None:
                 return None
             if isinstance(value, bool) or not isinstance(value, (int, float)):
-                raise ValueError("invalid diagnostics sequence")
+                # Persisted report sequence validation retains its established ValueError contract.
+                raise ValueError("invalid diagnostics sequence")  # noqa: TRY004
             if not math.isfinite(value) or value < 0:
                 raise ValueError("invalid diagnostics sequence")
             return value

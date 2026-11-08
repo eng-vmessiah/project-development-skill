@@ -111,12 +111,14 @@ def validate_bundle(manifest_path: str | Path, *, fixture: str | None = None, mo
     root = manifest_path.parent
     manifest = _read_bundle_json(manifest_path.parent, manifest_path.name)
     if not isinstance(manifest, dict) or not isinstance(manifest.get("fixture_files"), list):
-        raise ValueError("manifest must contain a fixture_files array")
+        # Persisted JSON manifest shape failures retain the established ValueError contract.
+        raise ValueError("manifest must contain a fixture_files array")  # noqa: TRY004
     if not all(isinstance(name, str) for name in manifest["fixture_files"]):
         raise ValueError("manifest fixture_files must contain strings")
     for field in ("request_schema", "result_schema"):
         if not isinstance(manifest.get(field), str):
-            raise ValueError(f"manifest {field} must be a string")
+            # Persisted JSON manifest field failures retain the established ValueError contract.
+            raise ValueError(f"manifest {field} must be a string")  # noqa: TRY004
 
     request_schema = _read_bundle_json(root, manifest["request_schema"])
     result_schema = _read_bundle_json(root, manifest["result_schema"])
@@ -137,7 +139,8 @@ def validate_bundle(manifest_path: str | Path, *, fixture: str | None = None, mo
             missing.append(name)
             continue
         if not isinstance(data, dict):
-            raise ValueError(f"fixture must be an object: {name}")
+            # Persisted JSON fixture shape failures retain the established ValueError contract.
+            raise ValueError(f"fixture must be an object: {name}")  # noqa: TRY004
         row: dict[str, Any] = {"file": name}
         if name in RESULT_FILES:
             errors = _errors(result_validator, data)

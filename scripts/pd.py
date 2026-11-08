@@ -356,7 +356,8 @@ class PDState:
             with open(path) as f:
                 data = json.load(f)
             if not isinstance(data, dict):
-                raise ValueError("STATE.json deve conter um objeto")
+                # Persisted STATE.json shape failures retain the established ValueError contract.
+                raise ValueError("STATE.json deve conter um objeto")  # noqa: TRY004
             # Merge with defaults for forward-compat; root tasks remains legacy.
             default = self._default_state()
             for key in default:
@@ -1821,7 +1822,8 @@ class PD:
             if data is None and yaml is None:
                 raise ValueError("yaml_unavailable")
             if not isinstance(data, Mapping):
-                raise ValueError("manifest_shape")
+                # Persisted manifest shape failures retain the established ValueError contract.
+                raise ValueError("manifest_shape")  # noqa: TRY004
             # Normalize aliases at every object level before canonical/schema validation.
             aliases = {"schemaVersion": "schema_version", "planHash": "plan_hash", "runId": "run_id", "taskId": "task_id", "agentId": "agent_id", "maxParallel": "max_parallel", "dependsOn": "depends_on", "allowedPaths": "allowed_paths", "acceptanceCriteria": "acceptance_criteria", "validationCommands": "validation_commands", "retryPolicy": "retry_policy", "maxAttempts": "max_attempts", "backoffSeconds": "backoff_seconds"}
             def normalize(value):
@@ -1839,10 +1841,12 @@ class PD:
                 return value
             normalized_data = normalize(data)
             if not isinstance(normalized_data, Mapping):
-                raise ValueError("manifest_shape")
+                # Persisted manifest shape failures retain the established ValueError contract.
+                raise ValueError("manifest_shape")  # noqa: TRY004
             canonical = canonicalize_v2(normalized_data)
             if not isinstance(canonical.get("tasks"), list):
-                raise ValueError("tasks_invalid")
+                # Persisted manifest task failures retain the established ValueError contract.
+                raise ValueError("tasks_invalid")  # noqa: TRY004
             return canonical
         except PDError:
             raise
@@ -1911,12 +1915,14 @@ class PD:
     @staticmethod
     def _v2_inspection(snapshot: Mapping[str, Any]) -> dict[str, Any]:
         if not isinstance(snapshot, Mapping):
-            raise ValueError("snapshot_shape")
+            # Snapshot inspection retains the ValueError contract asserted by the CLI tests.
+            raise ValueError("snapshot_shape")  # noqa: TRY004
         raw_tasks = snapshot.get("tasks", {})
         raw_reports = snapshot.get("reports", {})
         raw_waves = snapshot.get("waves", [])
         if not isinstance(raw_tasks, Mapping) or not isinstance(raw_reports, Mapping) or not isinstance(raw_waves, list):
-            raise ValueError("snapshot_shape")
+            # Snapshot inspection retains the ValueError contract asserted by the CLI tests.
+            raise ValueError("snapshot_shape")  # noqa: TRY004
         if len(raw_waves) > MAX_V2_INSPECT_WAVES:
             raise ValueError("snapshot_bounds")
         bounded_waves: list[list[str]] = []
@@ -1950,7 +1956,8 @@ class PD:
                         raise ValueError("snapshot_shape")
         raw_events = snapshot.get("events", [])
         if not isinstance(raw_events, list):
-            raise ValueError("snapshot_shape")
+            # Snapshot inspection retains the ValueError contract asserted by the CLI tests.
+            raise ValueError("snapshot_shape")  # noqa: TRY004
         if len(raw_events) > MAX_V2_INSPECT_EVENTS:
             raise ValueError("snapshot_bounds")
         if any(not isinstance(event, Mapping) for event in raw_events):

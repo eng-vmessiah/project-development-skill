@@ -12,6 +12,7 @@ from pd_fleet.handoff import (
     HandoffArtifact,
     HandoffLineage,
     HandoffReason,
+    HandoffStore,
     create_handoff,
     validate_handoff_epoch,
     validate_handoff_ownership,
@@ -211,3 +212,34 @@ def test_hostile_iterators_are_rejected_after_at_most_33_items(field: str) -> No
 def test_handoff_identifiers_reject_colon_secret_assignments(value: str) -> None:
     with pytest.raises(ValueError, match="unsafe"):
         _handoff(task_id=value)
+
+
+def test_handoff_argument_type_errors_are_explicit(tmp_path) -> None:
+    artifact = _handoff()
+
+    with pytest.raises(TypeError):
+        _handoff(completed="x")
+    with pytest.raises(TypeError):
+        HandoffArtifact(
+            artifact.handoff_id, artifact.reason, artifact.summary, artifact.completed,
+            artifact.remaining, artifact.decisions, artifact.risks, artifact.evidence_refs,
+            artifact.next_action, object(), artifact.safety,
+        )
+    with pytest.raises(TypeError):
+        HandoffArtifact(
+            artifact.handoff_id, artifact.reason, artifact.summary, artifact.completed,
+            artifact.remaining, artifact.decisions, artifact.risks, artifact.evidence_refs,
+            artifact.next_action, artifact.lineage, object(),
+        )
+    with pytest.raises(TypeError):
+        validate_handoff_ownership(
+            object(), mission_id="mission-1", mission_run_id="run-1", task_id="T-001",
+            source_lane_id="lane-1", attempt_id="attempt-1", session_id="session-1",
+            owner_epoch=3,
+        )
+
+    store = HandoffStore(tmp_path, run_id="run-1", owner_epoch=3)
+    with pytest.raises(TypeError):
+        store.save(object(), status="ready", evidence_refs=[])
+    with pytest.raises(TypeError):
+        store.save(artifact, status="ready", evidence_refs="x")

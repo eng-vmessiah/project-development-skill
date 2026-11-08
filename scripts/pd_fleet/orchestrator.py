@@ -693,7 +693,7 @@ class FleetOrchestrator:
         """Allow-list a validated AgentReportV2 for FleetRunStore's ABI."""
         source = parsed.to_dict() if hasattr(parsed, "to_dict") else parsed
         if not isinstance(source, Mapping):
-            raise ValueError("invalid AgentReport projection")
+            raise TypeError("invalid AgentReport projection")
         report_status = status or source.get("status")
         allowed = ("status", "outputs", "evidence", "tests", "validation",
                    "decision", "started_at", "completed_at", "reason",

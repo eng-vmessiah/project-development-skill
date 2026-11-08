@@ -4,6 +4,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 from pd_fleet.supervision import HealthSignal, HealthSnapshot, SupervisorDiagnosis
 from pd_fleet.supervisor import FleetSupervisor, SupervisorReport
@@ -72,3 +74,10 @@ def test_supervisor_can_preview_handoff_without_dispatch() -> None:
 
     assert artifact.lineage["target_role"] == "verification"
     assert supervisor.dispatch_count == 0
+
+
+def test_supervisor_report_argument_type_errors_are_explicit() -> None:
+    with pytest.raises(TypeError):
+        SupervisorReport(diagnosis=object())
+    with pytest.raises(TypeError):
+        SupervisorReport(diagnosis=SupervisorDiagnosis("healthy"), interventions="x")
