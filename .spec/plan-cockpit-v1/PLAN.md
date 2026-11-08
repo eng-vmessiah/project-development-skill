@@ -33,4 +33,4 @@ Cockpit-ready: every task declares `id · wave · role · depends_on · allowed_
 
 ## Wave 5 — Closeout
 
-- [ ] T-501 · orchestrator · VERIFICATION.md + records (diary/caminho/vault) + final Board + `pd` closeout (real complete-task calls).
+- [x] T-501 · orchestrator · VERIFICATION.md + records (diary/caminho/vault) + final Board + `pd` closeout (real complete-task calls). ✅ 05/10 (`VERIFICATION.md` escrito; T-501 registrada no `STATE.json` e `completed` no `plan.yaml`); checkbox flipado em 08/11 na revisão de pendências.
