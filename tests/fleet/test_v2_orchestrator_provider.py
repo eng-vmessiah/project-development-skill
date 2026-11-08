@@ -1,20 +1,20 @@
 """Fleet V2 adapter seam tests using only injected fake runtimes."""
 from __future__ import annotations
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 
-from pd_fleet.contracts import AgentReportV2
 from pd_fleet.checkpoint import Checkpoint
+from pd_fleet.contracts import AgentReportV2
 from pd_fleet.models import TaskSpec
 from pd_fleet.orchestrator import FleetOrchestrator
 from pd_fleet.orchestrator_provider import ProviderDispatchAdapter, _safe_text
 from pd_fleet.provider import CommandMetadata, RuntimePolicy, RuntimeProviderProfile
-from pd_fleet.provider_dispatch import DispatchStatus, ProviderDispatchBoundary
+from pd_fleet.provider_dispatch import ProviderDispatchBoundary
 from pd_fleet.provider_routing import ProviderRoutePolicy
 from pd_fleet.runtime_adapter import RuntimeErrorCode, RuntimeResult, RuntimeStatus
 

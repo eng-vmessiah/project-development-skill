@@ -9,10 +9,14 @@ seam; those capabilities therefore remain explicitly ``NOT_READY``.
 from __future__ import annotations
 
 import unicodedata
-from typing import Any, Mapping, Protocol, cast, runtime_checkable
+from collections.abc import Mapping
+from typing import Any, Protocol, cast, runtime_checkable
 
 from .gateway_bridge_contracts import (
-    MAX_REPLAY_BATCH, BridgeCursor, BridgeEvent, ReplayWindow,
+    MAX_REPLAY_BATCH,
+    BridgeCursor,
+    BridgeEvent,
+    ReplayWindow,
     SessionSnapshot,
 )
 
@@ -181,6 +185,10 @@ class HermesExistingReadOnlyAdapter:
 
 
 __all__ = [
-    "ExistingHermesReadOnlyClient", "HermesExistingReadOnlyAdapter", "HermesAdapterError",
-    "NOT_READY", "NOT_READY_HERMES_SEAM", "SCHEMA_VERSION",
+    "NOT_READY",
+    "NOT_READY_HERMES_SEAM",
+    "SCHEMA_VERSION",
+    "ExistingHermesReadOnlyClient",
+    "HermesAdapterError",
+    "HermesExistingReadOnlyAdapter",
 ]

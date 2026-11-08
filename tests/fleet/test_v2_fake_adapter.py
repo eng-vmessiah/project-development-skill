@@ -1,18 +1,21 @@
 """F1.1 tests for the local-only PD Fleet adapter seam."""
 from __future__ import annotations
 
-from pathlib import Path
 import ast
 import json
 import sys
 import threading
+from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 
-from pd_fleet.fake_adapter import FakeAgentRuntime, FakeAdapterError, canonical_request_fingerprint
-
+from pd_fleet.fake_adapter import (
+    FakeAdapterError,
+    FakeAgentRuntime,
+    canonical_request_fingerprint,
+)
 
 FP = "sha256:" + "a" * 64
 
@@ -436,6 +439,7 @@ def test_concurrent_prepare_has_one_record_and_one_ready_result():
 
 def test_every_emitted_result_validates_against_normative_result_schema():
     import json
+
     from jsonschema import Draft202012Validator
 
     schema_path = Path(__file__).parents[2] / ".spec" / "pd-fleet-hermes-adapter-v0" / "contracts" / "result-schema.json"

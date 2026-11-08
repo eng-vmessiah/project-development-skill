@@ -1,13 +1,16 @@
 """Offline, in-process observability primitives for fleet runs."""
 from __future__ import annotations
-from collections.abc import Mapping
-from dataclasses import dataclass
+
 import json
 import re
+from collections.abc import Mapping
+from dataclasses import dataclass
 from threading import RLock
 from types import MappingProxyType
 from typing import Any
+
 from .safe_rendering import safe_text
+
 
 class ObservabilityError(ValueError):
     """Invalid or unsafe observability input."""

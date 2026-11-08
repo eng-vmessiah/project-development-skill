@@ -7,8 +7,9 @@ store's lock rather than on an in-memory semaphore.
 """
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from pathlib import PurePosixPath
-from typing import Any, Callable, Mapping
+from typing import Any
 
 from .run_store import FleetRunStore, GenerationConflictError, LeaseError, RunStoreError
 
@@ -238,4 +239,4 @@ class LeaseScheduler:
 
 
 Scheduler = LeaseScheduler
-__all__ = ["LeaseScheduler", "Scheduler", "SchedulerError", "OwnershipConflict", "CapacityExceeded"]
+__all__ = ["CapacityExceeded", "LeaseScheduler", "OwnershipConflict", "Scheduler", "SchedulerError"]

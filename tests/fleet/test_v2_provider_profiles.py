@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-from pd_fleet.provider import (  # noqa: E402
+from pd_fleet.provider import (
     CommandMetadata,
     ProviderConfigurationError,
     ReadinessStatus,

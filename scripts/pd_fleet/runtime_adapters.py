@@ -7,15 +7,20 @@ or invoke a provider.  Execution remains opt-in through the existing
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 import re
-from typing import Any, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from typing import Any
 
 from .provider import CommandMetadata, RuntimeProviderProfile
 from .runtime_adapter import (
-    RuntimeConfigurationError, RuntimeErrorCode, RuntimeResult, RuntimeStatus,
-    RuntimeTaskEnvelope, TemplateRuntimeAdapter,
+    RuntimeConfigurationError,
+    RuntimeErrorCode,
+    RuntimeResult,
+    RuntimeStatus,
+    RuntimeTaskEnvelope,
+    TemplateRuntimeAdapter,
 )
 from .safe_rendering import PROVIDER_ERROR, UNSUPPORTED_TYPE, safe_text
 

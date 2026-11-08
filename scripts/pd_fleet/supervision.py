@@ -1,9 +1,10 @@
 """Read-only health signals, bounded interventions and deterministic diagnosis."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 import math
-from typing import Any, Mapping
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Any
 
 from .handoff import HandoffReason, _ref, _sanitize_text, _unsafe_identifier
 
@@ -204,4 +205,4 @@ def reconcile_snapshot(snapshot: HealthSnapshot, *, desired_state: str, active_o
     return SupervisorDiagnosis("healthy")
 
 
-__all__ = ["HealthSignal", "HealthSnapshot", "InterventionProposal", "SupervisorDiagnosis", "SupervisionError", "diagnose_snapshot", "reconcile_snapshot"]
+__all__ = ["HealthSignal", "HealthSnapshot", "InterventionProposal", "SupervisionError", "SupervisorDiagnosis", "diagnose_snapshot", "reconcile_snapshot"]

@@ -6,34 +6,39 @@ padrão. Persistência e observabilidade são hooks injetáveis e nunca obrigat�
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from copy import deepcopy
 import inspect
 import math
 import re
+from collections.abc import Callable, Iterable, Mapping
+from copy import deepcopy
+from dataclasses import dataclass, field
 from numbers import Real
-from typing import Any, Callable, Iterable, Mapping, Protocol
+from typing import Any, Protocol
 
 from .checkpoint import Checkpoint
+
 try:
     from .checkpoint import CheckpointV2Store
 except ImportError:  # pragma: no cover
     CheckpointV2Store = None
-from .dispatch import DispatchResult, Dispatcher
-from .lifecycle import LifecycleState, TaskLifecycle
+from .dispatch import Dispatcher, DispatchResult
 from .lifecycle import GatePolicy as LifecycleGatePolicy
+from .lifecycle import LifecycleState, TaskLifecycle
+
 try:
-    from .gates import GatePolicy as ContractGatePolicy, GateResult, HumanVerificationGate
+    from .gates import GatePolicy as ContractGatePolicy
+    from .gates import GateResult, HumanVerificationGate
 except ImportError:  # pragma: no cover
     ContractGatePolicy = None
     GateResult = None
     HumanVerificationGate = None
 from .models import FleetPlan, TaskSpec
-from .validation import ValidationReport, compute_ready_tasks, validate_plan
 from .safe_rendering import RUNTIME_ERROR, safe_repr, safe_repr_list, safe_text
+from .validation import ValidationReport, compute_ready_tasks, validate_plan
+
 try:
-    from .scheduler import LeaseScheduler
     from .parallel import BoundedParallelExecutor, TaskResult
+    from .scheduler import LeaseScheduler
 except ImportError:  # pragma: no cover - V1-only installations
     LeaseScheduler = None
     BoundedParallelExecutor = None
@@ -43,8 +48,9 @@ except ImportError:  # pragma: no cover - V1-only installations
 # this import additive so the V1 orchestrator remains importable in reduced
 # installations where contracts is unavailable.
 try:
-    from .contracts import V2_SCHEMA_VERSION as V2_PLAN_SCHEMA_VERSION, plan_hash as _contract_plan_hash
+    from .contracts import V2_SCHEMA_VERSION as V2_PLAN_SCHEMA_VERSION
     from .contracts import parse_agent_report_v2
+    from .contracts import plan_hash as _contract_plan_hash
 except ImportError:  # pragma: no cover - compatibility with V1-only installs
     V2_PLAN_SCHEMA_VERSION = "pd-fleet-plan:v2"
     _contract_plan_hash = None
@@ -349,7 +355,7 @@ class FleetOrchestrator:
         self._resume()
 
     @classmethod
-    def load(cls, plan: FleetPlan | Mapping[str, Any], **kwargs: Any) -> "FleetOrchestrator":
+    def load(cls, plan: FleetPlan | Mapping[str, Any], **kwargs: Any) -> FleetOrchestrator:
         """Alias explícito para carregar um FleetPlan sem executar."""
         return cls(plan, **kwargs)
 
@@ -1018,12 +1024,12 @@ class FleetOrchestrator:
     @staticmethod
     def _wave_key(value: str) -> str:
         value = str(value).strip().lower()
-        return value[5:] if value.startswith("wave-") else value
+        return value.removeprefix("wave-")
 
     @staticmethod
     def _wave_number(value: Any) -> int:
         text = str(value).strip().lower()
-        text = text[5:] if text.startswith("wave-") else text
+        text = text.removeprefix("wave-")
         try:
             return max(0, int(text))
         except (TypeError, ValueError):
@@ -1155,7 +1161,7 @@ class FleetOrchestrator:
             if text in self.context:
                 if bool(self.context[text]): return True
                 continue
-            match = re.match(r"^([\w.-]+)\s*(?:==|=|is)\s*(.+)$", text, re.I)
+            match = re.match(r"^([\w.-]+)\s*(?:==|=|is)\s*(.+)$", text, re.IGNORECASE)
             if match and match.group(1) in self.context:
                 expected = match.group(2).strip().strip("'\"")
                 if str(self.context[match.group(1)]).lower() == expected.lower(): return True
@@ -1347,4 +1353,4 @@ class FleetOrchestrator:
 
 
 Orchestrator = FleetOrchestrator
-__all__ = ["FleetOrchestrator", "Orchestrator", "OrchestrationResult", "TaskReport", "OrchestratorError", "LifecycleHooks"]
+__all__ = ["FleetOrchestrator", "LifecycleHooks", "OrchestrationResult", "Orchestrator", "OrchestratorError", "TaskReport"]

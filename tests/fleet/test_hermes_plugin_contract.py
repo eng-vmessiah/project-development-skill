@@ -1,19 +1,18 @@
 """Red-first tests for the local/injected B15a lifecycle-only plugin contract."""
 from __future__ import annotations
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 
-from pd_fleet.hermes_plugin_contract import (  # noqa: E402
+from pd_fleet.hermes_plugin_contract import (
     PluginContractError,
     PluginLoadStatus,
     load_lifecycle_plugin,
 )
-
 
 MANIFEST = {
     "name": "pd-fleet-hermes",

@@ -8,11 +8,8 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
+from pd_fleet.run_store import FleetRunStore, LeaseError, RunStoreError
 from test_run_store import PLAN, _complete_report
-from pd_fleet.run_store import FleetRunStore, LeaseError
-from pd_fleet.run_store import RunStoreError
-
-
 
 
 def test_append_terminal_event_if_absent_is_idempotent_and_does_not_rewrite(tmp_path: Path):

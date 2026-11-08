@@ -7,7 +7,7 @@ from types import MappingProxyType
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-from pd_fleet.gates import GateError, GatePolicy, GateResult, GateStatus  # noqa: E402
+from pd_fleet.gates import GateError, GatePolicy, GateResult, GateStatus
 
 
 def complete(kind="review", **overrides):

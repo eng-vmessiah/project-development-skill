@@ -1,12 +1,12 @@
 """Bounded lifecycle/checkpoint projections onto the append-only fleet event log."""
 from __future__ import annotations
 
-from copy import deepcopy
-from datetime import datetime
 import hashlib
 import json
 import re
 from collections.abc import Mapping
+from copy import deepcopy
+from datetime import datetime
 from typing import Any
 
 from .events import EventError, EventLog, FleetEvent
@@ -17,7 +17,7 @@ _DEFAULT_CREATED_AT = "1970-01-01T00:00:00+00:00"
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 _UNSAFE_REASON = re.compile(
     r"(?:secret|token|password|passwd|api[_-]?key|authorization|credential|prompt|cot|chain.?of.?thought|pid|process[_-]?id|handle|native|https?://|ftp://|www\.|[\x00-\x1f\x7f])",
-    re.I,
+    re.IGNORECASE,
 )
 
 
@@ -157,7 +157,7 @@ def _is_empty_mapping(value: Any) -> bool:
         raise EventError("checkpoint mapping não pôde ser avaliado") from exc
 
 
-def _identity(run_id: str, task_id: str | None, sequence: int | float, kind: str) -> str:
+def _identity(run_id: str, task_id: str | None, sequence: float, kind: str) -> str:
     raw = json.dumps([run_id, task_id, sequence, kind], ensure_ascii=False, separators=(",", ":"))
     return "e2-" + hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
@@ -171,7 +171,7 @@ class LifecycleEventRecorder:
     """
 
     def __init__(self, event_log: EventLog, run_id: str | None = None,
-                 owner_epoch: int | float | None = None) -> None:
+                 owner_epoch: float | None = None) -> None:
         if not isinstance(event_log, EventLog):
             raise TypeError("event_log deve ser EventLog")
         if run_id is not None and run_id != event_log.run_id:
@@ -183,7 +183,7 @@ class LifecycleEventRecorder:
         self.owner_epoch = event_log.owner_epoch if owner_epoch is None else owner_epoch
 
     def record_transition(self, lifecycle: Any, from_state: Any, to_state: Any,
-                          sequence: int | float, reason: str | None = None,
+                          sequence: float, reason: str | None = None,
                           created_at: str | None = None) -> FleetEvent:
         snapshot = _deepcopy(lifecycle, "lifecycle")
         task_id = _attribute(snapshot, "task_id")
@@ -215,7 +215,7 @@ class LifecycleEventRecorder:
         )
         return self.event_log.append(event)
 
-    def record_checkpoint(self, checkpoint: Any, sequence: int | float,
+    def record_checkpoint(self, checkpoint: Any, sequence: float,
                           created_at: str | None = None) -> FleetEvent:
         snapshot = _deepcopy(checkpoint, "checkpoint")
         if isinstance(snapshot, Mapping):

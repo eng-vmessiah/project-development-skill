@@ -2,11 +2,18 @@ import json
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+
 import pytest
+
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 from pd_fleet.checkpoint import (
-    Checkpoint, CheckpointError, DurableCheckpointStore, CheckpointV2Store,
-    save_checkpoint_v2, load_checkpoint_v2, resume_checkpoint_v2,
+    Checkpoint,
+    CheckpointError,
+    CheckpointV2Store,
+    DurableCheckpointStore,
+    load_checkpoint_v2,
+    resume_checkpoint_v2,
+    save_checkpoint_v2,
 )
 
 

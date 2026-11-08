@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-from pd_fleet.models import (  # noqa: E402
+from pd_fleet.models import (
     AgentSpec,
     FleetPlan,
     FleetPlanError,
@@ -16,7 +16,6 @@ from pd_fleet.models import (  # noqa: E402
     TaskSpec,
     WaveSpec,
 )
-
 
 MIN_TASK = {"id": "T-1", "wave": 1, "role": "coder", "objective": "build it"}
 

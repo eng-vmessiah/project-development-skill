@@ -6,11 +6,9 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import sys
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -22,13 +20,7 @@ from pd import (
     _FISH_COMPLETION,
     _ZSH_COMPLETION,
     PD,
-    PDConfig,
     PDState,
-    PDError,
-    FeatureNotFoundError,
-    FeatureExistsError,
-    PhaseError,
-    ConfigError,
 )
 
 

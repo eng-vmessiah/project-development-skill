@@ -8,9 +8,19 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-from pd_fleet.run_store import FleetRunStore, LeaseError
-from pd_fleet.run_store import GenerationConflictError, OwnerMismatchError, RunStoreError
-from pd_fleet.scheduler import CapacityExceeded, LeaseScheduler, OwnershipConflict, SchedulerError
+from pd_fleet.run_store import (
+    FleetRunStore,
+    GenerationConflictError,
+    LeaseError,
+    OwnerMismatchError,
+    RunStoreError,
+)
+from pd_fleet.scheduler import (
+    CapacityExceeded,
+    LeaseScheduler,
+    OwnershipConflict,
+    SchedulerError,
+)
 
 PLAN = {"schema_version": "pd-fleet-plan:v2", "tasks": [
     {"id": "b", "depends_on": [], "allowed_paths": ["src/b.py"]},

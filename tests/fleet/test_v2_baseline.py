@@ -7,7 +7,6 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-
 # This is an intentional, explicit handoff fixture.  A later test-count drift must
 # be reported in the handoff, not make this baseline contract fail.
 BASELINE_METADATA = {

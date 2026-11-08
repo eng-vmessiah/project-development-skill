@@ -1,29 +1,34 @@
 """TDD checks for the pure runtime adapter boundary."""
 from __future__ import annotations
 
-from collections.abc import Mapping
 import ast
 import json
-from pathlib import Path
 import sys
+from collections.abc import Mapping
+from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-from pd_fleet.provider import CommandMetadata, RuntimePolicy, RuntimeProviderProfile, default_runtime_profiles  # noqa: E402
-from pd_fleet.runtime_adapter import (  # noqa: E402
-    RuntimeErrorCode,
-    RuntimeStatus,
-    RuntimeTaskEnvelope,
+from pd_fleet.provider import (
+    CommandMetadata,
+    RuntimePolicy,
+    RuntimeProviderProfile,
+    default_runtime_profiles,
+)
+from pd_fleet.runtime_adapter import (
     RuntimeCapabilityError,
     RuntimeConfigurationError,
+    RuntimeErrorCode,
     RuntimeResult,
     RuntimeRunnerRequiredError,
-    runtime_adapters,
+    RuntimeStatus,
+    RuntimeTaskEnvelope,
     build_claude_code_argv,
     build_codex_cli_argv,
     build_hermes_argv,
     build_opencode_go_argv,
+    runtime_adapters,
 )
 
 
@@ -239,7 +244,7 @@ def test_profile_never_stores_raw_command_or_execution_accessor() -> None:
 
 
 def test_runtime_timeout_policy_and_reserved_argv_metadata() -> None:
-    from pd_fleet.runtime_adapter import _runtime_timeout, TemplateRuntimeAdapter
+    from pd_fleet.runtime_adapter import TemplateRuntimeAdapter, _runtime_timeout
 
     assert _runtime_timeout({}) == 10.0
     assert _runtime_timeout({"timeout_seconds": 30}) == 30.0

@@ -13,8 +13,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-import plan_cockpit_sync as pc  # noqa: E402
-import pd_fleet.activity_emit as ae  # noqa: E402
+import pd_fleet.activity_emit as ae
+import plan_cockpit_sync as pc
 
 ROW_KEYS = {"agente", "fonte", "fidelity", "status", "heartbeat", "acao", "arquivos", "nota"}
 

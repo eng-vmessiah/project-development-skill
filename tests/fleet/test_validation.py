@@ -1,6 +1,6 @@
-import sys
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -17,8 +17,8 @@ try:
     )
 except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).parents[2]))
-    from scripts.pd_fleet.models import FleetPlan  # noqa: E402
-    from scripts.pd_fleet.validation import (  # noqa: E402
+    from scripts.pd_fleet.models import FleetPlan
+    from scripts.pd_fleet.validation import (
         FleetValidationError,
         compute_ready_tasks,
         validate_dag,

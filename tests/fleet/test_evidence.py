@@ -5,7 +5,12 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-from pd_fleet.evidence import EvidenceError, EvidenceRecord, EvidenceStore, EvidenceValidationError
+from pd_fleet.evidence import (
+    EvidenceError,
+    EvidenceRecord,
+    EvidenceStore,
+    EvidenceValidationError,
+)
 
 NOW = "2026-01-01T00:00:00Z"
 

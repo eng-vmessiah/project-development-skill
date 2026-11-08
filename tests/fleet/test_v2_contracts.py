@@ -10,11 +10,11 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-from pd_fleet.contracts import (  # noqa: E402
-    ContractValidationError,
-    ReconciliationInput,
+from pd_fleet.contracts import (
     AgentContract,
     AgentReport,
+    ContractValidationError,
+    ReconciliationInput,
     canonical_json_bytes,
     canonicalize,
     plan_hash,
@@ -24,7 +24,7 @@ from pd_fleet.contracts import (  # noqa: E402
 
 def test_canonical_json_and_golden_hash_bytes() -> None:
     plan = {"schema_version": "pd-fleet-plan:v2", "name": "café", "tasks": [{"task_id": "T1"}], "timestamp": "2026-01-01T00:00:00Z"}
-    expected = '{"name":"café","schema_version":"pd-fleet-plan:v2","tasks":[{"task_id":"T1"}]}' .encode("utf-8")
+    expected = '{"name":"café","schema_version":"pd-fleet-plan:v2","tasks":[{"task_id":"T1"}]}' .encode()
     assert canonical_json_bytes(plan) == expected
     assert plan_hash(plan) == hashlib.sha256(b"pd-fleet-plan:v2\0" + expected).hexdigest()
 

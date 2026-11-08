@@ -6,9 +6,9 @@ one optional local bridge association are injected and deliberately opaque.
 """
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from math import isfinite
-from typing import Any, Callable
+from typing import Any
 
 FLEET_RPC_NAMESPACE = "fleet"
 FLEET_SESSION_ACTIVATE_NAME = "session.activate"
@@ -202,12 +202,12 @@ __all__ = [
     "FLEET_RPC_NAMESPACE",
     "FLEET_SESSION_ACTIVATE_NAME",
     "FLEET_SESSION_ACTIVATE_SCHEMA_VERSION",
-    "FLEET_SESSION_STATUS_NAME",
-    "FLEET_SESSION_STATUS_SCHEMA_VERSION",
     "FLEET_SESSION_DEACTIVATE_NAME",
     "FLEET_SESSION_DEACTIVATE_SCHEMA_VERSION",
     "FLEET_SESSION_REPLAY_NAME",
     "FLEET_SESSION_REPLAY_SCHEMA_VERSION",
+    "FLEET_SESSION_STATUS_NAME",
+    "FLEET_SESSION_STATUS_SCHEMA_VERSION",
     "FleetD1RegistrationBridge",
     "FleetD1RegistrationError",
 ]

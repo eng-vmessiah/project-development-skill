@@ -5,18 +5,19 @@ snapshot and epoch, but does not claim to provide a distributed lease or CAS.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-from enum import Enum
+import fcntl
 import hashlib
 import json
 import math
 import os
-from pathlib import PurePath
 import re
 import tempfile
-import fcntl
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import PurePath
 from types import MappingProxyType
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 from .contracts import _EXTERNAL_URL, _redact_paths, _redact_sensitive_text
 

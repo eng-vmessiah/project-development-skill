@@ -33,7 +33,7 @@ def main() -> None:
             answers = raw.get("answers", raw) if isinstance(raw, dict) else raw
             results.append({"id": req["id"], "answers": answers, "latency_ms": latency_ms,
                             "backend": backend_name, "model": model})
-        except Exception as exc:  # noqa: BLE001 — report, never crash the batch
+        except Exception as exc:
             errors.append({"id": req.get("id"), "error": f"{type(exc).__name__}: {exc}"})
     Path(args.out).write_text(
         json.dumps({"results": results, "errors": errors}, ensure_ascii=False, indent=2) + "\n",

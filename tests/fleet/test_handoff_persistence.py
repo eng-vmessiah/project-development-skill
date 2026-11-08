@@ -2,13 +2,13 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-from pd_fleet.handoff import HandoffArtifact, HandoffStore, create_handoff  # noqa: E402
+from pd_fleet.handoff import HandoffArtifact, HandoffStore, create_handoff
 
 
 def _artifact(*, epoch: int = 3, task: str = "T-001") -> HandoffArtifact:

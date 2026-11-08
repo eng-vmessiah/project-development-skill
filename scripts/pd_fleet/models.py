@@ -6,14 +6,14 @@ posteriores.
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
 import copy
 import json
 import math
-from typing import Any, ClassVar, Mapping
+from collections.abc import Mapping
+from dataclasses import asdict, dataclass, field
+from typing import Any, ClassVar
 
 from .contracts import canonical_json_bytes, canonicalize
-
 
 SCHEMA_VERSION = "1"
 
@@ -41,7 +41,7 @@ class CanonicalOutput:
         return copy.deepcopy(self._value)
 
     @classmethod
-    def from_value(cls, value: Mapping[str, Any]) -> "CanonicalOutput":
+    def from_value(cls, value: Mapping[str, Any]) -> CanonicalOutput:
         return cls(value)
 
     def to_dict(self) -> dict[str, Any]:
@@ -137,7 +137,7 @@ class AgentSpec:
     status: str = "available"
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any] | "AgentSpec") -> "AgentSpec":
+    def from_dict(cls, value: Mapping[str, Any] | AgentSpec) -> AgentSpec:
         if isinstance(value, cls):
             return value
         if not isinstance(value, Mapping):
@@ -155,7 +155,7 @@ class OutputSpec:
     required: bool = True
 
     @classmethod
-    def from_dict(cls, value: Any) -> "OutputSpec":
+    def from_dict(cls, value: Any) -> OutputSpec:
         if isinstance(value, cls):
             return value
         if isinstance(value, str):
@@ -197,7 +197,7 @@ class RetryPolicy:
         return self.retryable_errors
 
     @classmethod
-    def from_dict(cls, value: Any) -> "RetryPolicy":
+    def from_dict(cls, value: Any) -> RetryPolicy:
         if value is None:
             return cls()
         if isinstance(value, cls):
@@ -256,7 +256,7 @@ class TaskSpec:
     REQUIRED: ClassVar[tuple[str, ...]] = ("id", "wave", "role", "objective")
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any] | "TaskSpec") -> "TaskSpec":
+    def from_dict(cls, value: Mapping[str, Any] | TaskSpec) -> TaskSpec:
         if isinstance(value, cls):
             return value
         if not isinstance(value, Mapping):
@@ -292,7 +292,7 @@ class WaveSpec:
     gates: list[str] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any] | "WaveSpec") -> "WaveSpec":
+    def from_dict(cls, value: Mapping[str, Any] | WaveSpec) -> WaveSpec:
         if isinstance(value, cls):
             return value
         if not isinstance(value, Mapping):
@@ -312,7 +312,7 @@ class GateSpec:
     required_evidence: list[str] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any] | "GateSpec") -> "GateSpec":
+    def from_dict(cls, value: Mapping[str, Any] | GateSpec) -> GateSpec:
         if isinstance(value, cls):
             return value
         if not isinstance(value, Mapping):
@@ -341,7 +341,7 @@ class FleetPlan:
     gates: list[GateSpec] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any] | "FleetPlan") -> "FleetPlan":
+    def from_dict(cls, value: Mapping[str, Any] | FleetPlan) -> FleetPlan:
         if isinstance(value, cls):
             return value
         if not isinstance(value, Mapping):
@@ -369,7 +369,7 @@ class FleetPlan:
             raise FleetPlanError("plano não pode ser serializado como JSON válido") from exc
 
     @classmethod
-    def from_json(cls, value: str) -> "FleetPlan":
+    def from_json(cls, value: str) -> FleetPlan:
         try:
             data = json.loads(value)
         except json.JSONDecodeError as exc:

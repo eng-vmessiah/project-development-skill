@@ -12,17 +12,31 @@ mapping (``run_id``, ``task_id``, ``lease_id``, ``generation``, and
 ``expires_at``), rather than the mutated snapshot.
 """
 from __future__ import annotations
-from copy import deepcopy
+
+import errno
+import hashlib
+import inspect
+import json
+import math
+import os
+import re
+import secrets
+import stat
+import threading
 from contextlib import contextmanager
-from datetime import datetime, timezone, timedelta
-import errno, hashlib, inspect, json, math, os, re, secrets, stat, threading
+from copy import deepcopy
+from datetime import datetime, timedelta, timezone
+
 try:
     import fcntl
 except ImportError:  # pragma: no cover - exercised by portability tests
     fcntl = None
+from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any
+
 from .contracts import canonicalize, plan_hash
+
 
 class RunStoreError(RuntimeError): pass
 class RunNotFoundError(RunStoreError): pass
@@ -636,4 +650,4 @@ class FleetRunStore:
             return sorted(deepcopy(state["events"]), key=lambda event: (event["ordering_key"], event["sequence"]))
         return deepcopy(state if key is None else state.get(key))
 
-__all__=["FleetRunStore","RunStoreError","RunNotFoundError","OwnerMismatchError","GenerationConflictError","LeaseError","DuplicateCommitError","PathContainmentError","CorruptSnapshotError"]
+__all__=["CorruptSnapshotError", "DuplicateCommitError", "FleetRunStore", "GenerationConflictError", "LeaseError", "OwnerMismatchError", "PathContainmentError", "RunNotFoundError", "RunStoreError"]

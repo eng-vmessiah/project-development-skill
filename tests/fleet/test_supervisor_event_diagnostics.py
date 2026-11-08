@@ -8,10 +8,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 
-from pd_fleet.event_diagnostics import EventDiagnosticsReport, diagnose_event_log  # noqa: E402
-from pd_fleet.events import EventError, EventLog, FleetEvent, MAX_QUERY  # noqa: E402
-from pd_fleet.supervisor import FleetSupervisor  # noqa: E402
-
+from pd_fleet.event_diagnostics import EventDiagnosticsReport, diagnose_event_log
+from pd_fleet.events import MAX_QUERY, EventError, EventLog, FleetEvent
+from pd_fleet.supervisor import FleetSupervisor
 
 STAMP = "2026-01-01T00:00:00+00:00"
 

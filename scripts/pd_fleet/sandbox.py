@@ -11,16 +11,16 @@ Linux/WSL is the supported target.  Shell parsing is never used.
 """
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-import os
 import math
-from pathlib import Path
+import os
 import re
 import selectors
 import signal
 import stat
 import subprocess
 import time
+from collections.abc import Mapping, Sequence
+from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 

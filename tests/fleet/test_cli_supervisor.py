@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-from pd import PD  # noqa: E402
-from pd_fleet.handoff import HandoffStore, create_handoff  # noqa: E402
+from pd import PD
+from pd_fleet.handoff import HandoffStore, create_handoff
 
 
 def _run(tmp_path, *args):

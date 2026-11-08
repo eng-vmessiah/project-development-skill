@@ -9,9 +9,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
-
+from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
-from typing import Iterable
 
 SCHEMA_VERSION = "pd-fleet-doc-paths:v1"
 V2_DOCS = ".spec/pd-fleet-orchestration-v2"
@@ -63,7 +62,7 @@ def _inline_create(rest: str, start: int, end: int, code_spans: list[tuple[int, 
 
 def _relative_path(raw: str) -> str:
     value = raw.strip().replace("\\", "/")
-    return value[2:] if value.startswith("./") else value
+    return value.removeprefix("./")
 
 
 def check_repo(repo_root: str | Path) -> dict[str, object]:

@@ -6,15 +6,16 @@ It is a deterministic contract harness, not an execution runtime.
 """
 from __future__ import annotations
 
-from copy import deepcopy
-from dataclasses import dataclass, field
-from enum import Enum
 import hashlib
 import json
 import math
 import re
 import threading
-from typing import Any, Mapping
+from collections.abc import Mapping
+from copy import deepcopy
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
 
 SCHEMA_VERSION = "pd-fleet-hermes-adapter:v0"
 _SAFE_ID = re.compile(r"^[a-z0-9][a-z0-9._-]*$")

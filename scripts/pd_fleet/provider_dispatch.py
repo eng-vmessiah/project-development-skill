@@ -6,20 +6,29 @@ start nested agents, or perform implicit failover.
 """
 from __future__ import annotations
 
+import re
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from enum import Enum
-import re
 from types import MappingProxyType
-from typing import Any, Iterable, Mapping, cast
+from typing import Any, cast
 
 from .provider import RuntimeProviderProfile
 from .provider_routing import (
-    ProviderAuditEvent, ProviderRoutePolicy, ProviderRouteResult,
-    RouteStatus, profile_id, route_provider,
+    ProviderAuditEvent,
+    ProviderRoutePolicy,
+    ProviderRouteResult,
+    RouteStatus,
+    profile_id,
+    route_provider,
 )
 from .runtime_adapter import (
-    ALLOWED_CAPABILITIES, ALLOWED_PATHS,
-    RuntimeAdapter, RuntimeErrorCode, RuntimeResult, RuntimeStatus,
+    ALLOWED_CAPABILITIES,
+    ALLOWED_PATHS,
+    RuntimeAdapter,
+    RuntimeErrorCode,
+    RuntimeResult,
+    RuntimeStatus,
     RuntimeTaskEnvelope,
 )
 

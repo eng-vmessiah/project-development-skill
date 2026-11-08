@@ -2,15 +2,15 @@
 from __future__ import annotations
 
 import ast
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2]))
 
-from scripts.pd_fleet.tui_d1_batch_registrar_adapter import TuiD1BatchRegistrarAdapter  # noqa: E402
+from scripts.pd_fleet.tui_d1_batch_registrar_adapter import TuiD1BatchRegistrarAdapter
 
 
 def test_adapter_forwards_one_batch_and_enabled_as_a_keyword() -> None:

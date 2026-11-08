@@ -1,8 +1,14 @@
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
+from pd_fleet.dispatch import (
+    AdapterDeniedError,
+    Dispatcher,
+    DispatchResult,
+    UnknownAdapterError,
+)
 from pd_fleet.orchestrator import FleetOrchestrator
-from pd_fleet.dispatch import Dispatcher, DispatchResult, AdapterDeniedError, UnknownAdapterError
 
 
 def task(i="a"):

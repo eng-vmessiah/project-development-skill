@@ -6,11 +6,12 @@ already-known profile catalog and readiness information.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-from enum import Enum
 import json
 import re
-from typing import Any, Iterable, Sequence
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
+from enum import Enum
+from typing import Any
 
 from .provider import ReadinessStatus, RuntimeProviderProfile
 

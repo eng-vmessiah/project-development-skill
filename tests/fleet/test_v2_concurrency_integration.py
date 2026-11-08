@@ -1,15 +1,13 @@
 """T2-14 integration contract: workers are pure, commits are canonical."""
-from pathlib import Path
 import sys
 import threading
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 
-from pd_fleet.parallel import BoundedParallelExecutor
-
-from pd_fleet.orchestrator import FleetOrchestrator
 from pd_fleet.checkpoint import Checkpoint
-
+from pd_fleet.orchestrator import FleetOrchestrator
+from pd_fleet.parallel import BoundedParallelExecutor
 
 PLAN = {"schema_version": "1", "tasks": [
     {"id": "b", "wave": "1", "role": "worker", "objective": "b", "acceptance_criteria": ["ok"], "outputs": ["result"], "validation_commands": ["declared"]},

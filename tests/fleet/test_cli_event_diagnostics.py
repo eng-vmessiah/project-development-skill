@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-from pd import PD  # noqa: E402
+from pd import PD
 
 
 def test_parser_dispatches_event_command_without_feature_discovery(monkeypatch, tmp_path, capsys):

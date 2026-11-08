@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import sys
 import threading
 from collections.abc import Mapping
@@ -12,7 +11,13 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-from pd_fleet.events import EventLog, FleetEvent, MAX_COLLECTION, MAX_LOG_BYTES, MAX_LOG_LINE_BYTES  # noqa: E402
+from pd_fleet.events import (
+    MAX_COLLECTION,
+    MAX_LOG_BYTES,
+    MAX_LOG_LINE_BYTES,
+    EventLog,
+    FleetEvent,
+)
 
 
 class HostileValue:

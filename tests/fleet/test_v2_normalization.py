@@ -2,14 +2,13 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-from pd_fleet.models import CanonicalOutput, FleetPlan, normalize_output  # noqa: E402
-
+from pd_fleet.models import CanonicalOutput, FleetPlan, normalize_output
 
 BASE = {
     "schema_version": "pd-fleet-plan:v2",
@@ -40,7 +39,7 @@ def test_permutations_have_golden_utf8_json_bytes() -> None:
         '"schema_version":"pd-fleet-plan:v2","tasks":[{"capabilities":["a","z"],'
         '"result":null,"task_id":"b"},{"capabilities":["a","b"],"result":null,'
         '"task_id":"a"}]}'
-    ).encode("utf-8")
+    ).encode()
     # Task order is meaningful; field and set-like collection order is not.
     assert CanonicalOutput.from_value(first).json_bytes == expected
     assert CanonicalOutput.from_value(second).json_bytes == expected

@@ -5,8 +5,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 from pd_fleet.checkpoint import Checkpoint, DurableCheckpointStore
 from pd_fleet.contracts import plan_hash
-from pd_fleet.orchestrator import FleetOrchestrator
 from pd_fleet.models import FleetPlan
+from pd_fleet.orchestrator import FleetOrchestrator
 
 
 def task(task_id="a"):

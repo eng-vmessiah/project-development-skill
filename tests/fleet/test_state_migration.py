@@ -6,8 +6,7 @@ from unittest.mock import patch
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-from pd import PDState
-from pd import TransactionRecoveryError
+from pd import PDState, TransactionRecoveryError
 
 
 def feature(tmp_path):

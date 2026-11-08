@@ -8,19 +8,32 @@ NOT_READY and this bridge does not invent JWT or signature validation.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import inspect
 import json
 import sqlite3
-import inspect
+from collections.abc import Mapping
 from dataclasses import replace
+from datetime import datetime, timezone
 from itertools import islice
 from threading import RLock
-from typing import Any, Mapping
+from typing import Any
 
 from .gateway_bridge_contracts import (
-    SCHEMA_VERSION, MAX_REPLAY_BATCH, ActivationTicketRef, AssociationRef, BridgeCursor,
-    BridgeErrorCode, BridgeEvent, BridgeValidationError, ObserverIdentity,
-    OwnershipMode, ReplayWindow, SessionSnapshot, canonical_json, _ref, _string,
+    MAX_REPLAY_BATCH,
+    SCHEMA_VERSION,
+    ActivationTicketRef,
+    AssociationRef,
+    BridgeCursor,
+    BridgeErrorCode,
+    BridgeEvent,
+    BridgeValidationError,
+    ObserverIdentity,
+    OwnershipMode,
+    ReplayWindow,
+    SessionSnapshot,
+    _ref,
+    _string,
+    canonical_json,
 )
 
 _MAX_STORE_BYTES = 64 * 1024
@@ -363,7 +376,7 @@ class FleetGatewayBridge:
         self._store = store or _Store(None if in_memory or store_path is None else store_path, max_events=journal_event_limit, max_pending_events=journal_pending_limit)
         self._connection = None; self._closed = False; self._lock = RLock()
 
-    def connect(self) -> "FleetGatewayBridge":
+    def connect(self) -> FleetGatewayBridge:
         with self._lock:
             if self._closed: _fail(BridgeErrorCode.ASSOCIATION_STALE, "closed")
             self._connection = self.gateway.connect(self.observer)
@@ -571,8 +584,8 @@ class FleetGatewayBridge:
         event: Any = None
         try:
             result = self.connection.heartbeat(association)
-            snapshot = getattr(result, "snapshot")
-            event = getattr(result, "event")
+            snapshot = result.snapshot
+            event = result.event
         except (AttributeError, TypeError, ValueError):
             _fail(BridgeErrorCode.INVALID_EVENT, "malformed_heartbeat_result")
         if not isinstance(snapshot, SessionSnapshot):

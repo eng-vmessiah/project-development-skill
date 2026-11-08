@@ -6,17 +6,17 @@ URLs e credenciais são recusados explicitamente (fail closed).
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field, is_dataclass, fields
-from hashlib import sha256
+import inspect
 import json
 import re
-import inspect
+from collections.abc import Mapping
 from copy import deepcopy
+from dataclasses import asdict, dataclass, field, fields, is_dataclass
+from hashlib import sha256
 from types import MappingProxyType
-from typing import Any, Mapping, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
+
 from .safe_rendering import UNSUPPORTED_TYPE, safe_text
-
-
 
 _OUTPUT_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 
@@ -40,7 +40,7 @@ class DispatchAdapter(Protocol):
     @property
     def name(self) -> str: ...
 
-    def dispatch(self, task: Any, context: Mapping[str, Any]) -> "DispatchResult": ...
+    def dispatch(self, task: Any, context: Mapping[str, Any]) -> DispatchResult: ...
 
 
 @dataclass(frozen=True)

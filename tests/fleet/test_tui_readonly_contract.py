@@ -3,25 +3,24 @@
 from __future__ import annotations
 
 import sys
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-import threading
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 
 import pytest
-
+from pd_fleet.gateway_bridge_contracts import OwnershipMode, SessionSnapshot
 from pd_fleet.tui_readonly_contract import (
-    TUI_SNAPSHOT_METHOD,
     TUI_SCHEMA_VERSION,
-    TuiContractError,
+    TUI_SNAPSHOT_METHOD,
     TuiBindingLease,
     TuiBindingRegistry,
+    TuiContractError,
     TuiHostBinding,
     TuiSnapshotRequest,
     build_snapshot_response,
 )
-from pd_fleet.gateway_bridge_contracts import OwnershipMode, SessionSnapshot
 
 
 def _snapshot() -> SessionSnapshot:

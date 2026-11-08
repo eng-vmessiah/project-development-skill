@@ -18,7 +18,6 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -29,7 +28,7 @@ RUNNING_FRESH_S = 20 * 60
 MAX_META_STR = 80
 
 
-def _iso(epoch: float | int | None) -> str | None:
+def _iso(epoch: float | None) -> str | None:
     if epoch is None:
         return None
     return datetime.fromtimestamp(float(epoch), tz=timezone.utc).isoformat(timespec="seconds")

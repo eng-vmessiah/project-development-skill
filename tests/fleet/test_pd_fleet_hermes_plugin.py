@@ -2,15 +2,14 @@
 from __future__ import annotations
 
 import importlib.util
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import yaml
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 
-from pd_fleet.hermes_plugin_contract import load_lifecycle_plugin, PluginLoadStatus  # noqa: E402
-
+from pd_fleet.hermes_plugin_contract import PluginLoadStatus, load_lifecycle_plugin
 
 PLUGIN_DIR = Path(__file__).parents[2] / "plugins" / "pd-fleet-hermes"
 

@@ -5,9 +5,10 @@ orchestrator fornece o instante corrente e decide quando invocar as operações.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 
 class LifecycleState(str, Enum):
@@ -111,7 +112,7 @@ class TaskLifecycle:
         target = _state(target)
         return target in VALID_TRANSITIONS[self.state]
 
-    def transition(self, target: LifecycleState | str, *, reason: str | None = None) -> "TaskLifecycle":
+    def transition(self, target: LifecycleState | str, *, reason: str | None = None) -> TaskLifecycle:
         target = _state(target)
         if not self.can_transition(target):
             raise InvalidTransition(f"{self.status} → {target.value} não permitido")
@@ -122,10 +123,10 @@ class TaskLifecycle:
         self.history.append({"from": previous, "to": target.value, "reason": reason})
         return self
 
-    def mark_ready(self) -> "TaskLifecycle":
+    def mark_ready(self) -> TaskLifecycle:
         return self.transition(LifecycleState.READY)
 
-    def start(self, agent: str, *, now: Any = None) -> "TaskLifecycle":
+    def start(self, agent: str, *, now: Any = None) -> TaskLifecycle:
         if not agent:
             raise LifecycleError("running exige agent")
         self.transition(LifecycleState.RUNNING)
@@ -136,7 +137,7 @@ class TaskLifecycle:
             self.started_at = self.heartbeat = _seconds(now)
         return self
 
-    def beat(self, *, now: Any) -> "TaskLifecycle":
+    def beat(self, *, now: Any) -> TaskLifecycle:
         if self.state != LifecycleState.RUNNING:
             raise InvalidTransition("heartbeat só é válido em running")
         self.heartbeat = _seconds(now)
@@ -144,7 +145,7 @@ class TaskLifecycle:
 
     heartbeat_at = beat
 
-    def complete(self, outputs: Any = None, evidence: Any = None, *, now: Any = None) -> "TaskLifecycle":
+    def complete(self, outputs: Any = None, evidence: Any = None, *, now: Any = None) -> TaskLifecycle:
         if self.state == LifecycleState.COMPLETED:
             return self  # resume/replay é idempotente
         if self.state != LifecycleState.RUNNING:
@@ -157,7 +158,7 @@ class TaskLifecycle:
         self.finished_at = _seconds(now) if now is not None else self.finished_at
         return self.transition(LifecycleState.COMPLETED)
 
-    def fail(self, error: str, *, retryable: bool = True, now: Any = None) -> "TaskLifecycle":
+    def fail(self, error: str, *, retryable: bool = True, now: Any = None) -> TaskLifecycle:
         if self.state != LifecycleState.RUNNING:
             raise InvalidTransition(f"{self.status} → failed não permitido")
         self.error = error
@@ -165,7 +166,7 @@ class TaskLifecycle:
         self.finished_at = _seconds(now) if now is not None else self.finished_at
         return self.transition(LifecycleState.FAILED, reason=error)
 
-    def retry(self, *, now: Any = None) -> "TaskLifecycle":
+    def retry(self, *, now: Any = None) -> TaskLifecycle:
         if self.state != LifecycleState.FAILED:
             raise InvalidTransition("retry só é permitido para failed")
         if self.attempt >= self.max_attempts:
@@ -176,12 +177,12 @@ class TaskLifecycle:
         self.error = None
         return self.transition(LifecycleState.READY, reason="explicit_retry")
 
-    def block(self, reason: str) -> "TaskLifecycle":
+    def block(self, reason: str) -> TaskLifecycle:
         if not reason or not reason.strip():
             raise LifecycleError("blocked exige motivo acionável")
         return self.transition(LifecycleState.BLOCKED, reason=reason)
 
-    def skip(self, reason: str) -> "TaskLifecycle":
+    def skip(self, reason: str) -> TaskLifecycle:
         if not reason or not reason.strip():
             raise LifecycleError("skipped exige decisão/razão")
         return self.transition(LifecycleState.SKIPPED, reason=reason)
@@ -209,7 +210,7 @@ class GatePolicy:
     allow_skipped_dependencies: bool = True
 
     @classmethod
-    def from_gates(cls, gates: Iterable[Any] = ()) -> "GatePolicy":
+    def from_gates(cls, gates: Iterable[Any] = ()) -> GatePolicy:
         required = []
         for gate in gates:
             if isinstance(gate, Mapping):
@@ -273,4 +274,4 @@ def transition(lifecycle: TaskLifecycle, target: LifecycleState | str, **kwargs:
 TaskState = LifecycleState
 Lifecycle = TaskLifecycle
 
-__all__ = ["LifecycleState", "TaskState", "TaskLifecycle", "Lifecycle", "GatePolicy", "LifecycleError", "InvalidTransition", "CompletionError", "RetryExhausted", "VALID_TRANSITIONS", "transition"]
+__all__ = ["VALID_TRANSITIONS", "CompletionError", "GatePolicy", "InvalidTransition", "Lifecycle", "LifecycleError", "LifecycleState", "RetryExhausted", "TaskLifecycle", "TaskState", "transition"]

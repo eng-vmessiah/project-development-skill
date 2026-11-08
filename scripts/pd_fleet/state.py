@@ -6,8 +6,9 @@ nível raiz continua sendo a lista legada de strings concluídas.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from copy import deepcopy
-from typing import Any, Mapping
+from typing import Any
 
 FLEET_STATE_SCHEMA_VERSION = 1
 FLEET_STATE_FIELDS = (

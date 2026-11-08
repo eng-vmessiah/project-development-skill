@@ -6,15 +6,16 @@ and means that an agent has no write scope (default deny).
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from copy import deepcopy
-from datetime import datetime, timezone
 import fnmatch
 import hashlib
 import json
 import math
 import re
-from typing import Any, ClassVar, Mapping
+from collections.abc import Mapping
+from copy import deepcopy
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import Any, ClassVar
 
 SCHEMA_VERSION = "1"
 
@@ -31,7 +32,7 @@ _SENSITIVE_KEYS = frozenset({
     "credential", "secret", "token", "password", "api_key", "access_key", "access_token",
     "private_key", "client_secret", "authorization", "bearer",
 })
-_SECRET_VALUE = re.compile(r"(?:bearer\s+\S+|sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9_]{8,}|AKIA[A-Z0-9]{12,})", re.I)
+_SECRET_VALUE = re.compile(r"(?:bearer\s+\S+|sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9_]{8,}|AKIA[A-Z0-9]{12,})", re.IGNORECASE)
 _EXTERNAL_URL = re.compile(r"(?i)(?:https?|ftp|wss?)://[^\s\"'<>]+")
 _ASSIGNMENT = re.compile(r"(?i)([A-Za-z][A-Za-z0-9_. -]{1,80})\s*[:=]\s*(\S+)")
 _SENSITIVE_VALUE = re.compile(
@@ -534,7 +535,7 @@ class RetryPolicy:
         self.retryable_errors = _texts(self.retryable_errors, "retryable_errors")
 
     @classmethod
-    def from_dict(cls, value: Any) -> "RetryPolicy":
+    def from_dict(cls, value: Any) -> RetryPolicy:
         if value is None:
             return cls()
         if isinstance(value, cls):
@@ -595,7 +596,7 @@ class AgentContract:
             raise ContractValidationError("schema_version não suportada")
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any] | "AgentContract") -> "AgentContract":
+    def from_dict(cls, value: Mapping[str, Any] | AgentContract) -> AgentContract:
         if isinstance(value, cls):
             return cls.from_dict(value.to_dict())
         if not isinstance(value, Mapping):
@@ -614,7 +615,7 @@ class AgentContract:
             raise ContractValidationError("contract não pode ser serializado como JSON") from exc
 
     @classmethod
-    def from_json(cls, value: str) -> "AgentContract":
+    def from_json(cls, value: str) -> AgentContract:
         try:
             return cls.from_dict(json.loads(value))
         except (json.JSONDecodeError, TypeError) as exc:
@@ -627,7 +628,7 @@ def _sanitize_error(value: Any) -> str:
     for line in text.splitlines():
         if re.search(r"(?i)traceback \(most recent call last\)", line):
             break
-        if re.search(r"^\s*file\s+[\"']|^\s*(?:at\s+)?(?:/|[A-Za-z]:[\\/])", line, re.I):
+        if re.search(r"^\s*file\s+[\"']|^\s*(?:at\s+)?(?:/|[A-Za-z]:[\\/])", line, re.IGNORECASE):
             continue
         line = _PATH_ASSIGNMENT.sub("", line)
         if line.strip():
@@ -707,7 +708,7 @@ class AgentReport:
             raise ContractValidationError("schema_version não suportada")
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any] | "AgentReport") -> "AgentReport":
+    def from_dict(cls, value: Mapping[str, Any] | AgentReport) -> AgentReport:
         if isinstance(value, cls):
             return cls.from_dict(value.to_dict())
         if not isinstance(value, Mapping):
@@ -727,7 +728,7 @@ class AgentReport:
             raise ContractValidationError("report não pode ser serializado como JSON") from exc
 
     @classmethod
-    def from_json(cls, value: str) -> "AgentReport":
+    def from_json(cls, value: str) -> AgentReport:
         try:
             return cls.from_dict(json.loads(value))
         except (json.JSONDecodeError, TypeError) as exc:
@@ -862,7 +863,7 @@ class AgentReportV2:
             raise _v2_error("unsupported schema version")
         if type(self.task_id) is not str or not self.task_id.strip() or type(self.agent_id) is not str or not self.agent_id.strip() or type(self.role) is not str or not self.role.strip():
             raise _v2_error("invalid identity field")
-        if type(self.agent) is not type(None) and (type(self.agent) is not str or not self.agent.strip() or self.agent.strip() != self.agent_id.strip()):
+        if (self.agent is not None) and (type(self.agent) is not str or not self.agent.strip() or self.agent.strip() != self.agent_id.strip()):
             raise _v2_error("conflicting identity aliases")
         if type(self.attempt) is not int or self.attempt < 1:
             raise _v2_error("invalid attempt")
@@ -911,11 +912,11 @@ class AgentReportV2:
         return json.dumps(self.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any], *, reject_unknown_fields: bool = True) -> "AgentReportV2":
+    def from_dict(cls, value: Mapping[str, Any], *, reject_unknown_fields: bool = True) -> AgentReportV2:
         return parse_agent_report_v2(value, reject_unknown_fields=reject_unknown_fields)
 
     @classmethod
-    def from_json(cls, value: str, *, reject_unknown_fields: bool = True) -> "AgentReportV2":
+    def from_json(cls, value: str, *, reject_unknown_fields: bool = True) -> AgentReportV2:
         try:
             decoded = json.loads(value)
         except (TypeError, json.JSONDecodeError) as exc:
@@ -1015,9 +1016,25 @@ def parse_agent_report_v2(value: Mapping[str, Any] | AgentReportV2, *, reject_un
 
 
 __all__ = [
-    "SCHEMA_VERSION", "MAX_RETRY_ATTEMPTS", "ContractError", "ContractValidationError", "RetryPolicy",
-    "AgentContract", "AgentReport", "AGENT_REPORT_V2_SCHEMA_VERSION", "MAX_REPORT_RETRY_ATTEMPTS",
-    "AgentReportV2", "parse_agent_report_v2", "redact_report_value", "V2_SCHEMA_VERSION", "V2_HASH_DOMAIN",
-    "canonicalize", "canonical_json_bytes", "plan_hash", "ReconciliationInput", "ReconciliationError",
-    "ReconciliationResult", "reconcile",
+    "AGENT_REPORT_V2_SCHEMA_VERSION",
+    "MAX_REPORT_RETRY_ATTEMPTS",
+    "MAX_RETRY_ATTEMPTS",
+    "SCHEMA_VERSION",
+    "V2_HASH_DOMAIN",
+    "V2_SCHEMA_VERSION",
+    "AgentContract",
+    "AgentReport",
+    "AgentReportV2",
+    "ContractError",
+    "ContractValidationError",
+    "ReconciliationError",
+    "ReconciliationInput",
+    "ReconciliationResult",
+    "RetryPolicy",
+    "canonical_json_bytes",
+    "canonicalize",
+    "parse_agent_report_v2",
+    "plan_hash",
+    "reconcile",
+    "redact_report_value",
 ]

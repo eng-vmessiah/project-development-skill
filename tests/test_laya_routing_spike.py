@@ -9,8 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-import pd_fleet.laya_routing_spike as spike  # noqa: E402
-
+import pd_fleet.laya_routing_spike as spike
 
 EV = {"event_id": "e1", "source": "hermes", "ts": "2026-10-09T22:53:27+00:00", "agent_id": "hermes:desktop",
       "kind": "status", "status": "running", "action": "terminal",

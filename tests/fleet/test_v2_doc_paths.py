@@ -1,10 +1,9 @@
 """TDD contract for the offline V2 documentation path/link checker."""
 from __future__ import annotations
 
+import importlib.util
 import json
 from pathlib import Path
-import importlib.util
-
 
 _MODULE_PATH = Path(__file__).parents[2] / "scripts" / "pd_fleet" / "v2_doc_paths.py"
 _spec = importlib.util.spec_from_file_location("v2_doc_paths", _MODULE_PATH)

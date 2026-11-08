@@ -7,24 +7,29 @@ runner and its runner-issued capability.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import Enum
 import json
 import os
-from pathlib import Path
+import re
 import selectors
 import shutil
 import signal
 import subprocess
 import time
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from enum import Enum
+from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Mapping, Protocol, Sequence
+from typing import Any, Protocol
+
+from .provider import (
+    CommandMetadata,
+    ReadinessStatus,
+    RuntimeProviderProfile,
+    assess_readiness,
+)
 from .safe_rendering import PROVIDER_ERROR, UNSUPPORTED_TYPE, safe_text
-import re
-
-from .provider import CommandMetadata, RuntimeProviderProfile, ReadinessStatus, assess_readiness
 from .sandbox import SandboxCapability
-
 
 # Local status checks are deliberately separate from the older, capability
 # gated version probe below.  The command table is closed: callers cannot add

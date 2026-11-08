@@ -2,19 +2,23 @@
 from __future__ import annotations
 
 import ast
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 
-from pd_fleet.gateway_bridge_contracts import MAX_REPLAY_BATCH, ReplayWindow, SessionSnapshot  # noqa: E402
-from pd_fleet.hermes_existing_adapter import (  # noqa: E402
-    HermesAdapterError,
-    HermesExistingReadOnlyAdapter,
+from pd_fleet.gateway_bridge_contracts import (
+    MAX_REPLAY_BATCH,
+    ReplayWindow,
+    SessionSnapshot,
+)
+from pd_fleet.hermes_existing_adapter import (
     NOT_READY,
     NOT_READY_HERMES_SEAM,
+    HermesAdapterError,
+    HermesExistingReadOnlyAdapter,
 )
 
 

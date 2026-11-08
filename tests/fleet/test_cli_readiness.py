@@ -10,10 +10,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 
-from pd import PD  # noqa: E402
-from pd_fleet.events import EventLog, FleetEvent, MAX_QUERY  # noqa: E402
-from pd_fleet.run_store import FleetRunStore  # noqa: E402
-
+from pd import PD
+from pd_fleet.events import MAX_QUERY, EventLog, FleetEvent
+from pd_fleet.run_store import FleetRunStore
 
 CLI = Path(__file__).parents[2] / "scripts" / "pd.py"
 

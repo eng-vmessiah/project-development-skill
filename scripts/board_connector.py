@@ -76,7 +76,7 @@ def run_cmd(cmd: list[str]) -> tuple[bool, str]:
         p = subprocess.run(cmd, cwd=str(REPO), capture_output=True, text=True, timeout=TIMEOUT)
     except subprocess.TimeoutExpired:
         return False, f"timeout ({TIMEOUT}s): {' '.join(cmd)}"
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return False, f"erro ao executar: {e}"
     out = ((p.stdout or "") + ("\n" + p.stderr if p.stderr else "")).strip()
     header = f"[pd-board] exit={p.returncode} · {' '.join(cmd[1:])}"

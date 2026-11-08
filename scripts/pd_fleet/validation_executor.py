@@ -7,13 +7,14 @@ causes process creation.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from types import MappingProxyType
 import os
-from pathlib import Path
 import re
 import stat as fs_stat
-from typing import Callable, Mapping, Sequence, Any
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, field
+from pathlib import Path
+from types import MappingProxyType
+from typing import Any
 
 from .contracts import _EXTERNAL_URL, _redact_paths, _redact_sensitive_text
 

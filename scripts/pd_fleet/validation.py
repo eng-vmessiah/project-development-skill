@@ -5,8 +5,8 @@ mensagens são ordenadas para que erros e a saída de readiness sejam reproduzí
 """
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Iterable, Mapping
 
 from .models import FleetPlan, TaskSpec
 from .safe_rendering import safe_repr
@@ -185,7 +185,7 @@ def compute_ready_tasks(plan: FleetPlan | Mapping, *, completed: Iterable[str] =
     def canonical_wave_id(value: object) -> str:
         """Converte aliases (por exemplo, ``1`` e ``wave-1``) num único ID."""
         text = str(value).strip().lower()
-        candidate = text[5:] if text.startswith("wave-") else text
+        candidate = text.removeprefix("wave-")
         try:
             return f"wave-{int(candidate)}"
         except ValueError:

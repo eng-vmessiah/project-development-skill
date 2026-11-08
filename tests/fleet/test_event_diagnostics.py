@@ -1,19 +1,18 @@
 from __future__ import annotations
 
 import inspect
-import os
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 
 from pd_fleet.checkpoint import Checkpoint
+from pd_fleet.event_diagnostics import EventDiagnosticsReport, diagnose_event_log
 from pd_fleet.events import MAX_PAYLOAD_BYTES, EventError, EventLog, FleetEvent
 from pd_fleet.lifecycle import LifecycleState, TaskLifecycle
 from pd_fleet.lifecycle_events import LifecycleEventRecorder
-from pd_fleet.event_diagnostics import EventDiagnosticsReport, diagnose_event_log
 
 STAMP = "2026-01-01T00:00:00+00:00"
 

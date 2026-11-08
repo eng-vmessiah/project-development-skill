@@ -7,10 +7,11 @@ import json
 import sqlite3
 import sys
 import tempfile
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 # Direct ``python scripts/pd_fleet/run_g5_fixture_matrix.py`` has no package
 # context.  Put the repository root on sys.path before importing package modules.
@@ -21,8 +22,11 @@ if str(_REPO_ROOT) not in sys.path:
 from scripts.pd_fleet.fake_gateway import FakeGateway
 from scripts.pd_fleet.fleet_gateway_bridge import FleetGatewayBridge
 from scripts.pd_fleet.gateway_bridge_contracts import (
-    MAX_REPLAY_BATCH, BridgeValidationError,
-    ObserverIdentity, ReplayWindow, SessionSnapshot,
+    MAX_REPLAY_BATCH,
+    BridgeValidationError,
+    ObserverIdentity,
+    ReplayWindow,
+    SessionSnapshot,
 )
 
 REPORT_VERSION = "pd-fleet-g5-fixture-report:v2"

@@ -5,15 +5,16 @@ integration.  It validates and serializes only the bounded v1 observation surfac
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-from enum import Enum
-from hashlib import sha256
 import json
 import re
 import unicodedata
-from types import MappingProxyType
-from typing import Any, ClassVar, Mapping
+from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from enum import Enum
+from hashlib import sha256
+from types import MappingProxyType
+from typing import Any, ClassVar
 
 SCHEMA_VERSION = "pd-fleet-gateway-bridge:v1"
 MAX_STRING_BYTES = 256
@@ -163,7 +164,7 @@ def _timestamp(value: Any) -> str:
         _fail(BridgeErrorCode.INVALID_EVENT)
     return value
 
-_SENSITIVE = re.compile(r"(?:prompt|history|message|tool|provider|credential|secret|token|password|terminal|path|url|uri|authorization|cookie|api.?key)", re.I)
+_SENSITIVE = re.compile(r"(?:prompt|history|message|tool|provider|credential|secret|token|password|terminal|path|url|uri|authorization|cookie|api.?key)", re.IGNORECASE)
 def _freeze(value: Any, *, depth: int = 0, provenance: bool = False) -> Any:
     """Recursively validate and detach caller-owned input graphs."""
     if depth > MAX_NESTING_DEPTH:
@@ -189,7 +190,7 @@ def _freeze(value: Any, *, depth: int = 0, provenance: bool = False) -> Any:
     if isinstance(value, str):
         _string(value, allow_empty=True)
         if (_SENSITIVE.search(value)
-                or re.search(r"(?:https?://|ftp://|/[^ ]+|[A-Za-z]:\\\\)", value, re.I)):
+                or re.search(r"(?:https?://|ftp://|/[^ ]+|[A-Za-z]:\\\\)", value, re.IGNORECASE)):
             _fail(BridgeErrorCode.INVALID_EVENT, "redaction_denied")
         return value
     if value is None or isinstance(value, (bool, int, float)):
@@ -412,7 +413,7 @@ class BridgeEvent(_Contract):
         if len(_canonical_event_json(self).encode("utf-8")) > MAX_ENVELOPE_BYTES:
             _fail(BridgeErrorCode.PAYLOAD_TOO_LARGE, "envelope_too_large")
     @classmethod
-    def from_dict(cls, value: Any) -> "BridgeEvent":
+    def from_dict(cls, value: Any) -> BridgeEvent:
         if not isinstance(value, Mapping): _fail(BridgeErrorCode.INVALID_EVENT)
         _unknown(value, cls._fields)
         required = ("schema_version", "event_id", "event_type", "occurred_at", "source", "event_origin", "session", "stream_epoch", "sequence", "payload", "provenance")

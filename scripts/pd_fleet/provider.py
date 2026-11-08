@@ -5,12 +5,13 @@ credential handling, dynamic loading, network access, or dispatch path.
 """
 from __future__ import annotations
 
+import json
+import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from types import MappingProxyType
-from typing import Any, Mapping, Protocol, Sequence, runtime_checkable
-import json
-import re
+from typing import Any, Protocol, runtime_checkable
 
 PROVIDER_SCHEMA_VERSION = "pd-provider:v1"
 EXTERNAL_PROVIDERS_ENABLED = False
@@ -376,7 +377,7 @@ class CommandMetadata:
     def __repr__(self) -> str:
         return "CommandMetadata(<redacted command metadata>)"
 
-    def __deepcopy__(self, memo: dict[int, Any]) -> "CommandMetadata":
+    def __deepcopy__(self, memo: dict[int, Any]) -> CommandMetadata:
         return self
 
 
@@ -415,7 +416,7 @@ class RuntimeReadiness:
             raise _configuration_rejected()
         object.__setattr__(self, "status", ReadinessStatus(status))
 
-    def __deepcopy__(self, memo: dict[int, Any]) -> "RuntimeReadiness":
+    def __deepcopy__(self, memo: dict[int, Any]) -> RuntimeReadiness:
         return self
 
     def __repr__(self) -> str:
@@ -537,10 +538,10 @@ class RuntimeProviderProfile:
                 f"runtime_name={self.runtime_name!r}, auth_ref='[AUTH REF]', "
                 f"readiness={getattr(self.readiness.status, 'value', self.readiness.status)!r})")
 
-    def __copy__(self) -> "RuntimeProviderProfile":
+    def __copy__(self) -> RuntimeProviderProfile:
         return self
 
-    def __deepcopy__(self, memo: dict[int, Any]) -> "RuntimeProviderProfile":
+    def __deepcopy__(self, memo: dict[int, Any]) -> RuntimeProviderProfile:
         return self
 
 

@@ -6,16 +6,17 @@ trusted sandbox runner is explicitly injected by its caller.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import Enum
 import json
 import re
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from enum import Enum
 from types import MappingProxyType
-from typing import Any, Mapping, Protocol, Sequence, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from .provider import CommandMetadata, RuntimeProviderProfile
-from .sandbox import SandboxCapability
 from .safe_rendering import RUNTIME_ERROR, UNSUPPORTED_TYPE, safe_text
+from .sandbox import SandboxCapability
 
 RUNTIME_ADAPTER_SCHEMA_VERSION = "pd-runtime-adapter:v1"
 ALLOWED_PATHS = frozenset({"workspace", "artifacts", "inputs", "outputs"})

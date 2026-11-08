@@ -6,23 +6,23 @@ lifecycle change and loaded by a later process.
 """
 from __future__ import annotations
 
-from copy import deepcopy
-from dataclasses import dataclass, field
-import json
+import fcntl
 import hashlib
+import json
 import os
 import re
 import stat
-from pathlib import Path
 import tempfile
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
-from typing import Any, Iterator, Mapping
+from copy import deepcopy
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
 
-import fcntl
-
+from .clock import Clock, clock_iso
 from .lifecycle import LifecycleState, TaskLifecycle
 from .safe_rendering import safe_repr
-from .clock import Clock, clock_iso
 
 SCHEMA_VERSION = 1
 
@@ -56,14 +56,14 @@ class Checkpoint:
     def create(cls, feature: str, wave: Any, *, tasks: Any = None,
                lifecycle: Any = None, reports: Any = None, evidence: Any = None,
                blockers: Any = None, created_at: str | None = None,
-               clock: Clock | None = None) -> "Checkpoint":
+               clock: Clock | None = None) -> Checkpoint:
         return cls(feature=feature, wave=wave, tasks=_task_mapping(tasks),
                    lifecycle=_lifecycle_mapping(lifecycle), reports=[] if reports is None else deepcopy(reports),
                    evidence=[] if evidence is None else deepcopy(evidence), blockers=[] if blockers is None else deepcopy(blockers),
                    created_at=created_at or "", clock=clock)
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "Checkpoint":
+    def from_dict(cls, value: Mapping[str, Any]) -> Checkpoint:
         if not isinstance(value, Mapping):
             raise CheckpointError("checkpoint deve ser um objeto JSON")
         data = deepcopy(dict(value))
@@ -135,7 +135,7 @@ class Checkpoint:
         save_checkpoint(self, path)
 
     @classmethod
-    def load(cls, path: str | os.PathLike[str]) -> "Checkpoint":
+    def load(cls, path: str | os.PathLike[str]) -> Checkpoint:
         return load_checkpoint(path)
 
     def completed_tasks(self) -> list[str]:

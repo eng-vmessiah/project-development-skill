@@ -1,16 +1,23 @@
 """Read-only supervisor facade composed from supervision and handoff contracts."""
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 from .event_diagnostics import EventDiagnosticsReport, diagnose_event_log
-from .events import EventLog, MAX_QUERY
+from .events import MAX_QUERY, EventLog
 from .handoff import HandoffArtifact, _freeze, _thaw, create_handoff
 from .readiness import ReadinessView, compose_readiness
 from .run_event_reconciliation import RunEventReconciliationReport, reconcile_run_events
 from .run_store import FleetRunStore
-from .supervision import HealthSnapshot, InterventionProposal, SupervisorDiagnosis, _bounded_id, reconcile_snapshot
+from .supervision import (
+    HealthSnapshot,
+    InterventionProposal,
+    SupervisorDiagnosis,
+    _bounded_id,
+    reconcile_snapshot,
+)
 
 
 @dataclass(frozen=True)
@@ -77,7 +84,7 @@ class FleetSupervisor:
         self,
         event_log: EventLog,
         *,
-        active_owner_epoch: int | float | None = None,
+        active_owner_epoch: float | None = None,
         limit: int = MAX_QUERY,
     ) -> EventDiagnosticsReport:
         """Return bounded event diagnostics without dispatching or mutating state."""

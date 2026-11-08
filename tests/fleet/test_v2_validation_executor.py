@@ -1,10 +1,14 @@
 import sys
 from pathlib import Path
+
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 from pd_fleet.validation_executor import (
-    DeclarativeValidation, ValidationError, ValidationExecutor, ValidationPolicy,
+    DeclarativeValidation,
+    ValidationError,
+    ValidationExecutor,
+    ValidationPolicy,
 )
 
 

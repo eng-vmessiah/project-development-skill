@@ -1,20 +1,19 @@
 from __future__ import annotations
 
-from copy import deepcopy
 import inspect
 import json
-from pathlib import Path
 import sys
+from copy import deepcopy
+from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 
-from pd_fleet.checkpoint import Checkpoint  # noqa: E402
-from pd_fleet.events import EventError, EventLog  # noqa: E402
-from pd_fleet.lifecycle import TaskLifecycle  # noqa: E402
-from pd_fleet.lifecycle_events import LifecycleEventRecorder  # noqa: E402
-
+from pd_fleet.checkpoint import Checkpoint
+from pd_fleet.events import EventError, EventLog
+from pd_fleet.lifecycle import TaskLifecycle
+from pd_fleet.lifecycle_events import LifecycleEventRecorder
 
 STAMP = "2026-01-01T00:00:00+00:00"
 

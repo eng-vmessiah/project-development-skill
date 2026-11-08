@@ -3,13 +3,13 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-from pd import PD  # noqa: E402
+from pd import PD
 
 
 def _run(tmp_path, *args):
     import contextlib
-    from io import StringIO
     import os
+    from io import StringIO
     old = os.getcwd()
     os.chdir(tmp_path)
     try:

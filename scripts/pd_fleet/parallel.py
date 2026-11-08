@@ -10,11 +10,13 @@ is called.  Applications should explicitly close the executor (usually in a
 """
 from __future__ import annotations
 
-from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
-from dataclasses import dataclass, field
-from copy import deepcopy
 import time
-from typing import Any, Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from copy import deepcopy
+from dataclasses import dataclass, field
+from typing import Any
+
 from .safe_rendering import PARALLEL_ERROR
 
 
@@ -233,4 +235,4 @@ class BoundedParallelExecutor:
 
 
 ParallelExecutor = BoundedParallelExecutor
-__all__ = ["TaskResult", "BoundedParallelExecutor", "ParallelExecutor"]
+__all__ = ["BoundedParallelExecutor", "ParallelExecutor", "TaskResult"]

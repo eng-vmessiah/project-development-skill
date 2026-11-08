@@ -1,20 +1,27 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import stat
 import sys
-import time
+from pathlib import Path
 
 import pytest
 
 try:
     import scripts.pd_fleet.sandbox as sandbox_module
-    from scripts.pd_fleet.sandbox import LocalSandboxRunner, SandboxCapability, SandboxConfigurationError
+    from scripts.pd_fleet.sandbox import (
+        LocalSandboxRunner,
+        SandboxCapability,
+        SandboxConfigurationError,
+    )
 except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).parents[2]))
-    import scripts.pd_fleet.sandbox as sandbox_module  # noqa: E402
-    from scripts.pd_fleet.sandbox import LocalSandboxRunner, SandboxCapability, SandboxConfigurationError  # noqa: E402
+    import scripts.pd_fleet.sandbox as sandbox_module
+    from scripts.pd_fleet.sandbox import (
+        LocalSandboxRunner,
+        SandboxCapability,
+        SandboxConfigurationError,
+    )
 
 
 def _tool(root: Path, name: str, body: str) -> Path:

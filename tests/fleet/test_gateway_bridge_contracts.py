@@ -1,18 +1,27 @@
 from __future__ import annotations
 
 import ast
+import sys
 from dataclasses import FrozenInstanceError
 from hashlib import sha256
 from pathlib import Path
-import sys
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2]))
 from scripts.pd_fleet.gateway_bridge_contracts import (
-    SCHEMA_VERSION, LIFECYCLE_EVENT_TYPES, ActivationTicketRef, AssociationRef,
-    BridgeCursor, BridgeErrorCode, BridgeEvent, BridgeValidationError, EventOrigin,
-    ObserverIdentity, OwnershipMode, ReplayWindow, SessionSnapshot, canonical_json,
+    LIFECYCLE_EVENT_TYPES,
+    SCHEMA_VERSION,
+    ActivationTicketRef,
+    AssociationRef,
+    BridgeCursor,
+    BridgeErrorCode,
+    BridgeEvent,
+    BridgeValidationError,
+    ObserverIdentity,
+    ReplayWindow,
+    SessionSnapshot,
+    canonical_json,
     fingerprint,
 )
 

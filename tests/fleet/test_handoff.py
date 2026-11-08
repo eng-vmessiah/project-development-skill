@@ -8,9 +8,13 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-from pd_fleet.handoff import (  # noqa: E402
-    HandoffArtifact, HandoffLineage, HandoffReason, create_handoff,
-    validate_handoff_epoch, validate_handoff_ownership,
+from pd_fleet.handoff import (
+    HandoffArtifact,
+    HandoffLineage,
+    HandoffReason,
+    create_handoff,
+    validate_handoff_epoch,
+    validate_handoff_ownership,
 )
 
 

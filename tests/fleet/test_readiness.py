@@ -1,10 +1,10 @@
 """E9 readiness composition contract tests."""
 from __future__ import annotations
 
-from dataclasses import FrozenInstanceError
-from pathlib import Path
 import inspect
 import sys
+from dataclasses import FrozenInstanceError
+from pathlib import Path
 
 import pytest
 

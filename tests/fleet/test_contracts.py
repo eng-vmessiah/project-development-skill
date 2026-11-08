@@ -6,14 +6,13 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-from pd_fleet.contracts import (  # noqa: E402
+from pd_fleet.contracts import (
+    MAX_RETRY_ATTEMPTS,
     AgentContract,
     AgentReport,
     ContractValidationError,
-    MAX_RETRY_ATTEMPTS,
     RetryPolicy,
 )
-
 
 MIN = {"task_id": "T-10", "agent_id": "a1", "role": "coder"}
 

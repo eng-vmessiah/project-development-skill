@@ -7,8 +7,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 
-import pd_fleet.checkpoint as checkpoint_module  # noqa: E402
-from pd_fleet.checkpoint import (  # noqa: E402
+import pd_fleet.checkpoint as checkpoint_module
+from pd_fleet.checkpoint import (
     Checkpoint,
     CheckpointError,
     completed_tasks,
@@ -18,7 +18,7 @@ from pd_fleet.checkpoint import (  # noqa: E402
     retry_task,
     save_checkpoint,
 )
-from pd_fleet.lifecycle import LifecycleState, RetryExhausted, TaskLifecycle  # noqa: E402
+from pd_fleet.lifecycle import LifecycleState, RetryExhausted, TaskLifecycle
 
 
 def lifecycle(task_id, status, **values):

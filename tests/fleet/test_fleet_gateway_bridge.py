@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import ast
+import sys
+import tempfile
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-import sys
-import tempfile
 
 import pytest
 
@@ -13,7 +13,11 @@ sys.path.insert(0, str(Path(__file__).parents[2]))
 from scripts.pd_fleet.fake_gateway import FakeGateway
 from scripts.pd_fleet.fleet_gateway_bridge import FleetGatewayBridge
 from scripts.pd_fleet.gateway_bridge_contracts import (
-    BridgeErrorCode, BridgeEvent, BridgeValidationError, ObserverIdentity, OwnershipMode,
+    BridgeErrorCode,
+    BridgeEvent,
+    BridgeValidationError,
+    ObserverIdentity,
+    OwnershipMode,
     ReplayWindow,
 )
 

@@ -1,14 +1,14 @@
 """Read-only, bounded diagnostics for a fleet event log."""
 from __future__ import annotations
 
-from collections.abc import Mapping
-from dataclasses import dataclass
 import math
 import re
+from collections.abc import Mapping
+from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
 
-from .events import EventError, EventLog, FleetEvent, MAX_QUERY
+from .events import MAX_QUERY, EventError, EventLog, FleetEvent
 from .lifecycle import LifecycleState
 
 _STATUS = frozenset({"healthy", "degraded", "blocked", "unknown"})
@@ -176,7 +176,7 @@ def _transition(event: FleetEvent, states: dict[str, str], reasons: list[str]) -
 def diagnose_event_log(
     event_log: EventLog,
     *,
-    active_owner_epoch: int | float | None = None,
+    active_owner_epoch: float | None = None,
     limit: int = MAX_QUERY,
 ) -> EventDiagnosticsReport:
     """Diagnose at most ``limit`` replayed events without creating or mutating state."""

@@ -6,13 +6,15 @@ that persisted reports are reproducible and deterministic.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import Enum
-from datetime import datetime, timedelta, timezone
-import re
 import json
+import re
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+from enum import Enum
 from types import MappingProxyType
-from typing import Any, Mapping, cast
+from typing import Any, cast
+
 from .clock import Clock, clock_now
 
 
@@ -145,7 +147,7 @@ def _references(value: Any, name: str) -> list[Any]:
     return result
 
 
-def _passes_gate_contract(gate: "GateResult") -> bool:
+def _passes_gate_contract(gate: GateResult) -> bool:
     """Whether a result has enough data to truthfully be passed."""
     return bool(gate.owner and gate.decision and gate.evidence and gate.reports) and not any(
         _open_blocker(item) for item in gate.blockers
@@ -285,7 +287,7 @@ class GateResult:
             raise GateError("resultado passed exige owner, decision, evidence, reports e nenhum blocker aberto")
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any] | "GateResult") -> "GateResult":
+    def from_dict(cls, value: Mapping[str, Any] | GateResult) -> GateResult:
         if isinstance(value, cls):
             return cls.from_dict(value.to_dict())
         if not isinstance(value, Mapping):
@@ -297,7 +299,7 @@ class GateResult:
                    value.get("evidence", value.get("evidence_refs", [])),
                    value.get("reports", []), value.get("details", {}))
 
-    def transition(self, target: GateStatus | str, *, reason: str | None = None) -> "GateResult":
+    def transition(self, target: GateStatus | str, *, reason: str | None = None) -> GateResult:
         target = _status(target)
         if target not in _VALID_TRANSITIONS[self.status]:
             raise GateError(f"{self.status.value} → {target.value} não permitido")
@@ -324,7 +326,7 @@ class GateResult:
         return json.dumps(self.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
     @classmethod
-    def from_json(cls, value: str) -> "GateResult":
+    def from_json(cls, value: str) -> GateResult:
         try:
             return cls.from_dict(json.loads(value))
         except (TypeError, json.JSONDecodeError) as exc:
@@ -370,7 +372,7 @@ class GatePolicy:
         object.__setattr__(self, "default_requirements", _frozen_policy(dict(defaults), "default_requirements"))
 
     @classmethod
-    def from_dict(cls, value: Any) -> "GatePolicy":
+    def from_dict(cls, value: Any) -> GatePolicy:
         if value is None:
             return cls()
         if isinstance(value, cls):
@@ -428,7 +430,7 @@ class GatePolicy:
         return json.dumps(self.to_dict(), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
     @classmethod
-    def from_json(cls, value: str) -> "GatePolicy":
+    def from_json(cls, value: str) -> GatePolicy:
         try:
             return cls.from_dict(json.loads(value))
         except (TypeError, json.JSONDecodeError) as exc:
@@ -552,7 +554,7 @@ class HumanVerificationGate:
         return json.dumps(self.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any], *, reject_unknown: bool = True) -> "HumanVerificationGate":
+    def from_dict(cls, value: Mapping[str, Any], *, reject_unknown: bool = True) -> HumanVerificationGate:
         if type(value) is not dict:
             raise GateError("human gate deve ser objeto")
         allowed = {"owner", "identity", "decision", "scope", "run", "run_id",
@@ -572,7 +574,7 @@ class HumanVerificationGate:
                    value.get("updated_at"), value.get("freshness_window"), value.get("blockers", ()))
 
     @classmethod
-    def from_json(cls, value: str) -> "HumanVerificationGate":
+    def from_json(cls, value: str) -> HumanVerificationGate:
         try:
             return cls.from_dict(json.loads(value))
         except (TypeError, json.JSONDecodeError) as exc:

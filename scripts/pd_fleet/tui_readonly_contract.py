@@ -5,11 +5,12 @@ Hermes state, authenticate transports, or perform any external effect.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
 import math
 import re
 import threading
-from typing import Any, Callable, Mapping
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, replace
+from typing import Any
 
 from .gateway_bridge_contracts import (
     MAX_ENVELOPE_BYTES,
@@ -62,7 +63,7 @@ class TuiSnapshotRequest:
             raise TuiContractError("UNSUPPORTED_SCHEMA")
 
     @classmethod
-    def from_dict(cls, value: Any) -> "TuiSnapshotRequest":
+    def from_dict(cls, value: Any) -> TuiSnapshotRequest:
         if not isinstance(value, Mapping):
             raise TuiContractError("INVALID_REQUEST")
         allowed = {"session_id", "schema_version"}

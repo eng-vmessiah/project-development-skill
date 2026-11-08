@@ -1,8 +1,10 @@
-from collections.abc import Mapping
 import json
 import sys
+from collections.abc import Mapping
 from pathlib import Path
+
 import pytest
+
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 
 from pd_fleet.observability import AuditSink, ObservabilityError

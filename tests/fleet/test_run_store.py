@@ -2,15 +2,22 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import threading
 from pathlib import Path
-import sys
+
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 from pd_fleet.run_store import (
-    FleetRunStore, DuplicateCommitError, GenerationConflictError,
-    LeaseError, OwnerMismatchError, PathContainmentError, RunStoreError, CorruptSnapshotError,
+    CorruptSnapshotError,
+    DuplicateCommitError,
+    FleetRunStore,
+    GenerationConflictError,
+    LeaseError,
+    OwnerMismatchError,
+    PathContainmentError,
+    RunStoreError,
 )
 
 PLAN = {"schema_version": "pd-fleet-plan:v2", "tasks": [{"id": "a", "path": "/secret/project/a"}], "token": "secret-value"}

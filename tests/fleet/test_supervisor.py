@@ -5,8 +5,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-from pd_fleet.supervision import HealthSignal, HealthSnapshot, SupervisorDiagnosis  # noqa: E402
-from pd_fleet.supervisor import FleetSupervisor, SupervisorReport  # noqa: E402
+from pd_fleet.supervision import HealthSignal, HealthSnapshot, SupervisorDiagnosis
+from pd_fleet.supervisor import FleetSupervisor, SupervisorReport
 
 
 def test_supervisor_observes_without_dispatching() -> None:

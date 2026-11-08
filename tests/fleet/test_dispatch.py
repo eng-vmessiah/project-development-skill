@@ -1,17 +1,17 @@
 import sys
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-from pd_fleet.dispatch import (  # noqa: E402
+from pd_fleet.dispatch import (
     AdapterDeniedError,
     Dispatcher,
+    DispatchError,
     DispatchResult,
     SimulatedAdapter,
     UnknownAdapterError,
-    DispatchError,
     _jsonable,
 )
 

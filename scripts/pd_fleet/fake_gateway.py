@@ -6,22 +6,33 @@ semantics in ``gateway_bridge_contracts``.
 """
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from hashlib import sha256
 from threading import RLock
-from typing import Callable, Iterator, Mapping, Protocol, cast
+from typing import Protocol, cast
 
 from .gateway_bridge_contracts import (
-    SCHEMA_VERSION, MAX_REPLAY_BATCH, ActivationTicketRef, AssociationRef, BridgeCursor,
-    BridgeErrorCode, BridgeEvent, BridgeValidationError, EventOrigin,
-    ObserverIdentity, OwnershipMode, ReplayWindow, SessionSnapshot,
+    MAX_REPLAY_BATCH,
+    SCHEMA_VERSION,
+    ActivationTicketRef,
+    AssociationRef,
+    BridgeCursor,
+    BridgeErrorCode,
+    BridgeEvent,
+    BridgeValidationError,
+    EventOrigin,
+    ObserverIdentity,
+    OwnershipMode,
+    ReplayWindow,
+    SessionSnapshot,
 )
 
 
 class GatewayClient(Protocol):
-    def connect(self, observer: ObserverIdentity) -> "FakeConnection": ...
+    def connect(self, observer: ObserverIdentity) -> FakeConnection: ...
     def issue_activation(self, observer: ObserverIdentity, **binding: str) -> ActivationTicketRef: ...
     def consume_activation(self, ticket: str | ActivationTicketRef, observer: ObserverIdentity, **binding: str) -> AssociationRef: ...
 
@@ -96,7 +107,7 @@ def _activation_boundary(method):
 
 class FakeConnection:
     """Client-facing connection facade; all state remains owned by FakeGateway."""
-    def __init__(self, gateway: "FakeGateway", observer: ObserverIdentity):
+    def __init__(self, gateway: FakeGateway, observer: ObserverIdentity):
         self._gateway, self.observer = gateway, observer
         self._generation = gateway._generation(observer.observer_ref)
         self._closed = False

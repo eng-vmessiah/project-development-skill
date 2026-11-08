@@ -23,19 +23,19 @@ pytest.importorskip("tui_gateway.server")
 
 sys.path.insert(0, str(Path(__file__).parents[2]))
 
-from scripts.pd_fleet.fleet_d1_registration_bridge import (  # noqa: E402
+from hermes_cli.fleet_activation import FleetActivationOwner
+from hermes_cli.fleet_observer import FleetObserverConfig, FleetObserverHub
+from hermes_cli.fleet_tui_session import FleetTuiSessionService, TuiActiveSession
+from hermes_cli.fleet_tui_wire import WIRE_SCHEMA
+from tui_gateway import server
+from tui_gateway.fleet_tui_registration import build_fleet_session_registrations
+
+from scripts.pd_fleet.fleet_d1_registration_bridge import (
     FleetD1RegistrationBridge,
 )
-from scripts.pd_fleet.tui_d1_batch_registrar_adapter import (  # noqa: E402
+from scripts.pd_fleet.tui_d1_batch_registrar_adapter import (
     TuiD1BatchRegistrarAdapter,
 )
-
-from hermes_cli.fleet_activation import FleetActivationOwner  # noqa: E402
-from hermes_cli.fleet_observer import FleetObserverConfig, FleetObserverHub  # noqa: E402
-from hermes_cli.fleet_tui_session import FleetTuiSessionService, TuiActiveSession  # noqa: E402
-from hermes_cli.fleet_tui_wire import WIRE_SCHEMA  # noqa: E402
-from tui_gateway import server  # noqa: E402
-from tui_gateway.fleet_tui_registration import build_fleet_session_registrations  # noqa: E402
 
 OBSERVER = "tui.observer-1"
 OWNER = "owner.alpha"
@@ -56,7 +56,7 @@ def _build(resolver=None, *, hub_clock=None, svc_clock=None, retention_ttl=None)
     hub = FleetObserverHub(config, clock=hub_clock)
     hub.activate()
     if resolver is None:
-        resolver = lambda: _session()  # noqa: E731
+        resolver = lambda: _session()
     svc = FleetTuiSessionService(owner, hub, observer_ref=OBSERVER,
                                  resolve_active_session=resolver, clock=svc_clock)
     return SimpleNamespace(owner=owner, hub=hub, svc=svc)
@@ -128,7 +128,7 @@ def test_concurrent_duplicate_presentation(env):
         try:
             barrier.wait(timeout=5)
             results.append(_activate())
-        except BaseException as exc:  # noqa: BLE001 - collected for assertion
+        except BaseException as exc:
             errors.append(exc)
 
     threads = [threading.Thread(target=worker) for _ in range(2)]

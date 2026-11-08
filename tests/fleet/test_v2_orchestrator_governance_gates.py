@@ -5,9 +5,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 
-from pd_fleet.gates import GateResult, GateStatus, HumanVerificationGate  # noqa: E402
-from pd_fleet.orchestrator import FleetOrchestrator  # noqa: E402
-
+from pd_fleet.gates import GateResult, GateStatus, HumanVerificationGate
+from pd_fleet.orchestrator import FleetOrchestrator
 
 _NOW = datetime.now(timezone.utc).replace(microsecond=0)
 _DIGEST = "a" * 64

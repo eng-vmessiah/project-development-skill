@@ -7,7 +7,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 
-from pd_fleet.events import EventError, EventLog, FleetEvent, MAX_QUERY
+from pd_fleet.events import MAX_QUERY, EventError, EventLog, FleetEvent
 from pd_fleet.run_event_reconciliation import (
     RunEventReconciliationReport,
     reconcile_run_events,

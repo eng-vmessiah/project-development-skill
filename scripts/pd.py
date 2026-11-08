@@ -10,36 +10,38 @@ import argparse
 import json
 import os
 import re
-import stat
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager, nullcontext
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator, Optional, List, Dict, Any, Tuple, Mapping
+from typing import Any
 
-from pd_fleet.state import normalize_fleet_state
-from pd_fleet.models import FleetPlan, FleetPlanError
-from pd_fleet.lifecycle import LifecycleState
-from pd_fleet.validation import compute_ready_tasks
-from pd_fleet.orchestrator import FleetOrchestrator
-from pd_fleet.dispatch import SimulatedAdapter
 from pd_fleet.checkpoint import Checkpoint
-from pd_fleet.contracts import canonicalize as canonicalize_v2, plan_hash as plan_hash_v2, _redact_paths, _redact_sensitive_text, _EXTERNAL_URL
-from pd_fleet.state import FLEET_STATE_FIELDS
-from pd_fleet.scheduler import LeaseScheduler
-from pd_fleet.parallel import BoundedParallelExecutor
-from pd_fleet.run_store import FleetRunStore, RunStoreError
-from pd_fleet.handoff import HandoffStore
-from pd_fleet.events import EventError, EventLog, MAX_QUERY
-from pd_fleet.supervisor import FleetSupervisor, SupervisorReport
-from pd_fleet.supervision import SupervisorDiagnosis
-from pd_fleet.run_event_reconciliation import reconcile_missing_store
 from pd_fleet.clock import clock_now
+from pd_fleet.contracts import _EXTERNAL_URL, _redact_paths, _redact_sensitive_text
+from pd_fleet.contracts import canonicalize as canonicalize_v2
+from pd_fleet.contracts import plan_hash as plan_hash_v2
+from pd_fleet.dispatch import SimulatedAdapter
+from pd_fleet.events import MAX_QUERY, EventError, EventLog
+from pd_fleet.handoff import HandoffStore
+from pd_fleet.lifecycle import LifecycleState
+from pd_fleet.models import FleetPlan, FleetPlanError
+from pd_fleet.orchestrator import FleetOrchestrator
+from pd_fleet.parallel import BoundedParallelExecutor
+from pd_fleet.run_event_reconciliation import reconcile_missing_store
+from pd_fleet.run_store import FleetRunStore, RunStoreError
+from pd_fleet.scheduler import LeaseScheduler
+from pd_fleet.state import FLEET_STATE_FIELDS, normalize_fleet_state
+from pd_fleet.supervision import SupervisorDiagnosis
+from pd_fleet.supervisor import FleetSupervisor, SupervisorReport
+from pd_fleet.validation import compute_ready_tasks
 
 
 def _wave_key(value: Any) -> str:
@@ -90,32 +92,26 @@ PHASES = DEFAULT_PHASES
 # ─────────────────────────────────────────────────────────────────────────────
 class PDError(Exception):
     """Base exception for PD errors."""
-    pass
 
 
 class FeatureNotFoundError(PDError):
     """Feature directory not found."""
-    pass
 
 
 class FeatureExistsError(PDError):
     """Feature already exists."""
-    pass
 
 
 class PhaseError(PDError):
     """Phase-related error."""
-    pass
 
 
 class ConfigError(PDError):
     """Configuration error."""
-    pass
 
 
 class TransactionRecoveryError(PDError):
     """A failed state transaction could not be rolled back completely."""
-    pass
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -148,11 +144,11 @@ class PDConfig:
 
     def __init__(self, project_dir: Path):
         self.project_dir = project_dir
-        self.config: Dict[str, Any] = self._load_config()
+        self.config: dict[str, Any] = self._load_config()
 
-    def _load_config(self) -> Dict[str, Any]:
+    def _load_config(self) -> dict[str, Any]:
         """Load configuration from pd.yaml."""
-        config: Dict[str, Any] = {
+        config: dict[str, Any] = {
             "phases": DEFAULT_PHASES,
             "directories": {
                 "spec": ".spec",
@@ -210,15 +206,15 @@ class PDConfig:
 
         return config
 
-    def get_phases(self) -> List[Dict[str, Any]]:
+    def get_phases(self) -> list[dict[str, Any]]:
         """Get configured phases."""
         return self.config.get("phases", DEFAULT_PHASES)
 
-    def get_hooks(self, phase: str) -> List[str]:
+    def get_hooks(self, phase: str) -> list[str]:
         """Get hooks for a phase."""
         return self.config.get("hooks", {}).get(phase, [])
 
-    def get_validation_rules(self) -> Dict[str, Any]:
+    def get_validation_rules(self) -> dict[str, Any]:
         """Get validation rules."""
         return self.config.get("validation", {})
 
@@ -316,7 +312,7 @@ def _merge_state(base: Any, mine: Any, theirs: Any) -> Any:
 class PDState:
     """Manages project state with a dual JSON/Markdown backend."""
 
-    def __init__(self, feature_dir: Path, config: Optional[PDConfig] = None, *, read_only: bool = False):
+    def __init__(self, feature_dir: Path, config: PDConfig | None = None, *, read_only: bool = False):
         self.feature_dir = feature_dir
         self.config = config or PDConfig(feature_dir.parent.parent)
         self.state_file = feature_dir / STATE_FILE
@@ -327,7 +323,7 @@ class PDState:
 
     # ── loading ──────────────────────────────────────────────────────────
 
-    def _default_state(self) -> Dict[str, Any]:
+    def _default_state(self) -> dict[str, Any]:
         now = datetime.now().isoformat()
         return {
             "feature": self.feature_dir.name,
@@ -340,7 +336,7 @@ class PDState:
             "fleet_state": normalize_fleet_state({"updated_at": now}),
         }
 
-    def _load_state(self) -> Dict[str, Any]:
+    def _load_state(self) -> dict[str, Any]:
         """Load state from STATE.json (preferred) or STATE.md (migration)."""
         if self.json_file.exists():
             return self._load_from_json()
@@ -355,8 +351,8 @@ class PDState:
             return state
         return self._default_state()
 
-    def _load_from_json(self) -> Dict[str, Any]:
-        def load_valid(path: Path) -> Dict[str, Any]:
+    def _load_from_json(self) -> dict[str, Any]:
+        def load_valid(path: Path) -> dict[str, Any]:
             with open(path) as f:
                 data = json.load(f)
             if not isinstance(data, dict):
@@ -393,7 +389,7 @@ class PDState:
                 return self._parse_state_md(self.state_file.read_text())
             return self._default_state()
 
-    def _parse_state_md(self, content: str) -> Dict[str, Any]:
+    def _parse_state_md(self, content: str) -> dict[str, Any]:
         """Parse STATE.md content (legacy / migration path)."""
         state = self._default_state()
         lines = content.split("\n")
@@ -477,7 +473,7 @@ class PDState:
         self._write_transaction(json_text + "\n", md_text)
         return candidate
 
-    def _write_json(self, data: Dict[str, Any]) -> None:
+    def _write_json(self, data: dict[str, Any]) -> None:
         """Atomically replace STATE.json, retaining the last valid backup."""
         self.json_file.parent.mkdir(parents=True, exist_ok=True)
         fd, temporary = tempfile.mkstemp(prefix=f".{self.json_file.name}.", suffix=".tmp", dir=self.json_file.parent)
@@ -546,7 +542,7 @@ class PDState:
                 except OSError:
                     pass
 
-    def _generate_state_md(self, state: Optional[Dict[str, Any]] = None) -> str:
+    def _generate_state_md(self, state: dict[str, Any] | None = None) -> str:
         """Generate STATE.md content from a candidate state dict."""
         state = self.state if state is None else state
         phases = self.config.get_phases()
@@ -641,7 +637,7 @@ class PDState:
 
     # ── helpers ──────────────────────────────────────────────────────────
 
-    def task_stats(self) -> Tuple[int, int]:
+    def task_stats(self) -> tuple[int, int]:
         """Return (done, total) task counts from PLAN.md + state."""
         plan_path = self.feature_dir / "PLAN.md"
         total = 0
@@ -653,7 +649,7 @@ class PDState:
         done = len(self.state["tasks"])
         return done, total
 
-    def phase_info(self) -> Dict[str, Any]:
+    def phase_info(self) -> dict[str, Any]:
         phases = self.config.get_phases()
         idx = self.state["phase"]
         return phases[idx]
@@ -1073,7 +1069,7 @@ class PD:
 
     # ── entry point ──────────────────────────────────────────────────────
 
-    def run(self, args: Optional[List[str]] = None) -> Optional[int]:
+    def run(self, args: list[str] | None = None) -> int | None:
         """Run the CLI."""
         parsed = self.parser.parse_args(args)
 
@@ -1324,7 +1320,7 @@ class PD:
 
     # ── feature discovery ────────────────────────────────────────────────
 
-    def _find_feature_dir(self, name: Optional[str] = None) -> Optional[Path]:
+    def _find_feature_dir(self, name: str | None = None) -> Path | None:
         """Find a feature directory by name, or the most recently modified one."""
         if not self.spec_dir.exists():
             return None
@@ -1347,7 +1343,7 @@ class PD:
             return None
         return max(feature_dirs, key=lambda d: d.stat().st_mtime)
 
-    def _all_feature_dirs(self) -> List[Path]:
+    def _all_feature_dirs(self) -> list[Path]:
         """Return all feature directories sorted by name."""
         if not self.spec_dir.exists():
             return []
@@ -1445,7 +1441,7 @@ class PD:
     # ── command: validate ────────────────────────────────────────────────
 
     # ── commands: fleet inspection (read-only) ───────────────────────────
-    def _fleet_plan_path(self, state: PDState, explicit: Optional[str]) -> Optional[Path]:
+    def _fleet_plan_path(self, state: PDState, explicit: str | None) -> Path | None:
         """Find a manifest only in the feature directory or at an explicit path."""
         if explicit:
             candidate = Path(explicit).expanduser()
@@ -1458,10 +1454,10 @@ class PD:
                 return candidate
         return None
 
-    def _load_fleet_inspection(self, state: PDState, explicit: Optional[str]) -> Dict[str, Any]:
+    def _load_fleet_inspection(self, state: PDState, explicit: str | None) -> dict[str, Any]:
         fleet_state = normalize_fleet_state(state.state.get("fleet_state"))
         path = self._fleet_plan_path(state, explicit)
-        plan: Optional[FleetPlan] = None
+        plan: FleetPlan | None = None
         if path:
             try:
                 raw = path.read_text()
@@ -1481,7 +1477,7 @@ class PD:
                 "plan_path": str(path) if path else None, "fleet_state": fleet_state,
                 "plan": plan.to_dict() if plan else None, "ready_tasks": ready}
 
-    def _cmd_fleet_status(self, state: PDState, plan_path: Optional[str], as_json: bool) -> None:
+    def _cmd_fleet_status(self, state: PDState, plan_path: str | None, as_json: bool) -> None:
         data = self._load_fleet_inspection(state, plan_path)
         if as_json:
             print(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
@@ -1498,7 +1494,7 @@ class PD:
         print(f"   Tasks por status: {json.dumps(statuses, ensure_ascii=False, sort_keys=True)}")
         print(f"   Tasks prontas: {', '.join(data['ready_tasks']) or 'nenhuma'}")
 
-    def _cmd_fleet_ready(self, state: PDState, plan_path: Optional[str], as_json: bool) -> None:
+    def _cmd_fleet_ready(self, state: PDState, plan_path: str | None, as_json: bool) -> None:
         data = self._load_fleet_inspection(state, plan_path)
         if as_json:
             print(json.dumps({"feature": data["feature"], "fleet_available": data["fleet_available"], "plan_path": data["plan_path"], "ready_tasks": data["ready_tasks"]}, ensure_ascii=False, indent=2, sort_keys=True))
@@ -1514,14 +1510,14 @@ class PD:
                 print("   Nenhuma task elegível (verifique dependências e gates).")
 
     @staticmethod
-    def _supervisor_fleet_projection(value: Any) -> Dict[str, Any]:
+    def _supervisor_fleet_projection(value: Any) -> dict[str, Any]:
         """Bound and redact the known persisted fleet namespace for inspection."""
         unsafe_key = re.compile(r"(?i)(?:debug|password|secret|token|credential|api[_ -]?key|pid|process|path|handle)")
         def project(item: Any, depth: int = 0) -> Any:
             if depth > 4:
                 return None
             if isinstance(item, Mapping):
-                result: Dict[str, Any] = {}
+                result: dict[str, Any] = {}
                 for key, child in list(item.items())[:32]:
                     if not isinstance(key, str) or unsafe_key.search(key):
                         continue
@@ -1545,7 +1541,7 @@ class PD:
                 return item
             return None
         source = value if isinstance(value, Mapping) else {}
-        result: Dict[str, Any] = {}
+        result: dict[str, Any] = {}
         for key in FLEET_STATE_FIELDS:
             if key in source:
                 projected = project(source[key])
@@ -1553,7 +1549,7 @@ class PD:
                     result[key] = projected
         return result
 
-    def _supervisor_plan_display(self, state: PDState, path: Optional[Path]) -> Optional[str]:
+    def _supervisor_plan_display(self, state: PDState, path: Path | None) -> str | None:
         if path is None:
             return None
         try:
@@ -1562,7 +1558,7 @@ class PD:
             return None
         return str(relative) if len(relative.parts) <= 4 else None
 
-    def _cmd_fleet_supervisor_status(self, state: PDState, plan_path: Optional[str], as_json: bool) -> None:
+    def _cmd_fleet_supervisor_status(self, state: PDState, plan_path: str | None, as_json: bool) -> None:
         """Emit a bounded supervisor view from persisted contracts only."""
         inspection = self._load_fleet_inspection(state, plan_path)
         data = {
@@ -1596,7 +1592,7 @@ class PD:
         print("   Supervisor: diagnosis unknown; live worker/process data unavailable")
 
     def _cmd_fleet_handoff_preview(self, store_root: str, run_id: str, handoff_id: str,
-                                   owner_epoch: Optional[int], as_json: bool) -> None:
+                                   owner_epoch: int | None, as_json: bool) -> None:
         """Load and display one validated handoff without creating persistence."""
         try:
             envelope = HandoffStore(store_root, run_id=run_id, owner_epoch=owner_epoch).load(handoff_id)
@@ -1659,12 +1655,12 @@ class PD:
             for gate in plan.gates if str(gate.kind) in {"review", "grill"}
         }
 
-    def _cmd_fleet_run(self, state: PDState, plan_path: Optional[str], dry_run: bool,
+    def _cmd_fleet_run(self, state: PDState, plan_path: str | None, dry_run: bool,
                        resume: bool, as_json: bool, run_id: str | None = None,
                        human_gate: str | None = None, gate_template: bool = False) -> int:
         """Run only the local simulated/default-deny fleet dispatcher."""
         path = self._fleet_plan_path(state, plan_path)
-        def emit(payload: Dict[str, Any], text: str) -> int:
+        def emit(payload: dict[str, Any], text: str) -> int:
             print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) if as_json else text)
             return 1
         if path is None:
@@ -1810,7 +1806,7 @@ class PD:
                           separators=(",", ":"), allow_nan=False)
 
     @staticmethod
-    def _v2_load_plan(path_text: Optional[str]) -> Dict[str, Any]:
+    def _v2_load_plan(path_text: str | None) -> dict[str, Any]:
         if not path_text:
             raise PDError("V2 manifest required")
         path = Path(path_text).expanduser()
@@ -1868,7 +1864,7 @@ class PD:
         return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
     @staticmethod
-    def _v2_read_snapshot(store_root: str, run_id: str) -> Dict[str, Any]:
+    def _v2_read_snapshot(store_root: str, run_id: str) -> dict[str, Any]:
         root = Path(store_root).expanduser()
         try:
             PD._preflight_readonly_root(root, "v2 store")
@@ -1921,7 +1917,7 @@ class PD:
                                  reports=reports, created_at="1970-01-01T00:00:00+00:00")
 
     @staticmethod
-    def _v2_inspection(snapshot: Mapping[str, Any]) -> Dict[str, Any]:
+    def _v2_inspection(snapshot: Mapping[str, Any]) -> dict[str, Any]:
         if not isinstance(snapshot, Mapping):
             raise ValueError("snapshot_shape")
         raw_tasks = snapshot.get("tasks", {})
@@ -1999,7 +1995,7 @@ class PD:
         }
 
     @staticmethod
-    def _v2_readiness(inspection: Mapping[str, Any]) -> Dict[str, Any]:
+    def _v2_readiness(inspection: Mapping[str, Any]) -> dict[str, Any]:
         readiness = inspection.get("readiness")
         if readiness == "ready":
             return {"status": "ok", "run_id": inspection.get("run_id"), "readiness": "ready", "ready": True, "reason": "completed"}
@@ -2009,7 +2005,7 @@ class PD:
                 "reason": reasons.get(reason_key, "run_state_unknown")}
 
     @staticmethod
-    def _v2_persisted_result(snapshot: Mapping[str, Any]) -> Dict[str, Any]:
+    def _v2_persisted_result(snapshot: Mapping[str, Any]) -> dict[str, Any]:
         statuses = {tid: s.get("status", "pending") for tid, s in snapshot.get("tasks", {}).items()
                     if isinstance(s, Mapping)}
         reports = [dict(r["report"]) for r in snapshot.get("reports", {}).values()
@@ -2132,7 +2128,7 @@ class PD:
     def _cmd_validate(self, state: PDState, deep: bool, as_json: bool) -> None:
         feature_dir = state.feature_dir
         current_phase = state.state["phase"]
-        checks: List[Dict[str, Any]] = []
+        checks: list[dict[str, Any]] = []
 
         def _add(name: str, passed: bool, detail: str = "") -> None:
             checks.append({"name": name, "passed": passed, "detail": detail})
@@ -2321,7 +2317,7 @@ class PD:
     def _cmd_verify(self, state: PDState, as_json: bool) -> None:
         feature_dir = state.feature_dir
         rules = state.config.get_validation_rules()
-        checks: List[Dict[str, Any]] = []
+        checks: list[dict[str, Any]] = []
 
         def _add(name: str, passed: bool) -> None:
             checks.append({"name": name, "passed": passed})
@@ -2452,7 +2448,7 @@ class PD:
                 print(_yellow("No features found. Run 'pd init <name>' to create one."))
             return
 
-        features: List[Dict[str, Any]] = []
+        features: list[dict[str, Any]] = []
         for d in dirs:
             config = PDConfig(d.parent.parent)
             state = PDState(d, config)
@@ -2485,7 +2481,7 @@ class PD:
 
     # ── command: delete ──────────────────────────────────────────────────
 
-    def _cmd_delete(self, state: PDState, target: Optional[str],
+    def _cmd_delete(self, state: PDState, target: str | None,
                     archive: bool, force: bool, as_json: bool) -> None:
         feature_name = target or state.state["feature"]
         feature_dir = self.spec_dir / feature_name
@@ -2523,7 +2519,7 @@ class PD:
         checkpoints = state.state.get("checkpoints", [])
         phases = state.config.get_phases()
 
-        entries: List[Dict[str, Any]] = []
+        entries: list[dict[str, Any]] = []
         for cp in checkpoints:
             phase_idx = cp.get("phase", state.state["phase"])
             phase_name = phases[phase_idx]["name"] if phase_idx < len(phases) else "Unknown"
@@ -2561,7 +2557,7 @@ class PD:
         progress = _make_progress_bar(pct, 30)
 
         # Read blockers from CONTEXT.md
-        blockers: List[str] = []
+        blockers: list[str] = []
         ctx = state.feature_dir / "CONTEXT.md"
         if ctx.exists():
             content = ctx.read_text()

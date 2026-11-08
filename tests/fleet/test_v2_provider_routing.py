@@ -3,13 +3,18 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 
 import pytest
 from pd_fleet.provider import CommandMetadata, RuntimePolicy, RuntimeProviderProfile
 from pd_fleet.provider_routing import (
-    AuditReason, ProviderAuditEvent, ProviderRoutePolicy, RouteStatus,
-    RoutingConfigurationError, route_provider,
+    AuditReason,
+    ProviderAuditEvent,
+    ProviderRoutePolicy,
+    RouteStatus,
+    RoutingConfigurationError,
+    route_provider,
 )
 
 

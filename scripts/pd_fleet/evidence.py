@@ -5,14 +5,16 @@ module never invokes a shell, subprocess, network, or provider on its own.
 """
 from __future__ import annotations
 
+import math
+import re
+from collections.abc import Callable, Mapping, Sequence
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from hashlib import sha256 as _sha256
-from copy import deepcopy
-import math
-import re
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any
+
 from .clock import Clock, clock_iso
 
 
@@ -153,7 +155,7 @@ class EvidenceRecord:
             raise EvidenceValidationError("sha256 inválido")
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any] | "EvidenceRecord") -> "EvidenceRecord":
+    def from_dict(cls, value: Mapping[str, Any] | EvidenceRecord) -> EvidenceRecord:
         if isinstance(value, cls):
             return cls(**value.to_dict())
         if not isinstance(value, Mapping):

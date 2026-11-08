@@ -18,7 +18,6 @@ import glob
 import json
 import statistics
 import subprocess
-import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -89,7 +88,7 @@ def find_env_python() -> str:
             out = subprocess.run([cand, "-c", probe], capture_output=True, timeout=60)
             if out.returncode == 0:
                 return cand
-        except Exception:  # noqa: BLE001
+        except Exception:
             continue
     raise SystemExit("nenhum env com laya+hermes_laya encontrado — use --env-python")
 
@@ -196,7 +195,7 @@ def run(bus: Path, out_dir: Path, backend: str = "real", limit: int = 25,
     lat = [r["latency_ms"] for r in rows if isinstance(r["latency_ms"], (int, float))]
     sink_ok = [r for r in rows if r["agree_sink"] is not None]
     notif_ok = [r for r in rows if r["agree_notify"] is not None]
-    pct = lambda ok, tot: f"{(100.0 * ok / tot):.0f}%" if tot else "n/a"  # noqa: E731
+    pct = lambda ok, tot: f"{(100.0 * ok / tot):.0f}%" if tot else "n/a"
     meta0 = rows[0] if rows else {}
     summary = {
         "n_events": len(rows), "errors": errors,

@@ -8,9 +8,17 @@ from typing import Any
 from jsonschema import Draft202012Validator
 
 try:  # Support both documented direct-script and package/module execution.
-    from .fake_adapter import FakeAgentRuntime, SCHEMA_VERSION, canonical_request_fingerprint
+    from .fake_adapter import (
+        SCHEMA_VERSION,
+        FakeAgentRuntime,
+        canonical_request_fingerprint,
+    )
 except ImportError:  # pragma: no cover - exercised by direct-script invocation.
-    from fake_adapter import FakeAgentRuntime, SCHEMA_VERSION, canonical_request_fingerprint
+    from fake_adapter import (
+        SCHEMA_VERSION,
+        FakeAgentRuntime,
+        canonical_request_fingerprint,
+    )
 
 
 def _request(operation: str, *, lineage: dict[str, Any], key: str, **fields: Any) -> dict[str, Any]:

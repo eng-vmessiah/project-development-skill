@@ -7,9 +7,9 @@ exists.
 """
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping, MutableSet, Set
 from dataclasses import dataclass
 from enum import Enum
-from collections.abc import Callable, Mapping, MutableSet, Set
 from typing import Any
 
 PLUGIN_NAME = "pd-fleet-hermes"
@@ -149,8 +149,8 @@ def load_lifecycle_plugin(
 
 __all__ = [
     "CONTRACT_VERSION",
-    "LifecycleOnlyContext",
     "PLUGIN_NAME",
+    "LifecycleOnlyContext",
     "PluginContractError",
     "PluginLoadResult",
     "PluginLoadStatus",

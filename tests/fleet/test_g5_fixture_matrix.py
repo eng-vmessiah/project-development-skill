@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import ast
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[2]))
 from scripts.pd_fleet.run_g5_fixture_matrix import _row, run

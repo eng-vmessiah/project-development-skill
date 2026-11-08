@@ -1,18 +1,20 @@
 """Injected provider dispatch boundary tests; no real process or provider is used."""
 from __future__ import annotations
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-from pd_fleet.provider import CommandMetadata, RuntimePolicy, RuntimeProviderProfile  # noqa: E402
-from pd_fleet.provider_routing import ProviderRoutePolicy  # noqa: E402
-from pd_fleet.runtime_adapter import RuntimeResult, RuntimeStatus, RuntimeTaskEnvelope  # noqa: E402
-from pd_fleet.provider_dispatch import (  # noqa: E402
-    DispatchStatus, ProviderDispatchBoundary, ProviderDispatchRequest,
+from pd_fleet.provider import CommandMetadata, RuntimePolicy, RuntimeProviderProfile
+from pd_fleet.provider_dispatch import (
+    DispatchStatus,
+    ProviderDispatchBoundary,
+    ProviderDispatchRequest,
 )
+from pd_fleet.provider_routing import ProviderRoutePolicy
+from pd_fleet.runtime_adapter import RuntimeResult, RuntimeStatus, RuntimeTaskEnvelope
 
 
 def _profile(name: str) -> RuntimeProviderProfile:

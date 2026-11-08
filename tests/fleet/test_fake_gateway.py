@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 import ast
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-import sys
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2]))
 from scripts.pd_fleet.fake_gateway import FakeGateway
 from scripts.pd_fleet.gateway_bridge_contracts import (
-    BridgeErrorCode, BridgeValidationError, ObserverIdentity, OwnershipMode,
+    BridgeErrorCode,
+    BridgeValidationError,
+    ObserverIdentity,
+    OwnershipMode,
     ReplayWindow,
 )
 

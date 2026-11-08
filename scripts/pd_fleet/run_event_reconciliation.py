@@ -1,14 +1,14 @@
 """Read-only reconciliation between a persisted run snapshot and its event log."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 import math
 import os
 import re
 import stat
+from dataclasses import dataclass
 from typing import Any, cast
 
-from .events import EventError, EventLog, MAX_QUERY
+from .events import MAX_QUERY, EventError, EventLog
 from .run_store import FleetRunStore, RunNotFoundError
 
 _STATUS = frozenset({"consistent", "degraded", "unknown"})

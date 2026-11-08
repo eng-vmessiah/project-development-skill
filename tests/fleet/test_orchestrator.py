@@ -1,17 +1,16 @@
-import sys
 import math
+import sys
 from pathlib import Path
 
-
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-from pd_fleet.dispatch import (  # noqa: E402
+from pd_fleet.checkpoint import Checkpoint
+from pd_fleet.dispatch import (
     AdapterDeniedError,
     Dispatcher,
     UnknownAdapterError,
 )
-from pd_fleet.orchestrator import FleetOrchestrator, OrchestratorError  # noqa: E402
-from pd_fleet.checkpoint import Checkpoint  # noqa: E402
-from pd_fleet.validation import FleetValidationError  # noqa: E402
+from pd_fleet.orchestrator import FleetOrchestrator, OrchestratorError
+from pd_fleet.validation import FleetValidationError
 
 
 def task(i, wave=1, deps=(), path=None):

@@ -6,14 +6,21 @@ the injected dispatch boundary remains the sole execution authority.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import re
-from typing import Any, Callable, Mapping
+from collections.abc import Callable, Mapping
+from datetime import datetime, timezone
+from typing import Any
 
-from .contracts import AGENT_REPORT_V2_SCHEMA_VERSION, AgentReportV2, parse_agent_report_v2
+from .contracts import (
+    AGENT_REPORT_V2_SCHEMA_VERSION,
+    AgentReportV2,
+    parse_agent_report_v2,
+)
 from .models import TaskSpec
 from .provider_dispatch import (
-    DispatchStatus, ProviderDispatchBoundary, ProviderDispatchRequest,
+    DispatchStatus,
+    ProviderDispatchBoundary,
+    ProviderDispatchRequest,
 )
 from .provider_routing import ProviderRoutePolicy, profile_id
 

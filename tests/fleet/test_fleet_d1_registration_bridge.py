@@ -2,15 +2,16 @@
 from __future__ import annotations
 
 import ast
-from pathlib import Path
 import sys
-from typing import Any, Callable, cast
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2]))
 
-from scripts.pd_fleet.fleet_d1_registration_bridge import (  # noqa: E402
+from scripts.pd_fleet.fleet_d1_registration_bridge import (
     FLEET_SESSION_ACTIVATE_NAME,
     FLEET_SESSION_ACTIVATE_SCHEMA_VERSION,
     FLEET_SESSION_DEACTIVATE_NAME,

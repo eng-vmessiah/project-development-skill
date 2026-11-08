@@ -1,21 +1,22 @@
 """Envelope imutável e log local append-only de eventos da fleet."""
 from __future__ import annotations
 
-from collections.abc import Mapping
-from contextlib import contextmanager
-from dataclasses import dataclass, field
-from datetime import datetime
 import fcntl
 import hashlib
 import json
 import math
 import os
-from pathlib import Path
 import re
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Iterator
-from .safe_rendering import UNSUPPORTED_TYPE
+from typing import Any
+
 from .clock import Clock, clock_iso
+from .safe_rendering import UNSUPPORTED_TYPE
 
 SCHEMA_VERSION = 1
 MAX_STRING = 256
@@ -28,18 +29,18 @@ MAX_LOG_BYTES = 4 * 1024 * 1024
 MAX_LOG_LINE_BYTES = MAX_PAYLOAD_BYTES + 1024
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
-_URL = re.compile(r"(?:https?://|ftp://|www\.)", re.I)
+_URL = re.compile(r"(?:https?://|ftp://|www\.)", re.IGNORECASE)
 _ABSOLUTE = re.compile(r"^(?:/|[A-Za-z]:[\\/]|\\\\)")
 _SENSITIVE = re.compile(
     r"(?:secret|token|password|passwd|api[_-]?key|authorization|credential|prompt|cot|chain.?of.?thought|pid|process[_-]?id|handle|native|socket|url|uri|path)",
-    re.I,
+    re.IGNORECASE,
 )
 _SENSITIVE_VALUE = re.compile(
-    r"(?:secret|password|api[_-]?key|authorization|chain.?of.?thought|\bcot\b)", re.I
+    r"(?:secret|password|api[_-]?key|authorization|chain.?of.?thought|\bcot\b)", re.IGNORECASE
 )
 _SENSITIVE_FIELD = re.compile(
     r"(?:\btoken\b|\bpassword\b|\bpasswd\b|\bcredential\b|\bauthorization\b|\bprompt\b|chain.?of.?thought|\bcot\b|"
-    r"\bpid\b|process[_-]?id|native[_-]?handle|\bhandle\b)", re.I
+    r"\bpid\b|process[_-]?id|native[_-]?handle|\bhandle\b)", re.IGNORECASE
 )
 _TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$")
 
@@ -242,7 +243,7 @@ class FleetEvent:
         return _canonical(self.to_dict()).decode("utf-8")
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "FleetEvent":
+    def from_dict(cls, value: Mapping[str, Any]) -> FleetEvent:
         if not isinstance(value, Mapping):
             raise EventError("evento deve ser objeto")
         expected = {"schema_version", "event_id", "run_id", "task_id", "kind", "ordering_key", "sequence", "owner_epoch", "payload", "created_at"}
@@ -257,7 +258,7 @@ class EventLog:
     """Log por run; leitura não cria diretórios e escrita é serializada por flock."""
 
     def __init__(self, root: str | os.PathLike[str], run_id: str,
-                 owner_epoch: int | float | None = None, *, clock: Clock | None = None) -> None:
+                 owner_epoch: float | None = None, *, clock: Clock | None = None) -> None:
         self.root = Path(root)
         _string(run_id, "run_id", identifier=True)
         if owner_epoch is not None:
@@ -395,4 +396,4 @@ class EventLog:
             raise EventError("limit fora dos limites")
 
 
-__all__ = ["EventError", "EventLog", "FleetEvent", "SCHEMA_VERSION"]
+__all__ = ["SCHEMA_VERSION", "EventError", "EventLog", "FleetEvent"]

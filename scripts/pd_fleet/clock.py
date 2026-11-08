@@ -6,8 +6,8 @@ The default is retained for backwards compatibility at the API boundary.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Callable
 
 Clock = Callable[[], datetime | str]
 

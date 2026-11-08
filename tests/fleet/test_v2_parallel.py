@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import sys
 import threading
 import time
 from pathlib import Path
-import sys
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 from pd_fleet.parallel import BoundedParallelExecutor
