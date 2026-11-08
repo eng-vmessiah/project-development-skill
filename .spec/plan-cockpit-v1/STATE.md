@@ -22,6 +22,7 @@ initialized
 - [x] T-403 — pilot RUN: 3/3 completed via real hermes dispatch (evidence in .spec/pilot-runs/hermes/)
 - [x] T-404 — independent review: C1/C2/C4 verified; narrative correction applied (4 runs/9 dispatches; PATH_DENIED story false)
 - [x] T-501 — closeout: VERIFICATION.md + records + final Board; G3 approved
+- [x] T-000 — registro retroativo do intake (04/10)
 
 ## Checkpoints
 - 2026-10-04 23:12: SPEC+PLAN drafted (scope A+B); FleetPlan manifest; G1 pending
@@ -40,12 +41,12 @@ initialized
 
 ## Timestamps
 - Created: 2026-10-04T23:05:58.575354
-- Updated: 2026-10-05T00:44:08.902208
+- Updated: 2026-11-08T19:20:00.874568
 
 ## Fleet State
 ```json
 {
-  "updated_at": "2026-10-05T00:44:08.902208",
+  "updated_at": "2026-11-08T19:20:00.874568",
   "schema_version": 1,
   "agents": [],
   "waves": [],

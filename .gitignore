@@ -11,6 +11,8 @@ Thumbs.db
 
 # pd-studio: cursor efêmero do fleet (TTL ~15min; estado local, não versionar)
 .spec/pd-studio/fleet-cursor.json
+# pd: lock efêmero do STATE (flock entre processos; não versionar)
+.spec/*/.state.lock
 *.swp
 *~
 

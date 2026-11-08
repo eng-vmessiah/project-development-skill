@@ -24,3 +24,10 @@
 - Golden rule: never fabricate telemetry.
 - `pd` state semantics: `STATE.json.tasks` = completed-task strings (legacy); structured plan state lives in `fleet_state` + FleetPlan manifests.
 - Executor question is ANSWERED by the machinery: runtime adapters dispatch via templated CLI commands with pinned provider/model — the pilot just wires/uses it.
+
+## P2 — guard test + contagem (08/11)
+
+- `.spec/plan-cockpit-v1/tests/test_plan_cockpit_contract.py`: guard live do coletor — a feature continua no snapshot, `source: plan-yaml`, contagem coerente e determinismo com `HOME` hermético.
+- `T-000` registrada retroativamente no `STATE.json` (intake 04/10) ⇒ `pd status` 13/14.
+- O 14º checkbox é `G1` (gate de aprovação), não task; `task_stats` conta gates como task. Não logar gate em `STATE.tasks` — o placar honesto é 13 tasks + G1 aprovado em `PLAN.md`/`plan.yaml`.
+- `pd validate --deep` 13/13.
