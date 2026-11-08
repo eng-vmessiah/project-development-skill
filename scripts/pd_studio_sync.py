@@ -51,7 +51,7 @@ def pd_features() -> list[dict]:
                 "tasks": len(data.get("tasks", [])),
             })
         # Individual feature records are skipped on any malformed or unreadable state.
-        except (OSError, json.JSONDecodeError, UnicodeError):
+        except (OSError, UnicodeError, json.JSONDecodeError, AttributeError, TypeError):
             continue
     return feats
 
