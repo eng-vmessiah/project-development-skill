@@ -69,7 +69,8 @@ class HermesExistingReadOnlyAdapter:
             if isinstance(values, (str, bytes, bytearray)):
                 return frozenset()
             return frozenset(value for value in values if type(value) is str)
-        except Exception:
+        # The compatibility adapter must contain failures from externally supplied Hermes objects.
+        except Exception:  # noqa: BLE001
             return frozenset()
 
     def capability_report(self) -> dict[str, Any]:
@@ -112,13 +113,15 @@ class HermesExistingReadOnlyAdapter:
             raise HermesAdapterError("CAPABILITY_DENIED")
         try:
             function = getattr(self._client, method)
-        except Exception:
+        # The compatibility adapter must contain failures from externally supplied Hermes objects.
+        except Exception:  # noqa: BLE001
             raise HermesAdapterError(NOT_READY_HERMES_SEAM) from None
         if not callable(function):
             raise HermesAdapterError(NOT_READY_HERMES_SEAM)
         try:
             return function(*args, **kwargs)
-        except Exception:
+        # The compatibility adapter must contain failures from externally supplied Hermes objects.
+        except Exception:  # noqa: BLE001
             raise HermesAdapterError("TRANSPORT_ERROR") from None
 
     @staticmethod
@@ -145,7 +148,8 @@ class HermesExistingReadOnlyAdapter:
     def _snapshot(value: Any) -> SessionSnapshot:
         try:
             return cast(SessionSnapshot, value if isinstance(value, SessionSnapshot) else SessionSnapshot.from_dict(value))
-        except Exception:
+        # The compatibility adapter must contain failures from externally supplied Hermes objects.
+        except Exception:  # noqa: BLE001
             raise HermesAdapterError("MALFORMED_TRANSPORT_RESULT") from None
 
     @staticmethod
@@ -156,7 +160,8 @@ class HermesExistingReadOnlyAdapter:
             raise HermesAdapterError("REPLAY_BATCH_LIMIT")
         try:
             return tuple(item if isinstance(item, BridgeEvent) else BridgeEvent.from_dict(item) for item in value)
-        except Exception:
+        # The compatibility adapter must contain failures from externally supplied Hermes objects.
+        except Exception:  # noqa: BLE001
             raise HermesAdapterError("MALFORMED_TRANSPORT_RESULT") from None
 
     def session_snapshot(self, session_ref: str) -> SessionSnapshot:

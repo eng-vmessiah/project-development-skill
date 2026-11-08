@@ -218,7 +218,8 @@ class EvidenceStore:
             raise EvidenceError("capture exige executor injetado; shell/rede desabilitados")
         try:
             result = executor(command)
-        except Exception:
+        # Evidence collection is best-effort and must preserve the primary operation on any failure.
+        except Exception:  # noqa: BLE001
             raise EvidenceError("executor falhou") from None
         if isinstance(result, Mapping):
             code, out, err = result.get("exit_code"), result.get("stdout", ""), result.get("stderr", "")

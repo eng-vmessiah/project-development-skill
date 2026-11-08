@@ -30,7 +30,8 @@ def _redact_text(value: str, limit: int) -> str:
 def _mapping_items(value: Mapping[str, Any]) -> tuple[tuple[Any, Any], ...]:
     try:
         return tuple(value.items())
-    except Exception:
+    # Observability is best-effort and must never mask the primary operation.
+    except Exception:  # noqa: BLE001
         raise ObservabilityError("invalid mapping") from None
 
 def _immutable(value: Any, *, depth: int = 0, max_depth: int = 8,

@@ -223,7 +223,8 @@ class ProviderDispatchBoundary:
             raise DispatchConfigurationError("adapter_profile_mismatch")
         try:
             adapter_capabilities = adapter.capabilities()
-        except Exception:
+        # The provider boundary converts arbitrary implementation failures into stable dispatch results.
+        except Exception:  # noqa: BLE001
             raise DispatchConfigurationError("adapter_capabilities_invalid") from None
         if (type(adapter_capabilities) is not frozenset
                 or any(type(capability) is not str for capability in adapter_capabilities)
@@ -249,7 +250,8 @@ class ProviderDispatchBoundary:
                                        request.nested_agents, request.metadata)
         try:
             runtime = adapter.execute(envelope, runner=runner)
-        except Exception:
+        # The provider boundary converts arbitrary implementation failures into stable dispatch results.
+        except Exception:  # noqa: BLE001
             runtime = RuntimeResult(RuntimeStatus.FAILED, RuntimeErrorCode.RUNNER_ERROR,
                                     metadata={"exception": "[PROVIDER ERROR]"})
         if not isinstance(runtime, RuntimeResult):

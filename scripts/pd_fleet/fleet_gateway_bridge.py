@@ -443,7 +443,8 @@ class FleetGatewayBridge:
             _fail(BridgeErrorCode.INVALID_REQUEST, "malformed_binding")
         try:
             values = dict(binding)
-        except Exception:
+        # The gateway boundary must contain arbitrary transport and adapter failures.
+        except Exception:  # noqa: BLE001
             _fail(BridgeErrorCode.INVALID_REQUEST, "malformed_binding")
         if any(not isinstance(key, str) or key not in allowed for key in values):
             _fail(BridgeErrorCode.INVALID_REQUEST, "unknown_binding_field")
@@ -490,7 +491,8 @@ class FleetGatewayBridge:
             assoc = self.connection.consume_activation(activation_ref, **validated)
         except BridgeValidationError:
             raise
-        except Exception:
+        # The gateway boundary must contain arbitrary transport and adapter failures.
+        except Exception:  # noqa: BLE001
             _fail(BridgeErrorCode.INVALID_REQUEST, "upstream_attach_failed")
         if not isinstance(assoc, AssociationRef) or assoc.ownership_mode is OwnershipMode.FLEET_OWNED_TASK:
             _fail(BridgeErrorCode.CAPABILITY_DENIED)
@@ -502,7 +504,8 @@ class FleetGatewayBridge:
             snap = self.connection.snapshot(assoc)
         except BridgeValidationError:
             raise
-        except Exception:
+        # The gateway boundary must contain arbitrary transport and adapter failures.
+        except Exception:  # noqa: BLE001
             _fail(BridgeErrorCode.INVALID_REQUEST, "upstream_attach_failed")
         self._validate_binding(assoc, snap)
         self._store.ingest(snap, (), None)
@@ -625,7 +628,8 @@ class FleetGatewayBridge:
                     _fail(BridgeErrorCode.INVALID_EVENT, "malformed_event_source")
             try:
                 events = tuple(islice(source, MAX_REPLAY_BATCH + 1))
-            except Exception:
+            # The gateway boundary must contain arbitrary transport and adapter failures.
+            except Exception:  # noqa: BLE001
                 _fail(BridgeErrorCode.INVALID_EVENT, "malformed_event_source")
             if len(events) > MAX_REPLAY_BATCH:
                 _fail(BridgeErrorCode.INVALID_EVENT, "malformed_event_batch")
@@ -694,7 +698,8 @@ class FleetGatewayBridge:
             return snapshot, bounded, cursor
         except BridgeValidationError:
             raise
-        except Exception:
+        # The gateway boundary must contain arbitrary transport and adapter failures.
+        except Exception:  # noqa: BLE001
             _fail(BridgeErrorCode.INVALID_EVENT, "malformed_upstream_result")
 
     @staticmethod

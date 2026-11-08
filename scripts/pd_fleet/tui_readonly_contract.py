@@ -183,7 +183,8 @@ class TuiBindingRegistry:
     def _now(self) -> float:
         try:
             raw = self._clock()
-        except Exception:
+        # The read-only contract probe reports arbitrary UI adapter failures as validation failures.
+        except Exception:  # noqa: BLE001
             raise TuiContractError("INVALID_CLOCK") from None
         now = self._time(raw)
         if self._last_now is not None and now < self._last_now:

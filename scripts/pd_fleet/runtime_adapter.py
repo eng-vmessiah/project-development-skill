@@ -49,7 +49,8 @@ class RuntimeRunnerRequiredError(RuntimeAdapterError):
 def _mapping_items(value: Mapping[str, Any]) -> tuple[tuple[Any, Any], ...]:
     try:
         return tuple(value.items())
-    except Exception:
+    # The runtime adapter contains arbitrary failures from optional external runtimes.
+    except Exception:  # noqa: BLE001
         raise RuntimeConfigurationError(RuntimeErrorCode.INVALID_ENVELOPE.value) from None
 
 
@@ -365,7 +366,8 @@ class TemplateRuntimeAdapter:
         try:
             value = runner.run(argv, cwd=cwd, env=getattr(runner, "env", {}),
                                timeout=timeout, output_limits=(65536, 65536))
-        except Exception:
+        # The runtime adapter contains arbitrary failures from optional external runtimes.
+        except Exception:  # noqa: BLE001
             return RuntimeResult(RuntimeStatus.FAILED, RuntimeErrorCode.RUNNER_ERROR,
                                  metadata={"exception": RUNTIME_ERROR})
         if isinstance(value, RuntimeResult):

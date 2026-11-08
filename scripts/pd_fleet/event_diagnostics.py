@@ -41,7 +41,8 @@ def _bounded_tuple(value: Any, maximum: int, message: str) -> tuple[Any, ...]:
         raise ValueError(message)
     except ValueError:
         raise
-    except Exception:
+    # Diagnostics are best-effort and must not disrupt the event path on unexpected failures.
+    except Exception:  # noqa: BLE001
         raise ValueError(message) from None
 
 
@@ -93,7 +94,8 @@ class EventDiagnosticsReport:
 
         try:
             state_items = self.task_states.items()
-        except Exception:
+        # Diagnostics are best-effort and must not disrupt the event path on unexpected failures.
+        except Exception:  # noqa: BLE001
             raise ValueError("invalid diagnostics task states") from None
         items = _bounded_tuple(state_items, _MAX_TASK_STATES, "invalid diagnostics task states")
         if len(items) > _MAX_TASK_STATES:
@@ -168,7 +170,8 @@ def _transition(event: FleetEvent, states: dict[str, str], reasons: list[str]) -
             _reason_add(reasons, _REASON_INCONSISTENT)
         states[task_id] = to_state
         return True
-    except Exception:
+    # Diagnostics are best-effort and must not disrupt the event path on unexpected failures.
+    except Exception:  # noqa: BLE001
         _reason_add(reasons, _REASON_MALFORMED)
         return False
 
@@ -201,7 +204,8 @@ def diagnose_event_log(
     reasons: list[str] = []
     try:
         sequences = [event.sequence for event in events]
-    except Exception:
+    # Diagnostics are best-effort and must not disrupt the event path on unexpected failures.
+    except Exception:  # noqa: BLE001
         raise EventError("replay contém sequência inválida") from None
     transitions = checkpoints = 0
     for event in events:
@@ -218,7 +222,8 @@ def diagnose_event_log(
                 checkpoints += 1
         except EventError:
             raise
-        except Exception:
+        # Diagnostics are best-effort and must not disrupt the event path on unexpected failures.
+        except Exception:  # noqa: BLE001
             # A malformed event object or hostile mapping is data, not a reason
             # to leak an implementation exception from this read-only report.
             _reason_add(reasons, _REASON_MALFORMED)
@@ -266,7 +271,8 @@ def diagnose_event_log(
 
     try:
         first_sequence, last_sequence = min(sequences), max(sequences)
-    except Exception:
+    # Diagnostics are best-effort and must not disrupt the event path on unexpected failures.
+    except Exception:  # noqa: BLE001
         raise EventError("replay contém sequência inválida") from None
     status = "degraded" if reasons else "healthy"
     return EventDiagnosticsReport(

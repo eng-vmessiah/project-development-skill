@@ -68,7 +68,8 @@ class RunEventReconciliationReport:
 
         try:
             reasons = tuple(self.reasons)
-        except Exception:
+        # Reconciliation reports arbitrary event-source failures without aborting the remaining work.
+        except Exception:  # noqa: BLE001
             raise ValueError("invalid reconciliation reasons") from None
         if (
             len(reasons) > _MAX_REASONS

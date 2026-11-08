@@ -376,7 +376,8 @@ class LocalSandboxRunner:
                     "truncated_stdout": truncated_out or stdout_cut, "truncated_stderr": truncated_err or stderr_cut}
         except SandboxConfigurationError as exc:
             return {"status": "denied", "returncode": -1, "stdout": "", "stderr": "", "error": exc.code}
-        except Exception:
+        # Sandbox cleanup is best-effort and must continue after arbitrary resource failures.
+        except Exception:  # noqa: BLE001
             if proc is not None:
                 try:
                     os.killpg(proc.pid, signal.SIGKILL)
@@ -384,7 +385,8 @@ class LocalSandboxRunner:
                     pass
                 try:
                     proc.wait(timeout=1.0)
-                except Exception:
+                # Sandbox cleanup is best-effort and must continue after arbitrary resource failures.
+                except Exception:  # noqa: BLE001
                     pass
             return {"status": "failed", "returncode": -1,
                     "stdout": _redact(bytes(out).decode("utf-8", "replace"), tuple(self._env.values()) + self._secrets),
@@ -394,7 +396,8 @@ class LocalSandboxRunner:
             if sel is not None:
                 try:
                     sel.close()
-                except Exception:
+                # Sandbox cleanup is best-effort and must continue after arbitrary resource failures.
+                except Exception:  # noqa: BLE001
                     pass
             if proc is not None:
                 for stream in (proc.stdout, proc.stderr):

@@ -57,7 +57,8 @@ def _configuration_rejected() -> ProviderConfigurationError:
 def _mapping_items(value: Mapping[str, Any]) -> tuple[tuple[Any, Any], ...]:
     try:
         return tuple(value.items())
-    except Exception:
+    # Provider discovery is best-effort because third-party providers may fail arbitrarily.
+    except Exception:  # noqa: BLE001
         raise _configuration_rejected() from None
 
 

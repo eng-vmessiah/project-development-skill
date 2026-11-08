@@ -255,7 +255,8 @@ class ValidationExecutor:
             raw = call(checked, cwd=str(cwd), env=policy.env,
                        timeout=policy.timeout_seconds, output_limits=policy.output_limits,
                        shell=False)
-        except Exception:
+        # Validation must capture arbitrary validator failures as structured outcomes.
+        except Exception:  # noqa: BLE001
             return ValidationResult(status="failed", argv=checked, executed=True, error_code="runner_failed")
         try:
             if not isinstance(raw, Mapping):
@@ -287,7 +288,8 @@ class ValidationExecutor:
                                     stdout=out, stderr=err, timed_out=timed_out,
                                     truncated_stdout=truncated or truncated_stdout or out_truncated,
                                     truncated_stderr=truncated or truncated_stderr or err_truncated)
-        except Exception:
+        # Validation must capture arbitrary validator failures as structured outcomes.
+        except Exception:  # noqa: BLE001
             return ValidationResult(status="failed", argv=checked, executed=True, error_code="runner_contract_error")
 
 

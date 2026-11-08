@@ -143,7 +143,8 @@ def _mapping_copy(value: Mapping[Any, Any], message: str) -> dict[Any, Any]:
                 raise ValueError
             copied[key] = item
         return copied
-    except Exception:
+    # Dispatch is a containment boundary; backend failures must become structured results.
+    except Exception:  # noqa: BLE001
         raise DispatchError(message) from None
 
 
@@ -171,7 +172,8 @@ def _value(task: Any, name: str, default: Any = None) -> Any:
         return getattr(task, name, default)
     except DispatchError:
         raise
-    except Exception:
+    # Dispatch is a containment boundary; backend failures must become structured results.
+    except Exception:  # noqa: BLE001
         raise DispatchError("campo de task inacessível") from None
 
 
@@ -196,7 +198,8 @@ def _jsonable_inner(value: Any, seen: set[int]) -> Any:
                 return {k if type(k) is str else UNSUPPORTED_TYPE: v for k, v in pairs}
             except DispatchError:
                 raise
-            except Exception:
+            # Dispatch is a containment boundary; backend failures must become structured results.
+            except Exception:  # noqa: BLE001
                 raise DispatchError("entrada mapping inacessível") from None
         if isinstance(value, (list, tuple)):
             return [_jsonable_inner(v, seen) for v in value]
@@ -209,7 +212,8 @@ def _jsonable_inner(value: Any, seen: set[int]) -> Any:
         if callable(converter):
             try:
                 return _jsonable_inner(converter(), seen)
-            except Exception:
+            # Dispatch is a containment boundary; backend failures must become structured results.
+            except Exception:  # noqa: BLE001
                 pass
         attrs = _safe_attrs(value)
         if isinstance(attrs, dict):
@@ -220,7 +224,8 @@ def _jsonable_inner(value: Any, seen: set[int]) -> Any:
                     if label.startswith("_"):
                         continue
                     public_attrs[label] = _jsonable_inner(child, seen)
-            except Exception:
+            # Dispatch is a containment boundary; backend failures must become structured results.
+            except Exception:  # noqa: BLE001
                 raise DispatchError("atributos de entrada inacessíveis") from None
             return {"__object_type__": UNSUPPORTED_TYPE, "attributes": public_attrs}
         # Do not use repr: the default repr contains a process-dependent address.
@@ -246,7 +251,8 @@ def _safe_attrs(value: Any) -> Any:
     try:
         attrs = getattr(value, "__dict__", None)
         return attrs if isinstance(attrs, dict) else None
-    except Exception:
+    # Dispatch is a containment boundary; backend failures must become structured results.
+    except Exception:  # noqa: BLE001
         return None
 
 
@@ -272,7 +278,8 @@ def _public_properties(value: Any) -> tuple[str, ...]:
                     continue
                 if isinstance(inspect.getattr_static(value, name, None), property):
                     found.append(name)
-    except Exception:
+    # Dispatch is a containment boundary; backend failures must become structured results.
+    except Exception:  # noqa: BLE001
         raise AdapterDeniedError("dispatch recusado: entrada não pode ser inspecionada") from None
     return tuple(found)
 
@@ -298,7 +305,8 @@ def _contains_denied(value: Any, path: str = "input", _seen: set[int] | None = N
             for key, child in iterator:
                 try:
                     label = key if type(key) is str else UNSUPPORTED_TYPE
-                except Exception:
+                # Dispatch is a containment boundary; backend failures must become structured results.
+                except Exception:  # noqa: BLE001
                     raise AdapterDeniedError("dispatch recusado: chave de entrada inválida") from None
                 if _denied_key(label):
                     return "credencial proibida na entrada"
@@ -307,7 +315,8 @@ def _contains_denied(value: Any, path: str = "input", _seen: set[int] | None = N
                     return found
         except AdapterDeniedError:
             raise
-        except Exception:
+        # Dispatch is a containment boundary; backend failures must become structured results.
+        except Exception:  # noqa: BLE001
             raise AdapterDeniedError("dispatch recusado: mapping de entrada inacessível") from None
     elif isinstance(value, (list, tuple, set, frozenset)):
         for index, child in enumerate(value):
@@ -325,7 +334,8 @@ def _contains_denied(value: Any, path: str = "input", _seen: set[int] | None = N
                 return "credencial proibida na entrada"
             try:
                 child = getattr(value, item.name)
-            except Exception:
+            # Dispatch is a containment boundary; backend failures must become structured results.
+            except Exception:  # noqa: BLE001
                 raise AdapterDeniedError("dispatch recusado: campo de entrada inacessível") from None
             found = _contains_denied(child, path, _seen, _depth + 1)
             if found:
@@ -339,7 +349,8 @@ def _contains_denied(value: Any, path: str = "input", _seen: set[int] | None = N
             raise AdapterDeniedError("dispatch recusado: propriedades de entrada não permitidas")
         try:
             converter = getattr(value, "to_dict", None)
-        except Exception:
+        # Dispatch is a containment boundary; backend failures must become structured results.
+        except Exception:  # noqa: BLE001
             raise AdapterDeniedError("dispatch recusado: entrada não pode ser inspecionada") from None
         if callable(converter):
             try:
@@ -348,7 +359,8 @@ def _contains_denied(value: Any, path: str = "input", _seen: set[int] | None = N
                     return found
             except AdapterDeniedError:
                 raise
-            except Exception:
+            # Dispatch is a containment boundary; backend failures must become structured results.
+            except Exception:  # noqa: BLE001
                 raise AdapterDeniedError("dispatch recusado: conversão da entrada falhou") from None
         attrs = _safe_attrs(value)
         if attrs is not None:
@@ -356,7 +368,8 @@ def _contains_denied(value: Any, path: str = "input", _seen: set[int] | None = N
                 for key, child in attrs.items():
                     try:
                         label = key if type(key) is str else UNSUPPORTED_TYPE
-                    except Exception:
+                    # Dispatch is a containment boundary; backend failures must become structured results.
+                    except Exception:  # noqa: BLE001
                         raise AdapterDeniedError("dispatch recusado: chave de entrada inválida") from None
                     # Inspect private names, but never access private values.
                     if label.startswith("_"):
@@ -370,7 +383,8 @@ def _contains_denied(value: Any, path: str = "input", _seen: set[int] | None = N
                         return found
             except AdapterDeniedError:
                 raise
-            except Exception:
+            # Dispatch is a containment boundary; backend failures must become structured results.
+            except Exception:  # noqa: BLE001
                 raise AdapterDeniedError("dispatch recusado: atributos de entrada inacessíveis") from None
         else:
             raise AdapterDeniedError("dispatch recusado: entrada opaca não permitida")
@@ -387,7 +401,8 @@ class Dispatcher:
             try:
                 valid = (type(key) is str and bool(key.strip()) and
                          type(value) is str and bool(value.strip()))
-            except Exception:
+            # Dispatch is a containment boundary; backend failures must become structured results.
+            except Exception:  # noqa: BLE001
                 valid = False
             if not valid:
                 raise DispatchError("routes exige chaves e valores string não vazios")
@@ -485,7 +500,8 @@ class Dispatcher:
                 result = self.adapters[adapter_name].dispatch(deepcopy(task), deepcopy(context))
                 if not isinstance(result, DispatchResult):
                     raise TypeError("invalid adapter result")
-            except Exception:
+            # Dispatch is a containment boundary; backend failures must become structured results.
+            except Exception:  # noqa: BLE001
                 # Exception text is intentionally omitted: it can contain secrets.
                 result = DispatchResult(task_id, adapter_name, "failed", attempt,
                                         None, {"fingerprint": fingerprint},

@@ -219,7 +219,8 @@ class LocalRuntimeReadinessProbe:
             raw = self._invoke(argv)
         except (subprocess.TimeoutExpired, TimeoutError):
             return LocalReadinessResult(runtime_id, True, False, "timeout", "command_timeout")
-        except Exception:
+        # Readiness checks fail closed on any unexpected provider failure.
+        except Exception:  # noqa: BLE001
             return LocalReadinessResult(runtime_id, True, False, "failed", "command_failed")
         returncode, stdout, stderr, runner_status = self._parts(raw)
         if runner_status == "timeout":

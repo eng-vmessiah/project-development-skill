@@ -129,7 +129,8 @@ class BoundedParallelExecutor:
         for task_id in ordered:
             try:
                 copied[task_id] = _copy(entries[task_id])
-            except BaseException:
+            # Parallel supervision must record every worker termination, including cancellation-like failures.
+            except BaseException:  # noqa: BLE001
                 results[task_id] = TaskResult(task_id, "failed", error=PARALLEL_ERROR)
 
         def result(task_id: str, status: str, value: Any = None,
@@ -138,7 +139,8 @@ class BoundedParallelExecutor:
                 error = error[: self.max_output]
             try:
                 return TaskResult(task_id, status, value, error)
-            except BaseException:
+            # Parallel supervision must record every worker termination, including cancellation-like failures.
+            except BaseException:  # noqa: BLE001
                 return TaskResult(task_id, "failed", error=PARALLEL_ERROR)
 
         pending_ids = iter(task_id for task_id in ordered if task_id in copied)
@@ -202,7 +204,8 @@ class BoundedParallelExecutor:
                     task_id = futures.pop(future)
                     try:
                         results[task_id] = result(task_id, "completed", value=future.result())
-                    except BaseException as exc:
+                    # Parallel supervision records every worker termination, including cancellations.
+                    except BaseException as exc:  # noqa: BLE001
                         status = "timeout" if isinstance(exc, TimeoutError) else "failed"
                         results[task_id] = result(task_id, status, error=PARALLEL_ERROR)
                     if not cancelled and (deadline is None or self.clock() < deadline):
@@ -218,7 +221,8 @@ class BoundedParallelExecutor:
             for item in output:
                 try:
                     callback(item)
-                except BaseException:
+                # Parallel supervision must record every worker termination, including cancellation-like failures.
+                except BaseException:  # noqa: BLE001
                     pass
         return output
 

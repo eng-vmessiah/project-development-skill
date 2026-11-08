@@ -121,7 +121,8 @@ class FleetD1RegistrationBridge:
                 raise FleetD1RegistrationError("injected registrar returned invalid methods")
         except FleetD1RegistrationError:
             raise
-        except Exception:
+        # The registration bridge must translate arbitrary adapter failures into its stable response.
+        except Exception:  # noqa: BLE001
             raise FleetD1RegistrationError("injected registrar rejected registration") from None
         return expected[0]
 
@@ -158,7 +159,8 @@ class FleetD1RegistrationBridge:
             return _response(request_id, "not_ready", "FLEET_SESSION_DEACTIVATE_NOT_READY")
         try:
             detach()
-        except Exception:
+        # The registration bridge must translate arbitrary adapter failures into its stable response.
+        except Exception:  # noqa: BLE001
             return _response(request_id, "not_ready", "FLEET_SESSION_DEACTIVATE_NOT_READY")
         self._local_association = None
         return _response(request_id, "deactivated", "FLEET_SESSION_DEACTIVATE_DETACHED")
@@ -179,7 +181,8 @@ class FleetD1RegistrationBridge:
             return False
         try:
             return set(params) == {"schema_version"} and params["schema_version"] == schema_version
-        except Exception:
+        # The registration bridge must translate arbitrary adapter failures into its stable response.
+        except Exception:  # noqa: BLE001
             return False
 
     @staticmethod
@@ -194,7 +197,8 @@ class FleetD1RegistrationBridge:
                 and isinstance(cursor, str)
                 and 0 < len(cursor) <= _MAX_OPAQUE_CURSOR_LENGTH
             )
-        except Exception:
+        # The registration bridge must translate arbitrary adapter failures into its stable response.
+        except Exception:  # noqa: BLE001
             return False
 
 

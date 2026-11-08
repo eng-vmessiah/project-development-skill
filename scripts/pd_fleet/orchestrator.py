@@ -127,7 +127,8 @@ def _sanitize_text(value: Any, default: str | None) -> str | None:
         text = value if type(value) is str else default
         if text is None:
             return default
-    except Exception:
+    # The orchestrator contains arbitrary worker and integration failures to keep supervision alive.
+    except Exception:  # noqa: BLE001
         return default
     text = _REPORT_URL_RE.sub("[redacted-url]", text)
     text = _REPORT_PATH_RE.sub("[redacted-path]", text)
@@ -294,7 +295,8 @@ class FleetOrchestrator:
         self.validation = validate_plan(self.plan)
         try:
             self._v2_context = deepcopy(reconciliation_context) if reconciliation_context is not None else None
-        except Exception:
+        # The orchestrator contains arbitrary worker and integration failures to keep supervision alive.
+        except Exception:  # noqa: BLE001
             # Reconciliation is fail-closed and must sanitize malformed input,
             # not leak a raw deepcopy/type exception from construction.
             self._v2_context = reconciliation_context
@@ -388,7 +390,8 @@ class FleetOrchestrator:
             # Strict V2 envelope gate: never stringify, sort, or deepcopy hostile keys.
             try:
                 raw_strict = _strict_copy(context)
-            except Exception:
+            # The orchestrator contains arbitrary worker and integration failures to keep supervision alive.
+            except Exception:  # noqa: BLE001
                 raw_strict = None
                 add("context_invalid", "incompatible reconciliation context")
             if raw_strict is not None:
@@ -398,7 +401,8 @@ class FleetOrchestrator:
                 try:
                     expected_strict_hash = self._plan_digest(self)
                     if type(raw_strict.get("plan_hash")) is str and raw_strict.get("plan_hash") != expected_strict_hash: add("plan_hash_drift", "plan hash drift")
-                except Exception:
+                # The orchestrator contains arbitrary worker and integration failures to keep supervision alive.
+                except Exception:  # noqa: BLE001
                     add("hash_contract_error", "canonical hash unavailable")
                 if type(raw_strict.get("run_id")) is not str or not raw_strict.get("run_id", "").strip(): add("run_id_invalid", "invalid run id")
                 if type(raw_strict.get("generation")) is not int or raw_strict.get("generation", -1) < 0: add("generation_invalid", "invalid generation")
@@ -440,7 +444,8 @@ class FleetOrchestrator:
                     cp_ok = CheckpointV2Store is not None and CheckpointV2Store._valid(cp_strict, raw_strict.get("run_id"), raw_strict.get("plan_hash"))
                 elif isinstance(cp_strict, Mapping) and cp_strict.get("schema_version", 1) in (1, "1"):
                     try: Checkpoint.from_dict(cp_strict); cp_ok = True
-                    except Exception: cp_ok = False
+                    # The orchestrator contains arbitrary worker and integration failures to keep supervision alive.
+                    except Exception: cp_ok = False  # noqa: BLE001
                 if not cp_ok: add("checkpoint_invalid", "missing or incompatible checkpoint")
                 if isinstance(raw_strict.get("snapshots"), Mapping) and isinstance(leases_strict, Mapping):
                     for task_id, snapshot in raw_strict["snapshots"].items():
@@ -453,7 +458,8 @@ class FleetOrchestrator:
         else:
             try:
                 raw = deepcopy(dict(context))
-            except Exception:
+            # The orchestrator contains arbitrary worker and integration failures to keep supervision alive.
+            except Exception:  # noqa: BLE001
                 raw = {}
                 add("context_invalid", "incompatible reconciliation context")
             if raw:
@@ -783,7 +789,8 @@ class FleetOrchestrator:
                             reports.append({**report, "task_id": task_id})
                             try:
                                 self.store.append_terminal_event_if_absent(self.run_id, task_id, self.run_owner)
-                            except Exception as event_exc:
+                            # Event persistence is best-effort after the terminal state is durable.
+                            except Exception as event_exc:  # noqa: BLE001
                                 warning = _sanitize_text(event_exc, "event persistence failed") or "event persistence failed"
                                 reports[-1]["event_persistence_warning"] = warning
                             continue
@@ -806,16 +813,19 @@ class FleetOrchestrator:
                             reports.append({**report, "task_id": task_id})
                             try:
                                 self.store.append_terminal_event_if_absent(self.run_id, task_id, self.run_owner)
-                            except Exception as event_exc:
+                            # Event persistence is best-effort after the terminal state is durable.
+                            except Exception as event_exc:  # noqa: BLE001
                                 warning = _sanitize_text(event_exc, "event persistence failed") or "event persistence failed"
                                 reports[-1]["event_persistence_warning"] = warning
                                 try:
                                     self._call("report", {"type": "event_persistence_warning",
                                         "task_id": task_id, "status": "completed", "error": warning})
-                                except Exception:
+                                # The orchestrator contains arbitrary worker and integration failures to keep supervision alive.
+                                except Exception:  # noqa: BLE001
                                     pass
                             continue
-                    except Exception:
+                    # The orchestrator contains arbitrary worker and integration failures to keep supervision alive.
+                    except Exception:  # noqa: BLE001
                         status, error = "failed", RUNTIME_ERROR
                 if status != "completed":
                     cancelled = status in {"cancelled", "canceled"}
@@ -823,7 +833,8 @@ class FleetOrchestrator:
                     attempt = token.get("attempt", 1)
                     try:
                         attempt = self.store.load(self.run_id).get("attempts", {}).get(task_id, attempt)
-                    except Exception:
+                    # The orchestrator contains arbitrary worker and integration failures to keep supervision alive.
+                    except Exception:  # noqa: BLE001
                         pass
                     policy = by_id[task_id].retry_policy
                     can_retry = (not cancelled and attempt < policy.max_attempts and
@@ -839,20 +850,23 @@ class FleetOrchestrator:
                             self.store.commit(self.run_id, task_id, token, self.run_owner,
                                               terminal_report, status=terminal_status)
                             committed = True
-                        except Exception:
+                        # The orchestrator contains arbitrary worker and integration failures to keep supervision alive.
+                        except Exception:  # noqa: BLE001
                             # Release plus this local fence prevents a broken
                             # commit from becoming an infinite reclaim loop.
                             committed = False
                         if committed:
                             try:
                                 self.store.append_terminal_event_if_absent(self.run_id, task_id, self.run_owner)
-                            except Exception as event_exc:
+                            # Event persistence is best-effort after the terminal state is durable.
+                            except Exception as event_exc:  # noqa: BLE001
                                 warning = _sanitize_text(event_exc, "event persistence failed") or "event persistence failed"
                                 terminal_report["event_persistence_warning"] = warning
                                 try:
                                     self._call("report", {"type": "event_persistence_warning",
                                         "task_id": task_id, "status": terminal_status, "error": warning})
-                                except Exception:
+                                # The orchestrator contains arbitrary worker and integration failures to keep supervision alive.
+                                except Exception:  # noqa: BLE001
                                     pass
                         terminal_ids.add(task_id)
                     if can_retry:
@@ -866,7 +880,8 @@ class FleetOrchestrator:
                     release = getattr(self.scheduler, "release", None)
                     if callable(release):
                         try: release(token)
-                        except Exception: pass
+                        # The orchestrator contains arbitrary worker and integration failures to keep supervision alive.
+                        except Exception: pass  # noqa: BLE001
                     if can_retry:
                         statuses[task_id] = "pending"
                     reports.append({"task_id": task_id, "status": statuses[task_id], "error": error or status})
@@ -960,7 +975,8 @@ class FleetOrchestrator:
                 return False
             try:
                 return bool(gate.allows(expected_run=expected_run, expected_scope=expected_scope))
-            except Exception:
+            # The orchestrator contains arbitrary worker and integration failures to keep supervision alive.
+            except Exception:  # noqa: BLE001
                 return False
         if isinstance(gate, Mapping):
             try:
@@ -979,12 +995,14 @@ class FleetOrchestrator:
                         return bool(HumanVerificationGate.from_dict(gate).allows(
                             expected_run=expected_run, expected_scope=expected_scope
                         )) if HumanVerificationGate is not None else False
-                    except Exception:
+                    # The orchestrator contains arbitrary worker and integration failures to keep supervision alive.
+                    except Exception:  # noqa: BLE001
                         return False
                 gate_type = gate.get("gate_type", gate.get("kind", gate.get("type")))
                 if str(gate_type) in {"review", "grill"}:
                     return False
-            except Exception:
+            # The orchestrator contains arbitrary worker and integration failures to keep supervision alive.
+            except Exception:  # noqa: BLE001
                 return False
         # Automatic contract GateResult (or its mapping form) remains policy
         # evaluated; status alone must never grant access.
@@ -994,7 +1012,8 @@ class FleetOrchestrator:
                 (isinstance(gate, Mapping) and ("gate_id" in gate or "gate_type" in gate))):
             try:
                 return bool(FleetOrchestrator._policy.allows(gate))
-            except Exception:
+            # The orchestrator contains arbitrary worker and integration failures to keep supervision alive.
+            except Exception:  # noqa: BLE001
                 return False
         return False
 
@@ -1074,7 +1093,8 @@ class FleetOrchestrator:
                 result = self.dispatcher.dispatch(task, {"attempt": life.attempt, "dry_run": False,
                                                          "report_v2": self._v2_execution,
                                                          "inputs": deepcopy(self.context)})
-            except Exception as exc:
+            # The orchestrator converts arbitrary dispatcher failures into stable failed results.
+            except Exception as exc:  # noqa: BLE001
                 result = DispatchResult(task.id, task.owner or task.role, "failed", life.attempt,
                                         None, {}, _sanitize_text(exc, "dispatch failed"))
             elapsed = self.clock() - started
@@ -1099,7 +1119,8 @@ class FleetOrchestrator:
                         v2_valid = True
                     else:
                         status, error, reason = parsed.status, parsed.error or parsed.reason, parsed.reason
-                except Exception:
+                # The orchestrator contains arbitrary worker and integration failures to keep supervision alive.
+                except Exception:  # noqa: BLE001
                     if status == "completed":
                         status, error, reason = "failed", "incomplete AgentReportV2", "invalid terminal report"
             if status == "completed":

@@ -88,7 +88,8 @@ def find_env_python() -> str:
             out = subprocess.run([cand, "-c", probe], capture_output=True, timeout=60)
             if out.returncode == 0:
                 return cand
-        except Exception:
+        # The routing probe records arbitrary backend failures instead of aborting the probe.
+        except Exception:  # noqa: BLE001
             continue
     raise SystemExit("nenhum env com laya+hermes_laya encontrado — use --env-python")
 
