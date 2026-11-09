@@ -126,4 +126,4 @@ jobs:
           heading="## [$version]"
           gh release create "$GITHUB_REF_NAME" dist/* \
             --title "Project Development Skills $version" \
-            --notes-file <(awk -v heading="$heading" '$0 == heading {found=1; next} found && /^## \[/{exit} found{print}' CHANGELOG.md)
+            --notes-file <(awk -v heading="$heading" 'index($0, heading) == 1 {found=1; next} found && /^## \[/{exit} found{print}' CHANGELOG.md)

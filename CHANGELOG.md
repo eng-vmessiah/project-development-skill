@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.3.0] - 2026-11-08
 
 ### Added
 - **Fleet V2 local vertical slice**: bounded run inspection, readiness gates,
@@ -177,6 +177,7 @@ file and is published from an exact `v1.1.0` Git tag by the release workflow.
 
 | Version | Date | Changes |
 |---|---|---|
+| 1.3.0 | 2026-11-08 | Fleet V2/control plane/plan cockpit, B15b local, CLI human gates, board connector, Ruff 271→0 |
 | 1.2.1 | 2026-10-03 | Patch: release workflow test-dependency fix (carries 1.2.0 forward) |
 | 1.2.0 | 2026-10-03 | Skill-source reconciliation, B15a local closeout, CI repair |
 | 1.1.1 | 2026-07-28 | Directory/executable pin validation fix |
