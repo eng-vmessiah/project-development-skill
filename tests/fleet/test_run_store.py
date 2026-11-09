@@ -128,7 +128,7 @@ def test_separate_instances_do_not_lose_updates(tmp_path: Path):
 def test_symlink_lock_is_rejected(tmp_path: Path):
     outside = tmp_path / "outside"; outside.write_text("outside")
     (tmp_path / ".run_store.lock").symlink_to(outside)
-    with pytest.raises(Exception): FleetRunStore(tmp_path)
+    with pytest.raises(PathContainmentError): FleetRunStore(tmp_path)
 
 
 def test_lock_is_regular_and_mode_0600(tmp_path: Path):
@@ -153,7 +153,7 @@ def test_strict_inputs_and_persistence_failure_has_no_memory_mutation(tmp_path: 
     with pytest.raises(OSError): s.transition("r", "running", "a")
     assert s.load("r") == before
     with pytest.raises(LeaseError): s.claim("r", "a", "a", lease_seconds=0)
-    with pytest.raises(Exception): s.transition("r", "bogus", "a")
+    with pytest.raises(RunStoreError): s.transition("r", "bogus", "a")
 
 
 def test_terminal_report_is_strict_and_does_not_mutate(tmp_path: Path):

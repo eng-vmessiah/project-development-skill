@@ -6,6 +6,7 @@ integration.  It validates and serializes only the bounded v1 observation surfac
 from __future__ import annotations
 
 import json
+import math
 import re
 import unicodedata
 from collections.abc import Mapping
@@ -194,7 +195,7 @@ def _freeze(value: Any, *, depth: int = 0, provenance: bool = False) -> Any:
             _fail(BridgeErrorCode.INVALID_EVENT, "redaction_denied")
         return value
     if value is None or isinstance(value, (bool, int, float)):
-        if isinstance(value, float) and (value != value or value in (float("inf"), float("-inf"))):
+        if isinstance(value, float) and (math.isnan(value) or value in (float("inf"), float("-inf"))):
             _fail(BridgeErrorCode.INVALID_EVENT, "non_finite")
         return value
     _fail(BridgeErrorCode.INVALID_EVENT, "unsupported_input")

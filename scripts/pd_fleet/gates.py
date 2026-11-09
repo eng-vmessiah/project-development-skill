@@ -7,6 +7,7 @@ that persisted reports are reproducible and deterministic.
 from __future__ import annotations
 
 import json
+import math
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -88,7 +89,7 @@ def _safe(value: Any, path: str = "value", seen: set[int] | None = None) -> Any:
     if value is None or type(value) in (str, bool, int):
         return value
     if type(value) is float:
-        if value != value or value in (float("inf"), float("-inf")):
+        if math.isnan(value) or value in (float("inf"), float("-inf")):
             raise GateError(f"{path} contém número não finito")
         return value
     marker = id(value)
@@ -188,7 +189,7 @@ def _plain_json(value: Any, path: str = "value", seen: set[int] | None = None) -
     if value is None or type(value) in (str, bool, int):
         return value
     if type(value) is float:
-        if value != value or value in (float("inf"), float("-inf")):
+        if math.isnan(value) or value in (float("inf"), float("-inf")):
             raise GateError(f"{path} contém número não finito")
         return value
 
@@ -477,7 +478,7 @@ class HumanVerificationGate:
             seconds = float(window)
         else:
             raise GateError("freshness_window deve ser duração positiva")
-        if seconds <= 0 or seconds != seconds or seconds == float("inf"):
+        if seconds <= 0 or math.isnan(seconds) or seconds == float("inf"):
             raise GateError("freshness_window deve ser duração positiva")
         object.__setattr__(self, "freshness_window", timedelta(seconds=seconds))
         if isinstance(self.scope, str):

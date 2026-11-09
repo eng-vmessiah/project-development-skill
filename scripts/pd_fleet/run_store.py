@@ -228,7 +228,7 @@ class FleetRunStore:
             if type(lease.get("owner")) is not str or not _ID.fullmatch(lease["owner"]): return False
             if type(lease.get("lease_id")) is not str or not _ID.fullmatch(lease["lease_id"]): return False
             if type(lease.get("expires_at")) is not str or type(lease.get("generation")) is not int or lease["generation"] < 0: return False
-            try: _clock_value(lambda: lease["expires_at"])
+            try: _clock_value(lambda lease=lease: lease["expires_at"])
             except RunStoreError: return False
         if any(type(v) is not int or v < 0 for v in data["attempts"].values()): return False
         if any(not isinstance(v, dict) for v in data["checkpoints"].values()): return False
@@ -250,7 +250,7 @@ class FleetRunStore:
         if report.get("status") != status: return False
         for key in ("started_at", "completed_at"):
             if key in report:
-                try: _clock_value(lambda: report[key])
+                try: _clock_value(lambda key=key: report[key])
                 except RunStoreError: return False
         if status == "completed":
             return report.get("outputs") not in (None, "", [], {}) and report.get("evidence") not in (None, "", [], {}) and (report.get("tests") not in (None, "", [], {}) or report.get("validation") not in (None, "", [], {})) and report.get("decision") not in (None, "", [], {}) and all(k in report for k in ("started_at", "completed_at"))

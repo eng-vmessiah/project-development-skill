@@ -5,6 +5,7 @@ import math
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from itertools import pairwise
 from types import MappingProxyType
 from typing import Any
 
@@ -239,7 +240,7 @@ def diagnose_event_log(
     )
     replay_anomaly = False
     if len(sequences) > 1 and numeric_sequences:
-        for previous, current in zip(sequences, sequences[1:]):
+        for previous, current in pairwise(sequences):
             if current == previous:
                 _reason_add(reasons, _REASON_DUPLICATE)
                 replay_anomaly = True
@@ -256,7 +257,7 @@ def diagnose_event_log(
         gaps = ()
     else:
         missing: list[int] = []
-        for lower, upper in zip(sequences, sequences[1:]):
+        for lower, upper in pairwise(sequences):
             lower, upper = int(lower), int(upper)
             if upper > lower + 1:
                 for value in range(lower + 1, upper):

@@ -222,7 +222,7 @@ class BoundedParallelExecutor:
                 try:
                     callback(item)
                 # Parallel supervision must record every worker termination, including cancellation-like failures.
-                except BaseException:  # noqa: BLE001
+                except BaseException:  # noqa: BLE001, S110
                     pass
         return output
 

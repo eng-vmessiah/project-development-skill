@@ -89,7 +89,7 @@ def find_env_python() -> str:
             if out.returncode == 0:
                 return cand
         # The routing probe records arbitrary backend failures instead of aborting the probe.
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S112
             continue
     raise SystemExit("nenhum env com laya+hermes_laya encontrado — use --env-python")
 
@@ -211,10 +211,10 @@ def run(bus: Path, out_dir: Path, backend: str = "real", limit: int = 25,
         "",
         f"- **Run:** {now.isoformat(timespec='seconds')} · backend `{summary['backend']}` · model `{summary['model']}`",
         f"- **N events:** {summary['n_events']} (bus `~/.hermes/activity/events.jsonl`, fonte `hermes`)",
-        f"- **Sink agreement vs baseline:** {summary['sink_agreement'][0]}/{summary['sink_agreement'][1]} "
-        f"({pct(summary['sink_agreement'][0], summary['sink_agreement'][1])})",
-        f"- **Notify agreement vs baseline (p>=0.5):** {summary['notify_agreement'][0]}/{summary['notify_agreement'][1]} "
-        f"({pct(summary['notify_agreement'][0], summary['notify_agreement'][1])})",
+        (f"- **Sink agreement vs baseline:** {summary['sink_agreement'][0]}/{summary['sink_agreement'][1]} "
+         f"({pct(summary['sink_agreement'][0], summary['sink_agreement'][1])})"),
+        (f"- **Notify agreement vs baseline (p>=0.5):** {summary['notify_agreement'][0]}/{summary['notify_agreement'][1]} "
+         f"({pct(summary['notify_agreement'][0], summary['notify_agreement'][1])})"),
         f"- **Latency:** {summary['latency_ms']}",
         "",
         "## Caveats (não negociáveis)",

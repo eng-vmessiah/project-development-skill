@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -39,7 +40,7 @@ def _immutable(value: Any, *, depth: int = 0, max_depth: int = 8,
     if depth > max_depth: return "[DEPTH REDACTED]"
     if value is None or type(value) in (bool, int): return value
     if type(value) is float:
-        if value != value or value in (float("inf"), float("-inf")): raise ObservabilityError("non-finite field")
+        if math.isnan(value) or value in (float("inf"), float("-inf")): raise ObservabilityError("non-finite field")
         return value
     if type(value) is str: return _redact_text(value, max_string_length)
     if isinstance(value, Mapping):

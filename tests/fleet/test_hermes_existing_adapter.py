@@ -80,9 +80,9 @@ def test_undeclared_operations_and_controls_are_rejected():
         adapter.session_snapshot("session-1")
     assert error.value.code == NOT_READY_HERMES_SEAM
     with pytest.raises(AttributeError):
-        adapter.dispatch
+        _ = adapter.dispatch
     with pytest.raises(AttributeError):
-        adapter.cancel
+        _ = adapter.cancel
 
 
 def test_malformed_transport_result_is_bounded():

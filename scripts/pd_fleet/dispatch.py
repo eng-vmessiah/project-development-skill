@@ -213,7 +213,7 @@ def _jsonable_inner(value: Any, seen: set[int]) -> Any:
             try:
                 return _jsonable_inner(converter(), seen)
             # Dispatch is a containment boundary; backend failures must become structured results.
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S110
                 pass
         attrs = _safe_attrs(value)
         if isinstance(attrs, dict):

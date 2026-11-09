@@ -758,8 +758,8 @@ class FleetOrchestrator:
             task_ids = tuple(token["task_id"] for token in tokens)
             waves.append(task_ids)
             token_by_id = {token["task_id"]: token for token in tokens}
-            def worker(task_id: str) -> Any:
-                return self._adapter_run(by_id[task_id], token_by_id[task_id])
+            def worker(task_id: str, _token_by_id: dict[str, Any] = token_by_id) -> Any:
+                return self._adapter_run(by_id[task_id], _token_by_id[task_id])
             raw_results = self.executor.run(task_ids, worker, timeout=self.timeout_seconds)
             results = sorted((self._task_result_parts(item) for item in raw_results), key=lambda p: p[0])
             for task_id, status, value, error in results:
@@ -823,7 +823,7 @@ class FleetOrchestrator:
                                     self._call("report", {"type": "event_persistence_warning",
                                         "task_id": task_id, "status": "completed", "error": warning})
                                 # The orchestrator contains arbitrary worker and integration failures to keep supervision alive.
-                                except Exception:  # noqa: BLE001
+                                except Exception:  # noqa: BLE001, S110
                                     pass
                             continue
                     # The orchestrator contains arbitrary worker and integration failures to keep supervision alive.
@@ -836,7 +836,7 @@ class FleetOrchestrator:
                     try:
                         attempt = self.store.load(self.run_id).get("attempts", {}).get(task_id, attempt)
                     # The orchestrator contains arbitrary worker and integration failures to keep supervision alive.
-                    except Exception:  # noqa: BLE001
+                    except Exception:  # noqa: BLE001, S110
                         pass
                     policy = by_id[task_id].retry_policy
                     can_retry = (not cancelled and attempt < policy.max_attempts and
@@ -868,7 +868,7 @@ class FleetOrchestrator:
                                     self._call("report", {"type": "event_persistence_warning",
                                         "task_id": task_id, "status": terminal_status, "error": warning})
                                 # The orchestrator contains arbitrary worker and integration failures to keep supervision alive.
-                                except Exception:  # noqa: BLE001
+                                except Exception:  # noqa: BLE001, S110
                                     pass
                         terminal_ids.add(task_id)
                     if can_retry:
@@ -883,7 +883,7 @@ class FleetOrchestrator:
                     if callable(release):
                         try: release(token)
                         # The orchestrator contains arbitrary worker and integration failures to keep supervision alive.
-                        except Exception: pass  # noqa: BLE001
+                        except Exception: pass  # noqa: BLE001, S110
                     if can_retry:
                         statuses[task_id] = "pending"
                     reports.append({"task_id": task_id, "status": statuses[task_id], "error": error or status})
