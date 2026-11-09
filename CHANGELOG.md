@@ -5,6 +5,57 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Fleet V2 local vertical slice**: bounded run inspection, readiness gates,
+  capability-gated dispatch adapters, bounded parallel execution, and
+  deterministic retry/recovery fixtures.
+- **B15b gateway (local/fixture)**: local auth and association, composite-deny
+  and redaction validators, subscription v1 (ordering/ack/TTL/explicit gaps),
+  a replayable observer seam, rollback rehearsal, and live-validation evidence.
+  The live seam is currently `NOT_READY_HERMES_SEAM` after a Hermes host update;
+  nothing activates automatically.
+- **Plan cockpit**: derived-only `plan_cockpit_sync.py`, Mission Control tab,
+  stable file bindings, 30-minute refresh cron, mission selector, and a gated
+  pilot runner (3/3 real runs).
+- **Fleet control plane**: activity contract v1, read-only swarm surface,
+  steering contract (design-only), `plan.yaml` validation, and the 12th/13th
+  `pd validate --deep` checks.
+- **PD CLI**: human-gate flags for `fleet-run` (`--run-id`, `--human-gate`,
+  `--gate-template`), plan.yaml manifest validation, legacy `done` →
+  `completed` migration, and synchronized bash/zsh/fish completions.
+- **Board connector**: stdio MCP `pd` connector with action buttons for the
+  pds/fleet/mc syncs and reproducible v2 payloads.
+- **Laya routing advisory spike**: measured sink 14% / notify 71% vs baseline,
+  no wire; decisions recorded for future calibration.
+- Contract guard tests for `plan-cockpit-v1` and `b15b-gateway`;
+  `pd validate --deep` reaches 13/13 on both.
+
+### Changed
+- Lint target pinned to Python 3.10; the Ruff hygiene pass reduced 271 findings
+  to 0, with documented `noqa` only at containment/best-effort boundaries.
+- Dashboard payloads moved to live file bindings; mission/feature snapshots are
+  derived from real `.spec` sources only.
+- The `pd` interpreter is pinned in `~/.venvs/pd` (PyYAML/jsonschema).
+
+### Fixed
+- **D1**: cross-process `STATE.json` updates now take a lock, re-read the file,
+  and 3-way merge instead of losing updates.
+- Closed 5 of 6 code-review defects with a regression test per defect; the
+  remaining item is tracked in the review record.
+- `FleetRunStore` read-only paths share the writer constructor
+  (`readonly=True`), avoiding missing attributes and lock creation.
+- Shell completions now derive from the argparse surface and stay in sync.
+- Cockpit collector counts `completed` as terminal, fixing task drift.
+- Renamed a pytest `setup` helper that collided with nose compatibility and
+  silently errored 30 bridge tests.
+- Malformed `STATE.json` records are skipped instead of aborting the run.
+
+### Security
+- Composite-deny and redaction validators for the gateway surface; fail-closed
+  auth/association and bounded payload validation.
+
 ## [1.2.1] - 2026-10-03
 
 Patch release carrying the 1.2.0 content forward. The `v1.2.0` tag's release
