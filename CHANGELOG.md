@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] - 2026-11-08
+
+Third fix-forward release for `v1.3.0`. `v1.3.2`'s tests passed, but the release
+workflow's Markdown link check rejected a literal Markdown link example inside
+an inline code span in `.spec/reviews/docs-20261102.md`. The `v1.3.2` tag is
+preserved; the review note now names the target without embedding a link.
+
+### Fixed
+- The docs review note no longer embeds a relative Markdown link inside an inline
+  code span, so the tracked-link check passes.
+
 ## [1.3.2] - 2026-11-08
 
 Second fix-forward release for `v1.3.0`. `v1.3.1`'s release workflow stopped at the
@@ -207,9 +218,10 @@ file and is published from an exact `v1.1.0` Git tag by the release workflow.
 
 | Version | Date | Changes |
 |---|---|---|
-| 1.3.2 | 2026-11-08 | Fix-forward: sandbox test uses the resolved interpreter (v1.3.1 release failed on `/bin/echo`) |
+| 1.3.3 | 2026-11-08 | Fix-forward: review note no longer embeds a Markdown link in a code span (v1.3.2 link check failed) |
+| 1.3.2 | 2026-11-08 | Fix-forward: sandbox test uses the resolved interpreter (release workflow failed at Markdown link check; carried forward in 1.3.3) |
 | 1.3.1 | 2026-11-08 | Fix-forward: portable pilot-runner executable/env (release workflow failed; carried forward in 1.3.2) |
-| 1.3.0 | 2026-11-08 | Fleet V2/control plane/plan cockpit, B15b local, CLI human gates, board connector, Ruff 271→0 (release workflow failed; carried forward through 1.3.1 to 1.3.2) |
+| 1.3.0 | 2026-11-08 | Fleet V2/control plane/plan cockpit, B15b local, CLI human gates, board connector, Ruff 271→0 (release workflow failed; carried forward through 1.3.1/1.3.2 to 1.3.3) |
 | 1.2.1 | 2026-10-03 | Patch: release workflow test-dependency fix (carries 1.2.0 forward) |
 | 1.2.0 | 2026-10-03 | Skill-source reconciliation, B15a local closeout, CI repair |
 | 1.1.1 | 2026-07-28 | Directory/executable pin validation fix |
