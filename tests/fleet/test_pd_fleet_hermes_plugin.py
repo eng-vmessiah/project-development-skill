@@ -50,7 +50,7 @@ def test_enabled_plugin_registers_only_lifecycle_hooks():
 
 
 def test_plugin_register_does_not_expose_tools_rpc_or_external_effects():
-    module = _load_plugin_module()
+    _load_plugin_module()
     source = (PLUGIN_DIR / "__init__.py").read_text()
     assert "register_tool" not in source
     assert "register_rpc" not in source

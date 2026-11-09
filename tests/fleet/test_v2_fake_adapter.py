@@ -109,7 +109,7 @@ def test_observe_is_read_only_and_bounded():
 def test_cancel_with_different_key_returns_current_terminal_state_without_transition():
     runtime = FakeAgentRuntime()
     prepared_result = prepared(runtime)
-    first = runtime.cancel(request("cancel", handle=prepared_result["session_handle_id"], key="cancel-one", cancel_reason="operator_requested"), confirm_termination=True)
+    runtime.cancel(request("cancel", handle=prepared_result["session_handle_id"], key="cancel-one", cancel_reason="operator_requested"), confirm_termination=True)
     second = runtime.cancel(request("cancel", handle=prepared_result["session_handle_id"], key="cancel-two", cancel_reason="operator_requested"), confirm_termination=True)
 
     assert second["status"] == "cancelled"

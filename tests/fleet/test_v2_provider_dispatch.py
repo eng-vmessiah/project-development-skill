@@ -26,7 +26,7 @@ def _profile(name: str) -> RuntimeProviderProfile:
 
 class _Adapter:
     def __init__(self, profile, result, capabilities=("read",)):
-        self.name = profile_id = f"{profile.provider_name}/{profile.runtime_name}"
+        self.name = f"{profile.provider_name}/{profile.runtime_name}"
         self.profile = profile
         self.result = result
         self._capabilities = tuple(capabilities)
