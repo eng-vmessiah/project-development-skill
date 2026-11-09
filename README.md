@@ -169,6 +169,12 @@ closed on root/document symlinks. A valid checker result does not authorize
 provider dispatch or production release. See the [current verification and
 provenance index](docs/PD-FLEET-V2-VERIFICATION.md).
 
+## Cross-skill composition
+
+PD owns the pipeline; specialist skills supply phase-level depth. The
+[composition guide](docs/COMPOSITION-GUIDE.md) maps each PD phase to the skills
+that support it, with worked pairings, handoffs, and anti-patterns.
+
 ## License
 
 MIT

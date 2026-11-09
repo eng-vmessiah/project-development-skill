@@ -37,17 +37,21 @@ claimed by this document; release metadata remains a separate decision.
 - [x] Templates and repository test suite
 - [x] Documentation and REST API example
 
-### Still open in the foundation
+### Foundation — completed
 
-- [ ] Comprehensive example coverage (web app, CLI tool)
-- [ ] CI artifact collection for test results
-- [ ] More cross-skill recommendations and composition guidance
+- [x] Comprehensive example coverage (web app, CLI tool) — `examples/web-app/` and
+  `examples/cli-tool/` carry real `.spec/` artifacts; index in `examples/README.md`.
+- [x] CI artifact collection for test results — `.github/workflows/ci.yml` writes and
+  uploads JUnit + coverage artifacts for each Python version.
+- [x] More cross-skill recommendations and composition guidance —
+  `docs/COMPOSITION-GUIDE.md` covers the phase map, worked pairings, handoffs, and
+  anti-patterns.
 
 ## Phase 2: Expansion — deferred
 
 Specialized skills already present in the tree are not future work. Remaining
-roadmap work includes cross-skill recommendations, custom template support,
-CLI performance benchmarks, plugin hooks, and additional examples. Potential
+roadmap work includes custom template support, CLI performance benchmarks, plugin
+hooks, and additional examples. Potential
 future domains include monitoring improvements, deployment recipes, and other
 community-requested skills; no release versions are assigned here.
 

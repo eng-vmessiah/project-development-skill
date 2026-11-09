@@ -108,6 +108,7 @@ To add a new example:
 
 ## Related Documentation
 
+- [COMPOSITION-GUIDE.md](../docs/COMPOSITION-GUIDE.md) — when to pair PD with specialist skills
 - [CREATING-SKILLS.md](../docs/CREATING-SKILLS.md) — How to author new skills
 - [ARCHITECTURE.md](../docs/ARCHITECTURE.md) — System design decisions
 - [PHILOSOPHY.md](../PHILOSOPHY.md) — Core principles
