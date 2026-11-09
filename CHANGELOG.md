@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Lifecycle hooks now cover `before_verify`/`after_verify`; hook commands are
   bounded to 30 seconds, and malformed hook configuration fails closed. See
   `docs/HOOKS.md`.
+- `examples/api-project/.spec/01-user-api/` now carries the full walkthrough
+  artifacts (spec, plan, decisions, state, checkpoint, tasks, tests, verification).
 - `scripts/bench_cli.py` measures `pd init/status/complete-task/list` latency on
   disposable fixtures; `docs/BENCHMARKS.md` records the baseline and caveats.
   Advisory only, no CI threshold.

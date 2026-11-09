@@ -2,6 +2,10 @@
 
 This example shows how to use the PD pipeline to build a REST API.
 
+The checked-in [`.spec/01-user-api/`](.spec/01-user-api/) directory contains the
+actual walkthrough artifacts: specification, plan, decisions, state, checkpoint,
+task files, tests, and verification. The steps below explain how they were built.
+
 ## Skills Used
 
 - **pd** — Orchestrate the full pipeline
