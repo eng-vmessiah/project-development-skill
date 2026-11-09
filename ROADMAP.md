@@ -55,7 +55,7 @@ claimed by this document; release metadata remains a separate decision.
   `docs/COMPOSITION-GUIDE.md` covers the phase map, worked pairings, handoffs, and
   anti-patterns.
 
-## Phase 2: Expansion — deferred
+## Phase 2: Expansion — implemented
 
 Specialized skills already present in the tree are not future work. The first-class
 Python plugin hook API is implemented. Potential future domains
