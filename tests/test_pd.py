@@ -191,6 +191,56 @@ class TestPDVerify:
         assert "SPEC.md" in out or "requirements" in out.lower()
 
 
+class TestPDHooks:
+    def _write_hooks(self, temp_dir, hooks):
+        lines = ["hooks:"]
+        for name, command in hooks.items():
+            lines.extend([f"  {name}:", f"    - '{command}'"])
+        (temp_dir / "pd.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def test_advance_runs_before_and_after_hooks(self, temp_dir, pd_cli):
+        self._write_hooks(temp_dir, {
+            "before_advance": "printf before > before.txt",
+            "after_advance": "printf after > after.txt",
+        })
+        pd_cli.run(["init", "test-feature"])
+        pd_cli.run(["advance"])
+        feature_dir = temp_dir / ".spec" / "test-feature"
+        assert (feature_dir / "before.txt").read_text(encoding="utf-8") == "before"
+        assert (feature_dir / "after.txt").read_text(encoding="utf-8") == "after"
+
+    def test_checkpoint_runs_before_and_after_hooks(self, temp_dir, pd_cli):
+        self._write_hooks(temp_dir, {
+            "before_checkpoint": "printf before > before-cp.txt",
+            "after_checkpoint": "printf after > after-cp.txt",
+        })
+        pd_cli.run(["init", "test-feature"])
+        pd_cli.run(["checkpoint", "--note", "hook test"])
+        feature_dir = temp_dir / ".spec" / "test-feature"
+        assert (feature_dir / "before-cp.txt").exists()
+        assert (feature_dir / "after-cp.txt").exists()
+
+    def test_verify_runs_before_and_after_hooks(self, temp_dir, pd_cli):
+        self._write_hooks(temp_dir, {
+            "before_verify": "printf before > before-verify.txt",
+            "after_verify": "printf after > after-verify.txt",
+        })
+        pd_cli.run(["init", "test-feature"])
+        pd_cli.run(["verify"])
+        feature_dir = temp_dir / ".spec" / "test-feature"
+        assert (feature_dir / "before-verify.txt").exists()
+        assert (feature_dir / "after-verify.txt").exists()
+
+    def test_hook_failure_warns_but_does_not_block_advance(self, temp_dir, pd_cli, capsys):
+        self._write_hooks(temp_dir, {"before_advance": "exit 3"})
+        pd_cli.run(["init", "test-feature"])
+        pd_cli.run(["advance"])
+        out = capsys.readouterr().out
+        assert "Hook failed" in out
+        state = PDState(temp_dir / ".spec" / "test-feature")
+        assert state.state["phase"] == 1
+
+
 class TestPDState:
     def test_state_default(self, temp_dir):
         fd = temp_dir / ".spec" / "test-feature"

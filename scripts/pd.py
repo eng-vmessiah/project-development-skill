@@ -140,6 +140,7 @@ def _cyan(text: str) -> str:
 # Feature templates
 # ─────────────────────────────────────────────────────────────────────────────
 TEMPLATE_FILES = ("SPEC.md", "PLAN.md", "CONTEXT.md")
+HOOK_TIMEOUT_SECONDS = 30
 DEFAULT_TEMPLATES: dict[str, str] = {
     "SPEC.md": (
         "# SPEC.md - {{feature}}\n\n"
@@ -265,8 +266,13 @@ class PDConfig:
         return self.config.get("phases", DEFAULT_PHASES)
 
     def get_hooks(self, phase: str) -> list[str]:
-        """Get hooks for a phase."""
-        return self.config.get("hooks", {}).get(phase, [])
+        """Get validated hooks for a lifecycle phase."""
+        hooks = self.config.get("hooks", {}).get(phase, [])
+        if not isinstance(hooks, list) or any(
+            not isinstance(hook, str) or not hook.strip() for hook in hooks
+        ):
+            raise ConfigError(f"hooks.{phase} must be a list of non-empty strings")
+        return hooks
 
     def get_validation_rules(self) -> dict[str, Any]:
         """Get validation rules."""
@@ -686,7 +692,15 @@ class PDState:
         hooks = self.config.get_hooks(hook_type)
         for hook in hooks:
             try:
-                subprocess.run(hook, shell=True, check=True, cwd=self.feature_dir)
+                subprocess.run(
+                    hook,
+                    shell=True,
+                    check=True,
+                    cwd=self.feature_dir,
+                    timeout=HOOK_TIMEOUT_SECONDS,
+                )
+            except subprocess.TimeoutExpired:
+                print(_yellow(f"⚠️  Hook timed out after {HOOK_TIMEOUT_SECONDS}s: {hook}"))
             except subprocess.CalledProcessError as e:
                 print(_yellow(f"⚠️  Hook failed: {hook}"))
                 print(f"   Error: {e}")
@@ -1261,7 +1275,9 @@ class PD:
             elif cmd == "checkpoint":
                 self._cmd_checkpoint(state, parsed.note, as_json)
             elif cmd == "verify":
+                state._run_hooks("before_verify")
                 self._cmd_verify(state, as_json)
+                state._run_hooks("after_verify")
             elif cmd == "advance":
                 self._cmd_advance(state, parsed.dry_run, parsed.force, as_json)
             elif cmd == "complete-task":

@@ -109,6 +109,12 @@ For feature templates, `pd init --template-dir <dir>` can override `SPEC.md`,
 `PLAN.md`, and/or `CONTEXT.md`; see
 [docs/CUSTOM-TEMPLATES.md](docs/CUSTOM-TEMPLATES.md).
 
+## Lifecycle hooks
+
+`pd.yaml` can run shell commands around advance, checkpoint, and verify. Hooks are
+bounded (30 s), warn on failure, and never replace a PD gate. See
+[docs/HOOKS.md](docs/HOOKS.md) for the contract and trust boundary.
+
 ## Fleet Orchestration Evolution
 
 The design and migration material is documented in:
