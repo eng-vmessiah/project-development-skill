@@ -27,6 +27,8 @@ claimed by this document; release metadata remains a separate decision.
   verification, task completion, history/reporting, and diff; fleet inspection
   commands are read-only by design.
 - Templates, recursive skill validation, documentation path checking, and tests.
+- Custom feature templates via `pd init --template-dir` (per-file override,
+  `{{feature}}` placeholder, fail-closed validation).
 - CLI performance benchmark harness (`scripts/bench_cli.py`); advisory only, with
   a baseline in `docs/BENCHMARKS.md` and no CI threshold.
 
@@ -52,8 +54,7 @@ claimed by this document; release metadata remains a separate decision.
 ## Phase 2: Expansion — deferred
 
 Specialized skills already present in the tree are not future work. Remaining
-roadmap work includes custom template support, plugin hooks, and additional
-examples. Potential
+roadmap work includes plugin hooks and additional examples. Potential
 future domains include monitoring improvements, deployment recipes, and other
 community-requested skills; no release versions are assigned here.
 

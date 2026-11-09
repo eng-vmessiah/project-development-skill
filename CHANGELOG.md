@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `pd init --template-dir` accepts custom `SPEC.md`, `PLAN.md`, and/or `CONTEXT.md`
+  templates with a `{{feature}}` placeholder and per-file fallback; invalid or
+  symlinked templates fail before the feature directory is created.
 - `scripts/bench_cli.py` measures `pd init/status/complete-task/list` latency on
   disposable fixtures; `docs/BENCHMARKS.md` records the baseline and caveats.
   Advisory only, no CI threshold.

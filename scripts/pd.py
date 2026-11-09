@@ -137,6 +137,60 @@ def _cyan(text: str) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Feature templates
+# ─────────────────────────────────────────────────────────────────────────────
+TEMPLATE_FILES = ("SPEC.md", "PLAN.md", "CONTEXT.md")
+DEFAULT_TEMPLATES: dict[str, str] = {
+    "SPEC.md": (
+        "# SPEC.md - {{feature}}\n\n"
+        "## Requirements\n- [ ] Requirement 1\n- [ ] Requirement 2\n\n"
+        "## Constraints\n- Constraint 1\n\n"
+        "## Success Criteria\n- [ ] Criterion 1\n"
+    ),
+    "PLAN.md": (
+        "# PLAN.md - {{feature}}\n\n"
+        "## Wave 1: Foundation\n- [ ] Task 1: Setup\n- [ ] Task 2: Create models\n\n"
+        "## Wave 2: Implementation\n- [ ] Task 3: Implement core\n- [ ] Task 4: Implement API\n\n"
+        "## Wave 3: Testing\n- [ ] Task 5: Write tests\n- [ ] Task 6: Integration tests\n"
+    ),
+    "CONTEXT.md": (
+        "# CONTEXT.md - {{feature}}\n\n"
+        "## Decisions\n- Decision 1: [date] - [description]\n\n"
+        "## Trade-offs\n- Trade-off 1: [description]\n\n"
+        "## Notes\n- Note 1: [description]\n"
+    ),
+}
+
+
+def load_feature_templates(feature_name: str, template_dir: str | None = None) -> dict[str, str]:
+    """Render built-in templates with optional per-file overrides from a directory."""
+    templates = dict(DEFAULT_TEMPLATES)
+    if template_dir:
+        directory = Path(template_dir).expanduser()
+        if not directory.is_dir():
+            raise PDError(f"Template directory not found: {directory}")
+        found = False
+        for name in TEMPLATE_FILES:
+            path = directory / name
+            if path.is_symlink():
+                raise PDError(f"Template {name} must be a regular file, not a symlink: {path}")
+            if not path.exists():
+                continue
+            if not path.is_file():
+                raise PDError(f"Template {name} must be a regular file: {path}")
+            try:
+                templates[name] = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeError) as exc:
+                raise PDError(f"Cannot read template {path}: {exc}") from exc
+            found = True
+        if not found:
+            raise PDError(
+                f"Template directory contains none of: {', '.join(TEMPLATE_FILES)}"
+            )
+    return {name: text.replace("{{feature}}", feature_name) for name, text in templates.items()}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 class PDConfig:
@@ -931,6 +985,11 @@ class PD:
         # init
         init_parser = subparsers.add_parser("init", parents=[global_parent], help="Initialize a new feature")
         init_parser.add_argument("feature", help="Feature name")
+        init_parser.add_argument(
+            "--template-dir", default=None,
+            help="Directory with custom SPEC.md, PLAN.md, and/or CONTEXT.md templates "
+                 "({{feature}} is replaced); missing files fall back to the built-ins",
+        )
 
         # status
         subparsers.add_parser("status", parents=[global_parent], help="Show current status")
@@ -1354,6 +1413,10 @@ class PD:
         if feature_dir.exists():
             raise FeatureExistsError(f"Feature '{feature_name}' already exists.")
 
+        templates = load_feature_templates(
+            feature_name, getattr(args, "template_dir", None)
+        )
+
         # Create directories
         feature_dir.mkdir(parents=True)
         (feature_dir / "backend").mkdir()
@@ -1361,24 +1424,8 @@ class PD:
         (feature_dir / "tests").mkdir()
 
         # Create initial files
-        (feature_dir / "SPEC.md").write_text(
-            f"# SPEC.md - {feature_name}\n\n"
-            "## Requirements\n- [ ] Requirement 1\n- [ ] Requirement 2\n\n"
-            "## Constraints\n- Constraint 1\n\n"
-            "## Success Criteria\n- [ ] Criterion 1\n"
-        )
-        (feature_dir / "PLAN.md").write_text(
-            f"# PLAN.md - {feature_name}\n\n"
-            "## Wave 1: Foundation\n- [ ] Task 1: Setup\n- [ ] Task 2: Create models\n\n"
-            "## Wave 2: Implementation\n- [ ] Task 3: Implement core\n- [ ] Task 4: Implement API\n\n"
-            "## Wave 3: Testing\n- [ ] Task 5: Write tests\n- [ ] Task 6: Integration tests\n"
-        )
-        (feature_dir / "CONTEXT.md").write_text(
-            f"# CONTEXT.md - {feature_name}\n\n"
-            "## Decisions\n- Decision 1: [date] - [description]\n\n"
-            "## Trade-offs\n- Trade-off 1: [description]\n\n"
-            "## Notes\n- Note 1: [description]\n"
-        )
+        for name in TEMPLATE_FILES:
+            (feature_dir / name).write_text(templates[name], encoding="utf-8")
 
         # Create state (generates both STATE.json and STATE.md)
         state = PDState(feature_dir)

@@ -105,6 +105,10 @@ The `pd` skill includes templates for `TASK.md`, `CHECKPOINT.md`, and `STATUS.md
 These are installed to Hermes `~/.hermes/skills/software-development/pd/templates/`
 and OpenCode `~/.config/opencode/skills/pd/templates/`.
 
+For feature templates, `pd init --template-dir <dir>` can override `SPEC.md`,
+`PLAN.md`, and/or `CONTEXT.md`; see
+[docs/CUSTOM-TEMPLATES.md](docs/CUSTOM-TEMPLATES.md).
+
 ## Fleet Orchestration Evolution
 
 The design and migration material is documented in:

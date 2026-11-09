@@ -94,6 +94,44 @@ class TestPDInit:
         with pytest.raises(SystemExit):
             pd_cli.run(["init", "test-feature"])
 
+    def test_init_custom_templates_render_feature(self, temp_dir, pd_cli):
+        templates = temp_dir / "templates"
+        templates.mkdir()
+        (templates / "SPEC.md").write_text(
+            "# Custom SPEC - {{feature}}\n\n## Requirements\n- [ ] Custom\n",
+            encoding="utf-8",
+        )
+        pd_cli.run(["init", "custom-feature", "--template-dir", str(templates)])
+        feature_dir = temp_dir / ".spec" / "custom-feature"
+        assert (feature_dir / "SPEC.md").read_text(encoding="utf-8") == (
+            "# Custom SPEC - custom-feature\n\n## Requirements\n- [ ] Custom\n"
+        )
+        assert "# PLAN.md - custom-feature" in (feature_dir / "PLAN.md").read_text(encoding="utf-8")
+
+    def test_init_custom_templates_reject_empty_directory(self, temp_dir, pd_cli):
+        templates = temp_dir / "templates"
+        templates.mkdir()
+        (templates / "README.md").write_text("not a template\n", encoding="utf-8")
+        with pytest.raises(SystemExit):
+            pd_cli.run(["init", "custom-feature", "--template-dir", str(templates)])
+        assert not (temp_dir / ".spec" / "custom-feature").exists()
+
+    def test_init_rejects_missing_template_directory(self, temp_dir, pd_cli):
+        with pytest.raises(SystemExit):
+            pd_cli.run(["init", "custom-feature", "--template-dir", str(temp_dir / "missing")])
+
+    def test_init_rejects_symlinked_template(self, temp_dir, pd_cli):
+        templates = temp_dir / "templates"
+        templates.mkdir()
+        target = temp_dir / "target.md"
+        target.write_text("# target\n", encoding="utf-8")
+        try:
+            os.symlink(target, templates / "SPEC.md")
+        except OSError:
+            pytest.skip("symlinks are unavailable on this platform")
+        with pytest.raises(SystemExit):
+            pd_cli.run(["init", "custom-feature", "--template-dir", str(templates)])
+
 
 class TestPDStatus:
     def test_status_shows_feature(self, temp_dir, pd_cli, capsys):
