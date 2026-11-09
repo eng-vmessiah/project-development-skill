@@ -367,7 +367,7 @@ _TOKEN_LEASE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$")
 def _token_valid(name: str, token: Any) -> bool:
     if name.endswith("_plan_hash"):
         return type(token) is str and bool(_TOKEN_HASH.fullmatch(token))
-    if name.endswith("_generation") or name.endswith("_checkpoint") or name.endswith("_event_sequence"):
+    if name.endswith(("_generation", "_checkpoint", "_event_sequence")):
         return type(token) is int and token >= 0
     if name.endswith("_run_id"):
         return type(token) is str and bool(token)
@@ -492,7 +492,7 @@ def _paths(value: Any, name: str) -> list[str]:
     for path in values:
         normalized = path.replace("\\", "/")
         parts = normalized.split("/")
-        if "\x00" in path or normalized.startswith("/") or normalized.startswith("~") or any(part in (".", "..") for part in parts) or any(not part for part in parts[:-1]):
+        if "\x00" in path or normalized.startswith(("/", "~")) or any(part in (".", "..") for part in parts) or any(not part for part in parts[:-1]):
             raise ContractValidationError(f"{name} contém path inseguro")
         # Reject every URI scheme and Windows drive-relative path (C:foo),
         # including malformed one-slash/backslash variants such as https:/x.

@@ -64,9 +64,9 @@ def send(obj: dict) -> None:
 
 def norm_mode(raw: str) -> str:
     v = (raw or "apply").strip().lower()
-    if v.startswith("aplicar") or v.startswith("apply"):
+    if v.startswith(("aplicar", "apply")):
         return "apply"
-    if v.startswith("prévia") or v.startswith("previa") or v.startswith("preview"):
+    if v.startswith(("prévia", "previa", "preview")):
         return "preview"
     return "apply"
 

@@ -52,7 +52,7 @@ def extract_json(captured_out):
     json_start = None
     for i, line in enumerate(lines):
         stripped = line.strip()
-        if stripped.startswith("{") or stripped.startswith("["):
+        if stripped.startswith(("{", "[")):
             json_start = i
             break
     if json_start is not None:

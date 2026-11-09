@@ -396,7 +396,7 @@ class BridgeEvent(_Contract):
                 if not isinstance(item, str) or item not in REASON_CODES: _fail(BridgeErrorCode.INVALID_EVENT, "unknown_enum")
             elif key == "terminal_state":
                 if not isinstance(item, str) or item not in TERMINAL_STATES: _fail(BridgeErrorCode.INVALID_EVENT, "unknown_enum")
-            elif key.endswith("_version") or key.endswith("_sequence") or key == "ttl_ms": _integer(item, maximum=2**31 - 1)
+            elif key.endswith(("_version", "_sequence")) or key == "ttl_ms": _integer(item, maximum=2**31 - 1)
             elif key == "observed_at": _timestamp(item)
             elif key == "changed_fields":
                 if not isinstance(item, (list, tuple)) or len(item) > MAX_LIST_ITEMS:

@@ -55,8 +55,8 @@ def _ids(values: Sequence[str], field_name: str) -> tuple[str, ...]:
         raise RoutingConfigurationError(f"invalid {field_name}")
     result = tuple(values)
     if any(type(value) is not str or not _SAFE_ID.fullmatch(value) or
-           value.startswith(("/", "-")) or "/../" in f"/{value}/" or
-           value.endswith("/..") or value.startswith("../") or "//" in value or
+           value.startswith(("/", "-", "../")) or "/../" in f"/{value}/" or
+           value.endswith("/..") or "//" in value or
            _SENSITIVE_ID.search(value) for value in result):
         raise RoutingConfigurationError(f"invalid {field_name}")
     if len(set(result)) != len(result):

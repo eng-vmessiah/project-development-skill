@@ -646,7 +646,7 @@ class PDState:
         if plan_path.exists():
             for line in plan_path.read_text().splitlines():
                 line = line.strip()
-                if line.startswith("- [ ]") or line.startswith("- [x]"):
+                if line.startswith(("- [ ]", "- [x]")):
                     total += 1
         done = len(self.state["tasks"])
         return done, total

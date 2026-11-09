@@ -127,8 +127,8 @@ def _bounded_refs(values: Iterable[str]) -> tuple[str, ...]:
 
 def _ref(value: str) -> str:
     value = _sanitize_text("evidence_ref", value)
-    if (_EXTERNAL_URL.search(value) or PurePath(value).is_absolute() or value.startswith("~")
-            or value.startswith(("[PATH REDACTED]", "[URL REDACTED]"))):
+    if (_EXTERNAL_URL.search(value) or PurePath(value).is_absolute()
+            or value.startswith(("~", "[PATH REDACTED]", "[URL REDACTED]"))):
         raise ValueError("evidence_ref must not be an absolute path")
     return value
 

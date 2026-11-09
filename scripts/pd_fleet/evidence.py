@@ -69,7 +69,7 @@ def _text(value: Any, field_name: str) -> str:
 def _relative(path: Any) -> str:
     value = _text(path, "artifact path").replace("\\", "/")
     parts = value.split("/")
-    if value.startswith("/") or value.startswith("~") or ".." in parts or re.match(r"^[A-Za-z]:$", parts[0]):
+    if value.startswith(("/", "~")) or ".." in parts or re.match(r"^[A-Za-z]:$", parts[0]):
         raise EvidenceValidationError("artifact path inseguro")
     return "/".join(part for part in parts if part) or "."
 
