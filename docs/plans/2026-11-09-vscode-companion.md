@@ -60,8 +60,14 @@ ignore rules.
   "publisher": "eng-vmessiah",
   "engines": { "vscode": "^1.85.0" },
   "categories": ["Other"],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "PD Companion runs the workspace's Python CLI; trust is required."
+    }
+  },
   "activationEvents": ["onStartupFinished"],
-  "main": "./out/extension.js",
+  "main": "./out/src/extension.js",
   "contributes": {
     "commands": [
       { "command": "pd.showStatus", "title": "PD: Show Status" },
@@ -480,8 +486,7 @@ network. Mutating commands are intentionally out of scope for this slice.
 ```markdown
 ## IDE companion (read-only)
 
-The Phase 3 VS Code slice is specified in
-[docs/PHASE3-IDE-CONTRACT.md](docs/PHASE3-IDE-CONTRACT.md). It reads
+The Phase 3 VS Code slice is specified in `docs/PHASE3-IDE-CONTRACT.md`. It reads
 `pd status --json` and `pd validate --json`; it does not mutate state.
 ```
 

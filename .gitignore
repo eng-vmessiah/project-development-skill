@@ -26,3 +26,8 @@ __pycache__/
 .walkthrough/
 # Revisoes: rascunho/repro descartavel de review (nao versionar)
 .review-scratch/
+
+# PD Companion build output
+extensions/vscode/node_modules/
+extensions/vscode/out/
+extensions/vscode/*.vsix

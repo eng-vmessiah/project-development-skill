@@ -64,6 +64,15 @@ skills; no release versions are assigned here.
 
 ## Phase 3: Ecosystem — future
 
+### Slice 1 — read-only VS Code companion
+
+- [x] Extension scaffold, status bar, `PD: Show Status`, `PD: Validate`,
+  `PD: Open SPEC`.
+- [ ] Manual extension-host smoke test (NOT VERIFIED without a VS Code host).
+- Contract: `docs/PHASE3-IDE-CONTRACT.md`; plan:
+  `docs/plans/2026-11-09-vscode-companion.md`.
+- No state mutation, network, telemetry, or marketplace publication in this slice.
+
 - IDE integrations (VS Code, JetBrains, Vim/Neovim)
 - Community skill registry and contribution workflow
 - Versioned skill dependencies and runtime interaction validation

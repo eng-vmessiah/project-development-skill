@@ -116,6 +116,12 @@ bounded (30 s), warn on failure, and never replace a PD gate. See
 [docs/HOOKS.md](docs/HOOKS.md) for the contract and trust boundary. Python
 plugins can also observe lifecycle events; see [docs/PLUGINS.md](docs/PLUGINS.md).
 
+## IDE companion (read-only)
+
+The Phase 3 VS Code slice is specified in
+[docs/PHASE3-IDE-CONTRACT.md](docs/PHASE3-IDE-CONTRACT.md). It reads
+`pd status --json` and `pd validate --json`; it does not mutate state.
+
 ## Fleet Orchestration Evolution
 
 The design and migration material is documented in:

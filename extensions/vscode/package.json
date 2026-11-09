@@ -1,0 +1,50 @@
+{
+  "name": "pd-vscode-companion",
+  "displayName": "PD Companion",
+  "description": "Read-only status and validation for Project Development features.",
+  "version": "0.1.0",
+  "publisher": "eng-vmessiah",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other"],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "PD Companion runs the workspace's Python CLI; trust is required."
+    }
+  },
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/src/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "pd.showStatus", "title": "PD: Show Status" },
+      { "command": "pd.validate", "title": "PD: Validate" },
+      { "command": "pd.openSpec", "title": "PD: Open SPEC" }
+    ],
+    "configuration": {
+      "title": "PD Companion",
+      "properties": {
+        "pd.pythonPath": {
+          "type": "string",
+          "default": "python3",
+          "description": "Python executable used to run scripts/pd.py."
+        },
+        "pd.scriptPath": {
+          "type": "string",
+          "default": "scripts/pd.py",
+          "description": "Path to pd.py, relative to the workspace root."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "npm run compile && node --test out/test/pd.test.js",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.6.0"
+  }
+}
