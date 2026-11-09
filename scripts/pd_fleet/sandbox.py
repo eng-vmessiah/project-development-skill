@@ -303,7 +303,7 @@ class LocalSandboxRunner:
         """Return a stable mapping compatible with ``ValidationExecutor``."""
         cwd_fd: int | None = None
         try:
-            checked, cwd_resolved, cwd_fd = self._validate_run(argv, cwd)
+            checked, _cwd_resolved, cwd_fd = self._validate_run(argv, cwd)
             if shell is not False:
                 raise SandboxConfigurationError("shell_forbidden")
             if (type(timeout) not in (int, float) or isinstance(timeout, bool)

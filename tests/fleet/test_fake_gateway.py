@@ -224,7 +224,7 @@ def test_timeout_emits_session_ended_with_allowed_payload():
 
 
 def test_cursor_expiry_normalizes_offsets_and_exact_boundary_expires():
-    clock, gateway, observer, binding, ticket = setup()
+    _clock, gateway, observer, binding, ticket = setup()
     association = consume(gateway, observer, binding, ticket)
     connection = gateway.connect(observer); current = connection.subscribe(association)
     cursor_type = type(current.cursor)

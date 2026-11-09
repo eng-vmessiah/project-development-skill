@@ -119,7 +119,7 @@ def _row(scenario_id: str, expected: str, observed: str, audit: str | None,
 
 
 def run_canary(tmp: str) -> dict[str, Any]:
-    _, gateway, observer, binding, ticket, bridge, association, _ = _bridge(tmp)
+    _, gateway, observer, _binding, _ticket, bridge, association, _ = _bridge(tmp)
     stages = ["connect", "issue_opaque_activation", "attach_user_owned_session"]
     baseline = _durable_state(bridge)
     snapshot = bridge.snapshot(association); stages.append("snapshot")
@@ -216,7 +216,7 @@ def run_negative(tmp: str) -> list[dict[str, Any]]:
         x[0].advance(minutes=6)
     case("expired_cursor", "cursor_expired", lambda x: x[5].subscribe(x[6], replace(x[5]._g5_cursor, issued_at="2099-07-29T11:59:00Z", expires_at="2099-07-29T12:00:01Z")), prepare=prepare_expired)
     def prepare_replay_gap(x: Any) -> None:
-        clock, gateway, observer, binding, ticket = _setup(retention=2); small = FleetGatewayBridge(gateway, observer, in_memory=True).connect(); assoc = small.attach(ticket, binding); small.subscribe(assoc); small.heartbeat(assoc); small.heartbeat(assoc)
+        _clock, gateway, observer, binding, ticket = _setup(retention=2); small = FleetGatewayBridge(gateway, observer, in_memory=True).connect(); assoc = small.attach(ticket, binding); small.subscribe(assoc); small.heartbeat(assoc); small.heartbeat(assoc)
         x[5]._g5_small = small
         stream_epoch = small.snapshot(assoc).stream_epoch
         assert stream_epoch is not None
