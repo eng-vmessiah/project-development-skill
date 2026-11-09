@@ -11,6 +11,8 @@ from pd_fleet import run_hermes_pilot as pilot
 from pd_fleet.runtime_adapter import RuntimeRunnerRequiredError
 from pd_fleet.sandbox import LocalSandboxRunner
 
+_TRUSTED = str(Path(sys.executable).resolve())
+
 _PLAN_YAML = """schema_version: "1"
 agents:
   - id: coder-hermes
@@ -35,7 +37,7 @@ gates: []
 @pytest.fixture(autouse=True)
 def _portable_hermes(monkeypatch) -> None:
     """CI has no Hermes install; the runner only needs an existing trusted binary."""
-    monkeypatch.setattr(pilot, "HERMES_EXECUTABLE", "/bin/echo")
+    monkeypatch.setattr(pilot, "HERMES_EXECUTABLE", _TRUSTED)
 
 
 def _plan_file(tmp_path: Path) -> Path:
@@ -107,18 +109,19 @@ def test_runner_path_roots_are_strings(tmp_path: Path) -> None:
 
 
 def test_sandbox_executes_echo(tmp_path: Path) -> None:
-    """End-to-end sandbox machinery check with a harmless binary (no provider)."""
+    """End-to-end sandbox machinery check with a harmless trusted binary (no provider)."""
     out = tmp_path / "out"
     out.mkdir()
+    argv = (_TRUSTED, "-c", "print('probe-ok')")
     runner = LocalSandboxRunner(
         tmp_path,
-        allowlist=[("/bin/echo", "probe-ok")],
+        allowlist=[argv],
         env={"PATH": "/usr/bin:/bin", "HOME": str(tmp_path), "LANG": "C.UTF-8"},
         network=False,
         path_roots={"workspace": str(out)},
-        trusted_executables=["/bin/echo"],
+        trusted_executables=[_TRUSTED],
     )
-    value = runner.run(("/bin/echo", "probe-ok"), cwd=str(out),
+    value = runner.run(argv, cwd=str(out),
                        env={"PATH": "/usr/bin:/bin", "HOME": str(tmp_path), "LANG": "C.UTF-8"},
                        timeout=10, output_limits=(65536, 65536))
     assert value["status"] == "passed"
