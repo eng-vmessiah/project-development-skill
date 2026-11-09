@@ -5,11 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2026-11-08
+
+Second fix-forward release for `v1.3.0`. `v1.3.1`'s release workflow stopped at the
+same pilot-runner test because the sandbox test trusted `/bin/echo`, which the
+runner rejects on that image. Both tags are preserved unmodified; the fix is
+forwarded here.
+
+### Fixed
+- Pilot-runner tests use the resolved Python interpreter as the trusted binary and
+  execute a harmless `-c` probe, so the suite no longer depends on a
+  distro-specific `/bin/echo` layout.
+
 ## [1.3.1] - 2026-11-08
 
 Fix-forward release for `v1.3.0`, whose release workflow stopped before publishing:
-the pilot-runner tests assumed the maintainer's `/home/vitor` home. The `v1.3.0`
-tag is preserved unmodified; the fix is forwarded here.
+the pilot-runner tests assumed the maintainer's `/home/vitor` home. This tag's
+workflow also stopped on CI (the sandbox test still trusted `/bin/echo`); the tag
+is preserved and the fix is forwarded in 1.3.2.
 
 ### Fixed
 - The pilot runner resolves the Hermes executable from `PD_HERMES_EXECUTABLE` or
@@ -21,8 +34,8 @@ tag is preserved unmodified; the fix is forwarded here.
 ## [1.3.0] - 2026-11-08
 
 Release workflow stopped before publishing because the pilot-runner tests
-hardcoded the maintainer home; the tag is preserved and the fix is forwarded in
-1.3.1.
+hardcoded the maintainer home; the tag is preserved and the fix is forwarded
+through 1.3.1 to 1.3.2.
 
 ### Added
 - **Fleet V2 local vertical slice**: bounded run inspection, readiness gates,
@@ -194,8 +207,9 @@ file and is published from an exact `v1.1.0` Git tag by the release workflow.
 
 | Version | Date | Changes |
 |---|---|---|
-| 1.3.1 | 2026-11-08 | Fix-forward: portable pilot-runner executable/env (v1.3.0 release failed before publishing) |
-| 1.3.0 | 2026-11-08 | Fleet V2/control plane/plan cockpit, B15b local, CLI human gates, board connector, Ruff 271→0 (release workflow failed; carried forward in 1.3.1) |
+| 1.3.2 | 2026-11-08 | Fix-forward: sandbox test uses the resolved interpreter (v1.3.1 release failed on `/bin/echo`) |
+| 1.3.1 | 2026-11-08 | Fix-forward: portable pilot-runner executable/env (release workflow failed; carried forward in 1.3.2) |
+| 1.3.0 | 2026-11-08 | Fleet V2/control plane/plan cockpit, B15b local, CLI human gates, board connector, Ruff 271→0 (release workflow failed; carried forward through 1.3.1 to 1.3.2) |
 | 1.2.1 | 2026-10-03 | Patch: release workflow test-dependency fix (carries 1.2.0 forward) |
 | 1.2.0 | 2026-10-03 | Skill-source reconciliation, B15a local closeout, CI repair |
 | 1.1.1 | 2026-07-28 | Directory/executable pin validation fix |
