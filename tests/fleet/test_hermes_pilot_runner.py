@@ -32,6 +32,12 @@ gates: []
 """
 
 
+@pytest.fixture(autouse=True)
+def _portable_hermes(monkeypatch) -> None:
+    """CI has no Hermes install; the runner only needs an existing trusted binary."""
+    monkeypatch.setattr(pilot, "HERMES_EXECUTABLE", "/bin/echo")
+
+
 def _plan_file(tmp_path: Path) -> Path:
     plan = tmp_path / "pilot" / "plan.yaml"
     plan.parent.mkdir(parents=True, exist_ok=True)

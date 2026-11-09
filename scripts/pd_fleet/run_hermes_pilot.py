@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -42,7 +43,7 @@ from pd_fleet.runtime_adapter import (
 from pd_fleet.sandbox import LocalSandboxRunner
 
 REPO = Path(__file__).resolve().parents[2]
-HERMES_EXECUTABLE = "/home/vitor/.local/bin/hermes"
+HERMES_EXECUTABLE = os.environ.get("PD_HERMES_EXECUTABLE") or str(Path.home() / ".local/bin/hermes")
 PILOT_MODEL_DEFAULT = "deepseek-v4.1-flash"
 PILOT_PROVIDER = "opencode-go"
 PILOT_NAMESPACE = "workspace"
@@ -146,9 +147,11 @@ def build_runner(plan: FleetPlan, profile: RuntimeProviderProfile,
     output_root.mkdir(parents=True, exist_ok=True)
     argvs = [executed_argv(adapter, build_envelope(task, profile, model, mission))
              for task in plan.tasks]
+    home = os.environ.get("HOME", str(Path.home()))
+    path = os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin")
     env = {
-        "PATH": "/home/vitor/.local/bin:/usr/local/bin:/usr/bin:/bin",
-        "HOME": "/home/vitor",
+        "PATH": f"{Path(HERMES_EXECUTABLE).parent}:{path}",
+        "HOME": home,
         "LANG": "C.UTF-8",
     }
     return LocalSandboxRunner(
