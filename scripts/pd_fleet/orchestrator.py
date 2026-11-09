@@ -471,9 +471,11 @@ class FleetOrchestrator:
                         add("hash_contract_error", "canonical hash unavailable")
                     if "plan_hash" not in raw or (type(raw.get("plan_hash")) is not str or raw["plan_hash"] != expected_hash):
                         add("plan_hash_drift", "plan hash drift")
-                    if "generation" in raw and "expected_generation" in raw:
-                        if type(raw["generation"]) is not int or type(raw["expected_generation"]) is not int or raw["generation"] != raw["expected_generation"]:
-                            add("stale_generation", "stale generation")
+                    if ("generation" in raw and "expected_generation" in raw
+                            and (type(raw["generation"]) is not int
+                                 or type(raw["expected_generation"]) is not int
+                                 or raw["generation"] != raw["expected_generation"])):
+                        add("stale_generation", "stale generation")
                     if "owner" in raw and not isinstance(raw["owner"], str): add("owner_mismatch", "owner mismatch")
                     if "expected_owner" in raw and raw.get("owner") != raw.get("expected_owner"): add("owner_mismatch", "owner mismatch")
                     if "run_id" in raw or "expected_run_id" in raw:
@@ -1214,12 +1216,12 @@ class FleetOrchestrator:
             return None
         acceptance = (evidence.get("acceptance") or evidence.get("acceptance_metadata") or
                       evidence.get("acceptance_criteria") or evidence.get("validation"))
-        if task.acceptance_criteria and not acceptance:
-            # The built-in simulated adapter's deterministic fingerprint is the
-            # legacy acceptance proof; arbitrary dispatchers must be explicit.
-            if not (isinstance(evidence, Mapping) and evidence.get("adapter") == "simulated"
-                    and evidence.get("deterministic") is True and evidence.get("fingerprint")):
-                return None
+        # The built-in simulated adapter's deterministic fingerprint is the
+        # legacy acceptance proof; arbitrary dispatchers must be explicit.
+        if (task.acceptance_criteria and not acceptance
+                and not (isinstance(evidence, Mapping) and evidence.get("adapter") == "simulated"
+                         and evidence.get("deterministic") is True and evidence.get("fingerprint"))):
+            return None
         if acceptance is False or (isinstance(acceptance, Mapping) and acceptance.get("passed") is False):
             return None
         return _sanitize_payload(normalized_output), _sanitize_payload(evidence)

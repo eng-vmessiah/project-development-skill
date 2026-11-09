@@ -162,9 +162,8 @@ class ProviderAuditEvent:
                 raise RoutingConfigurationError("selected audit provider is required")
         elif selected is not None:
             raise RoutingConfigurationError("non-selected audit status cannot select a provider")
-        if not candidates:
-            if status != RouteStatus.NO_PROVIDER.value:
-                raise RoutingConfigurationError("audit candidates cannot be empty")
+        if not candidates and status != RouteStatus.NO_PROVIDER.value:
+            raise RoutingConfigurationError("audit candidates cannot be empty")
         object.__setattr__(self, "candidates", candidates)
         object.__setattr__(self, "status", RouteStatus(status))
         object.__setattr__(self, "reason", reason)

@@ -303,9 +303,8 @@ class GateResult:
         target = _status(target)
         if target not in _VALID_TRANSITIONS[self.status]:
             raise GateError(f"{self.status.value} → {target.value} não permitido")
-        if target in {GateStatus.PASSED, GateStatus.FAILED}:
-            if not self.owner or not self.decision:
-                raise GateError("resultado final exige owner e decision")
+        if target in {GateStatus.PASSED, GateStatus.FAILED} and (not self.owner or not self.decision):
+            raise GateError("resultado final exige owner e decision")
         if target is GateStatus.PASSED and not _passes_gate_contract(self):
             raise GateError("resultado passed exige owner, decision, evidence, reports e nenhum blocker aberto")
         self.status = target
@@ -563,9 +562,9 @@ class HumanVerificationGate:
         unknown = set(value) - allowed
         if reject_unknown and unknown:
             raise GateError("human gate contém campos desconhecidos")
-        if "run" in value and "run_id" in value:
-            if type(value["run"]) is not str or type(value["run_id"]) is not str:
-                raise GateError("run e run_id devem ser strings")
+        if ("run" in value and "run_id" in value
+                and (type(value["run"]) is not str or type(value["run_id"]) is not str)):
+            raise GateError("run e run_id devem ser strings")
         if "run" in value and "run_id" in value and value["run"] != value["run_id"]:
             raise GateError("run e run_id conflitantes")
         run = value.get("run") if "run" in value else value.get("run_id")

@@ -180,10 +180,10 @@ def _redact_sensitive_text(text: str) -> str:
         )
         if bare.startswith(("|", ">")):
             collection_or_comment = True
-        if not _CREDENTIAL_SHAPE.fullmatch(bare):
-            # Keep ordinary prose (``token: policy``) unchanged.
-            if "=" not in separator and not collection_or_comment:
-                return match.group(0)
+        # Keep ordinary prose (``token: policy``) unchanged.
+        if (not _CREDENTIAL_SHAPE.fullmatch(bare) and "=" not in separator
+                and not collection_or_comment):
+            return match.group(0)
         return f"{label_text}{separator}[REDACTED]"
 
     lines = text.splitlines(keepends=True)
