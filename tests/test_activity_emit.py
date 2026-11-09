@@ -6,7 +6,7 @@ import json
 import sqlite3
 import sys
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -85,7 +85,7 @@ def test_collector_reads_bus(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     assert pc._hermes_agents_from_events() == []
     bus = tmp_path / ".hermes/activity/events.jsonl"
     bus.parent.mkdir(parents=True)
-    fresh = datetime.now(UTC).isoformat(timespec="seconds")
+    fresh = datetime.now(timezone.utc).isoformat(timespec="seconds")
     bus.write_text(json.dumps({
         "v": 1, "event_id": "e1", "ts": fresh, "agent_id": "hermes:desktop",
         "run_id": "s1", "source": "hermes", "fidelity": "high", "kind": "status",
@@ -101,7 +101,7 @@ def test_collector_downgrades_old_running_to_stale(tmp_path: Path, monkeypatch: 
     monkeypatch.setenv("HOME", str(tmp_path))
     bus = tmp_path / ".hermes/activity/events.jsonl"
     bus.parent.mkdir(parents=True)
-    old = (datetime.now(UTC) - timedelta(days=3)).isoformat(timespec="seconds")
+    old = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat(timespec="seconds")
     bus.write_text(json.dumps({
         "v": 1, "event_id": "e-stale", "ts": old, "agent_id": "hermes:desktop",
         "run_id": "s1", "source": "hermes", "fidelity": "high", "kind": "status",
@@ -115,7 +115,7 @@ def test_collector_newest_event_beats_older_rank(tmp_path: Path, monkeypatch: py
     monkeypatch.setenv("HOME", str(tmp_path))
     bus = tmp_path / ".hermes/activity/events.jsonl"
     bus.parent.mkdir(parents=True)
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     running = {"v": 1, "event_id": "e-run", "ts": (now - timedelta(minutes=10)).isoformat(timespec="seconds"),
                "agent_id": "hermes:desktop", "run_id": "s1", "source": "hermes", "fidelity": "high",
                "kind": "status", "action": "terminal", "status": "running", "meta": {}}
