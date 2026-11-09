@@ -181,8 +181,8 @@ def test_hostile_transition_mapping_is_fixed_reason(tmp_path):
     {"status": "healthy", "event_count": 0, "reasons": ("raw_secret",)},
 ])
 def test_report_rejects_adversarial_fields(kwargs):
-    values = dict(status="healthy", event_count=0, transition_count=0, checkpoint_count=0,
-                  first_sequence=None, last_sequence=None, sequence_gaps=(), task_states={}, reasons=())
+    values = {"status": "healthy", "event_count": 0, "transition_count": 0, "checkpoint_count": 0,
+              "first_sequence": None, "last_sequence": None, "sequence_gaps": (), "task_states": {}, "reasons": ()}
     values.update(kwargs)
     with pytest.raises(ValueError):
         EventDiagnosticsReport(**values)

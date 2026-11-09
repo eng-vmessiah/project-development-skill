@@ -56,13 +56,13 @@ def test_profile_keeps_auth_as_opaque_reference_and_serializes_redacted_determin
 
 
 def test_readiness_is_declarative_and_enforces_policy_and_auth_reference() -> None:
-    base = dict(
-        provider_name="opencode",
-        runtime_name="opencode-go",
-        auth_ref="runtime:default",
-        command=CommandMetadata("opencode"),
-        capabilities=("read",),
-    )
+    base = {
+        "provider_name": "opencode",
+        "runtime_name": "opencode-go",
+        "auth_ref": "runtime:default",
+        "command": CommandMetadata("opencode"),
+        "capabilities": ("read",),
+    }
     assert assess_readiness(
         RuntimeProviderProfile(**base, policy=RuntimePolicy(enabled=True, allowed_capabilities=("read",)))
     ).status is ReadinessStatus.READY

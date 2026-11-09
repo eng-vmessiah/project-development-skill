@@ -31,11 +31,11 @@ def test_unsupported_payload_type_uses_fixed_marker():
 
 
 def event(**overrides):
-    values = dict(
-        event_id="evt-1", run_id="run-1", task_id="task-1", kind="task.started",
-        ordering_key="task-1", sequence=0, owner_epoch=2,
-        payload={"state": "running"}, created_at="2026-07-27T00:00:00+00:00",
-    )
+    values = {
+        "event_id": "evt-1", "run_id": "run-1", "task_id": "task-1", "kind": "task.started",
+        "ordering_key": "task-1", "sequence": 0, "owner_epoch": 2,
+        "payload": {"state": "running"}, "created_at": "2026-07-27T00:00:00+00:00",
+    }
     values.update(overrides)
     return FleetEvent(**values)
 

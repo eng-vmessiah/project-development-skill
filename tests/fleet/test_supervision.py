@@ -20,8 +20,8 @@ from pd_fleet.supervision import (
 
 
 def _snapshot(**overrides):
-    values = dict(mission_run_id="run-1", task_id="T-001", lane_id="lane-1", owner_epoch=1,
-                  signal=HealthSignal("alive", "ready", "advanced", "healthy"))
+    values = {"mission_run_id": "run-1", "task_id": "T-001", "lane_id": "lane-1", "owner_epoch": 1,
+              "signal": HealthSignal("alive", "ready", "advanced", "healthy")}
     values.update(overrides)
     return HealthSnapshot(**values)
 

@@ -20,14 +20,14 @@ from pd_fleet.handoff import (
 
 
 def _handoff(**overrides):
-    values = dict(
-        mission_id="mission-1", mission_run_id="run-1", task_id="T-001",
-        source_lane_id="lane-1", attempt_id="attempt-1", session_id="session-1",
-        target_role="verification", owner_epoch=3, reason="handoff",
-        summary="Continue from the bounded checkpoint", completed=[],
-        remaining=["verification"], decisions=[], risks=[],
-        evidence_refs=["checkpoint.json"], next_action="Run verification",
-    )
+    values = {
+        "mission_id": "mission-1", "mission_run_id": "run-1", "task_id": "T-001",
+        "source_lane_id": "lane-1", "attempt_id": "attempt-1", "session_id": "session-1",
+        "target_role": "verification", "owner_epoch": 3, "reason": "handoff",
+        "summary": "Continue from the bounded checkpoint", "completed": [],
+        "remaining": ["verification"], "decisions": [], "risks": [],
+        "evidence_refs": ["checkpoint.json"], "next_action": "Run verification",
+    }
     values.update(overrides)
     return create_handoff(**values)
 
@@ -201,7 +201,7 @@ def test_hostile_iterators_are_rejected_after_at_most_33_items(field: str) -> No
         while True:
             consumed["count"] += 1
             yield "item"
-    values: dict[str, object] = dict(completed=[], remaining=["verify"], decisions=[], risks=[], evidence_refs=["ref.json"])
+    values: dict[str, object] = {"completed": [], "remaining": ["verify"], "decisions": [], "risks": [], "evidence_refs": ["ref.json"]}
     values[field] = hostile()
     with pytest.raises(ValueError, match="exceeds item limit"):
         _handoff(**values)

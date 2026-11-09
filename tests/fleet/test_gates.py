@@ -11,8 +11,8 @@ from pd_fleet.gates import GateError, GatePolicy, GateResult, GateStatus
 
 
 def complete(kind="review", **overrides):
-    data = dict(gate_id="G1", gate_type=kind, status="passed", owner="alice",
-                decision="approved", evidence=["evidence/report.json"], reports=["report.json"], blockers=[])
+    data = {"gate_id": "G1", "gate_type": kind, "status": "passed", "owner": "alice",
+            "decision": "approved", "evidence": ["evidence/report.json"], "reports": ["report.json"], "blockers": []}
     data.update(overrides)
     return GateResult(**data)
 

@@ -29,7 +29,7 @@ def setup(*, retention=32, heartbeat=30):
     clock = Clock(); gateway = FakeGateway(clock=clock, retention=retention, heartbeat_ttl=timedelta(seconds=heartbeat))
     observer = ObserverIdentity("observer-1", "owner-1", "profile-1")
     gateway.connect(observer)
-    binding = dict(owner_ref="owner-1", profile_ref="profile-1", workspace_ref="workspace-1", session_ref="session-1", association_ref="association-1", purpose="pd_observation")
+    binding = {"owner_ref": "owner-1", "profile_ref": "profile-1", "workspace_ref": "workspace-1", "session_ref": "session-1", "association_ref": "association-1", "purpose": "pd_observation"}
     ticket = gateway.issue_activation(observer, **binding)
     return clock, gateway, observer, binding, ticket
 
@@ -206,7 +206,7 @@ def test_concurrent_auto_association_issuance_is_unique():
     clock = Clock(); gateway = FakeGateway(clock=clock)
     observer = ObserverIdentity("observer-issuance")
     gateway.connect(observer)
-    common = dict(owner_ref="owner-x", profile_ref="profile-x", workspace_ref="workspace-x", session_ref="session-x", purpose="pd_observation")
+    common = {"owner_ref": "owner-x", "profile_ref": "profile-x", "workspace_ref": "workspace-x", "session_ref": "session-x", "purpose": "pd_observation"}
     with ThreadPoolExecutor(max_workers=12) as pool:
         tickets = list(pool.map(lambda _: gateway.issue_activation(observer, **common), range(12)))
     assert len({ticket.activation_ref for ticket in tickets}) == 12

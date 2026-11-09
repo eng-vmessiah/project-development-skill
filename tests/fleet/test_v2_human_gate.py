@@ -17,19 +17,19 @@ DIGEST = "a" * 64
 
 
 def approved(**overrides):
-    data = dict(
-        owner="release-owner",
-        identity="alice@example.test",
-        decision=HumanDecision.APPROVED,
-        scope="release",
-        run="run-42",
-        evidence_digest=DIGEST,
-        artifact_digest="b" * 64,
-        created_at=NOW,
-        updated_at=NOW,
-        freshness_window=timedelta(hours=1),
-        blockers=(),
-    )
+    data = {
+        "owner": "release-owner",
+        "identity": "alice@example.test",
+        "decision": HumanDecision.APPROVED,
+        "scope": "release",
+        "run": "run-42",
+        "evidence_digest": DIGEST,
+        "artifact_digest": "b" * 64,
+        "created_at": NOW,
+        "updated_at": NOW,
+        "freshness_window": timedelta(hours=1),
+        "blockers": (),
+    }
     data.update(overrides)
     return HumanVerificationGate(**data)
 

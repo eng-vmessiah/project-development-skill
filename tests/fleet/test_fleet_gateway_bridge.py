@@ -26,8 +26,8 @@ def _setup(retention=32):
     observer = ObserverIdentity("observer-1", "owner-1", "profile-1")
     gateway = FakeGateway(retention=retention)
     gateway.connect(observer)
-    binding = dict(owner_ref="owner-1", profile_ref="profile-1", workspace_ref="workspace-1",
-                   session_ref="session-1", association_ref="association-1", purpose="pd_observation")
+    binding = {"owner_ref": "owner-1", "profile_ref": "profile-1", "workspace_ref": "workspace-1",
+               "session_ref": "session-1", "association_ref": "association-1", "purpose": "pd_observation"}
     ticket = gateway.issue_activation(observer, **binding)
     return gateway, observer, binding, ticket
 

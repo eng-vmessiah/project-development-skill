@@ -302,9 +302,9 @@ def test_nan_and_cycles_rejected_with_safe_diagnostics() -> None:
 
 def _tokens(**changes) -> ReconciliationInput:
     valid_hash = "a" * 64
-    values = dict(expected_plan_hash=valid_hash, actual_plan_hash=valid_hash, expected_generation=2, actual_generation=2,
-                  expected_run_id="run", actual_run_id="run", expected_checkpoint=3, actual_checkpoint=3,
-                  expected_lease="lease", actual_lease="lease", expected_event_sequence=7, actual_event_sequence=7)
+    values = {"expected_plan_hash": valid_hash, "actual_plan_hash": valid_hash, "expected_generation": 2, "actual_generation": 2,
+              "expected_run_id": "run", "actual_run_id": "run", "expected_checkpoint": 3, "actual_checkpoint": 3,
+              "expected_lease": "lease", "actual_lease": "lease", "expected_event_sequence": 7, "actual_event_sequence": 7}
     values.update(changes)
     return ReconciliationInput(**values)
 
