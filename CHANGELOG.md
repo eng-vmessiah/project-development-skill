@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-11-09
+
+Fix-forward for `1.4.0`: the Python 3.10 CI job failed during collection because
+`tests/test_activity_emit.py` imported `datetime.UTC` (3.11+). The test now uses
+`timezone.utc`; the `v1.4.0` tag and release assets are preserved.
+
+### Fixed
+- The activity-emitter test is importable on Python 3.10, restoring the full
+  3.10/3.11/3.12 CI matrix.
+
 ## [1.4.0] - 2026-11-09
 
 First feature release since `1.3.0`, closing the executable Phase 1/2 roadmap:
@@ -245,6 +255,7 @@ file and is published from an exact `v1.1.0` Git tag by the release workflow.
 
 | Version | Date | Changes |
 |---|---|---|
+| 1.4.1 | 2026-11-09 | Fix-forward: Python 3.10 test import uses timezone.utc (1.4.0 CI failed at collection) |
 | 1.4.0 | 2026-11-09 | Phase 2: custom templates, lifecycle hooks/plugins, API example, release preflight, CLI benchmarks |
 | 1.3.2 | 2026-11-08 | Fix-forward: sandbox test uses the resolved interpreter (release workflow failed at Markdown link check; carried forward in 1.3.3) |
 | 1.3.1 | 2026-11-08 | Fix-forward: portable pilot-runner executable/env (release workflow failed; carried forward in 1.3.2) |
