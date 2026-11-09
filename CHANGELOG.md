@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `scripts/bench_cli.py` measures `pd init/status/complete-task/list` latency on
+  disposable fixtures; `docs/BENCHMARKS.md` records the baseline and caveats.
+  Advisory only, no CI threshold.
 - `scripts/release_preflight.sh` runs the CI/release gates locally: pytest,
   flake8, skill validation, validator/installer regressions, release archive,
   Markdown links, V2 documentation paths, and shell syntax. `--release` also

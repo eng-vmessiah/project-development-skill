@@ -178,6 +178,12 @@ PD owns the pipeline; specialist skills supply phase-level depth. The
 [composition guide](docs/COMPOSITION-GUIDE.md) maps each PD phase to the skills
 that support it, with worked pairings, handoffs, and anti-patterns.
 
+## CLI benchmarks
+
+`scripts/bench_cli.py` measures `pd init/status/complete-task/list` latency on
+disposable fixtures. See [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for the
+methodology and the current baseline; results are advisory, not a CI gate.
+
 ## License
 
 MIT
