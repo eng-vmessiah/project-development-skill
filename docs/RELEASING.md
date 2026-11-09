@@ -38,6 +38,12 @@ After creating the tag locally, run the stricter mode:
 It additionally requires a clean working tree, no `## [Unreleased]` section, and
 `v<VERSION>` pointing at `HEAD`.
 
+Before tagging, also confirm that the latest CI matrix run for the target commit
+is green. The preflight uses the local Python (3.12 in the reference environment)
+and the release workflow uses a single Python, so a 3.10/3.11-only failure can
+still appear after a successful release. The `v1.4.0`/`v1.4.1` pair is the worked
+example of that gap.
+
 ## Release checklist
 
 1. Rename `## [Unreleased]` in `CHANGELOG.md` to `## [X.Y.Z] - YYYY-MM-DD` and add

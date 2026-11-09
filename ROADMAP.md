@@ -2,11 +2,11 @@
 
 This document outlines the development roadmap for Project Development Skills.
 
-## Current state (feature branch)
+## Current state (main)
 
 The tree currently contains 27 skills, a multi-platform installer, the `pd` CLI,
-and local/experimental Fleet V2 capabilities. No new published version is
-claimed by this document; release metadata remains a separate decision.
+and local/experimental Fleet V2 capabilities. The latest published release is
+`v1.4.1` (2026-11-09); release metadata remains a separate decision.
 
 | Category | Skills | Status |
 |---|---|---|
