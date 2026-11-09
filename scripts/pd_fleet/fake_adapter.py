@@ -402,10 +402,7 @@ class FakeAgentRuntime:
                     or any(ord(c) < 32 or ord(c) == 127 for c in reason)):
                 raise FakeAdapterError("forbidden_field")
         if mutating and check_fingerprint:
-            try:
-                self._validate_request_fingerprint(request)
-            except FakeAdapterError:
-                raise
+            self._validate_request_fingerprint(request)
 
     def _validate_request_fingerprint(self, request: Mapping[str, Any]) -> None:
         derived = canonical_request_fingerprint(request)

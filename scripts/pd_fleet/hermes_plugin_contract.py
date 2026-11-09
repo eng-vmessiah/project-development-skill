@@ -7,7 +7,8 @@ exists.
 """
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, MutableSet, Set
+from collections.abc import Callable, Mapping, MutableSet
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
@@ -110,7 +111,7 @@ def load_lifecycle_plugin(
     manifest: Mapping[str, Any] | None,
     register: Callable[[LifecycleOnlyContext], Any],
     target_context: Any,
-    enabled_plugins: Set[str],
+    enabled_plugins: AbstractSet[str],
     loaded_plugins: MutableSet[str],
     report: Callable[[PluginLoadResult], Any] | None = None,
 ) -> PluginLoadResult:

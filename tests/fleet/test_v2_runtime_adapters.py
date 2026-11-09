@@ -108,35 +108,29 @@ def test_runner_error_and_blocked_states_are_preserved() -> None:
 
 
 def test_result_parser_collects_jsonl_results_and_ignores_events() -> None:
-    payload = '\n'.join((
-        '{"type":"tool_use","status":"running","content":""}',
-        '{"type":"assistant","text":"first"}',
-        '{"event":"done","output":"second"}',
-    ))
+    payload = ('{"type":"tool_use","status":"running","content":""}\n'
+               '{"type":"assistant","text":"first"}\n'
+               '{"event":"done","output":"second"}')
     result = parse_runtime_output(payload)
     assert result.status.value == "ok"
     assert result.output == "first\nsecond"
 
 
 def test_result_parser_collects_codex_item_completed_agent_message() -> None:
-    payload = "\n".join((
-        '{"type":"thread.started","thread_id":"t"}',
-        '{"type":"turn.started"}',
-        '{"type":"item.completed","item":{"type":"agent_message","content":[{"type":"output_text","text":"final"}]}}',
-        '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}',
-    ))
+    payload = ('{"type":"thread.started","thread_id":"t"}\n'
+               '{"type":"turn.started"}\n'
+               '{"type":"item.completed","item":{"type":"agent_message","content":[{"type":"output_text","text":"final"}]}}\n'
+               '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}')
     result = parse_runtime_output(payload)
     assert result.status.value == "ok"
     assert result.output == "final"
 
 
 def test_result_parser_tool_or_usage_events_without_message_fail() -> None:
-    payload = "\n".join((
-        '{"type":"thread.started"}',
-        '{"type":"item.completed","item":{"type":"function_call","text":"not output"}}',
-        '{"type":"item.completed","item":{"type":"tool_result","content":"not output"}}',
-        '{"type":"turn.completed","usage":{"output_tokens":99},"status":"completed"}',
-    ))
+    payload = ('{"type":"thread.started"}\n'
+               '{"type":"item.completed","item":{"type":"function_call","text":"not output"}}\n'
+               '{"type":"item.completed","item":{"type":"tool_result","content":"not output"}}\n'
+               '{"type":"turn.completed","usage":{"output_tokens":99},"status":"completed"}')
     result = parse_runtime_output(payload)
     assert result.status.value == "failed"
     assert result.error_code == "sandbox_failed"

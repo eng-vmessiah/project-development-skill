@@ -887,8 +887,8 @@ class FleetOrchestrator:
                     if can_retry:
                         statuses[task_id] = "pending"
                     reports.append({"task_id": task_id, "status": statuses[task_id], "error": error or status})
-        for task_id in statuses:
-            if statuses[task_id] == "pending":
+        for task_id, status in statuses.items():
+            if status == "pending":
                 statuses[task_id] = "blocked"
         reports.sort(key=lambda report: report.get("task_id", ""))
         return OrchestrationResult(statuses, reports, waves, self.validation)

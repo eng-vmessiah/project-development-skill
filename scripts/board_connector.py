@@ -73,7 +73,7 @@ def norm_mode(raw: str) -> str:
 
 def run_cmd(cmd: list[str]) -> tuple[bool, str]:
     try:
-        p = subprocess.run(cmd, cwd=str(REPO), capture_output=True, text=True, timeout=TIMEOUT)
+        p = subprocess.run(cmd, cwd=str(REPO), capture_output=True, text=True, timeout=TIMEOUT, check=False)
     except subprocess.TimeoutExpired:
         return False, f"timeout ({TIMEOUT}s): {' '.join(cmd)}"
     # The connector boundary must return a stable error for any subprocess launch failure.

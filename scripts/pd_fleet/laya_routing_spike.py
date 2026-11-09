@@ -85,7 +85,7 @@ def find_env_python() -> str:
     probe = "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('hermes_laya') and importlib.util.find_spec('laya') else 1)"
     for cand in candidates:
         try:
-            out = subprocess.run([cand, "-c", probe], capture_output=True, timeout=60)
+            out = subprocess.run([cand, "-c", probe], capture_output=True, timeout=60, check=False)
             if out.returncode == 0:
                 return cand
         # The routing probe records arbitrary backend failures instead of aborting the probe.
@@ -103,7 +103,7 @@ def run_backend_real(reqs: list[dict], env_python: str) -> tuple[list[dict], lis
         proc = subprocess.run(
             [env_python, str(Path(__file__).parent / "laya_backend.py"),
              "--in", str(inp), "--out", str(out)],
-            capture_output=True, text=True, timeout=900,
+            capture_output=True, text=True, timeout=900, check=False,
             env={"PATH": "/usr/bin:/bin", "HF_HUB_OFFLINE": "1", "HOME": str(Path.home())},
         )
         if not out.exists():

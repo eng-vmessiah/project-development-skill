@@ -270,8 +270,7 @@ class FleetRunStore:
         if type(event.get("event_id")) is not str or not _ID.fullmatch(event["event_id"]): return False
         if type(event.get("ordering_key")) is not str or not event["ordering_key"]: return False
         if "generation" in event and (type(event["generation"]) is not int or event["generation"] < 0): return False
-        if "metadata" in event and not isinstance(event["metadata"], dict): return False
-        return True
+        return "metadata" not in event or isinstance(event["metadata"], dict)
     def _valid_snapshot(self, run_id: str) -> dict[str, Any] | None:
         found=[]
         for suffix in ("", ".bak"):

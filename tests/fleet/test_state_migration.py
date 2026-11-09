@@ -29,7 +29,7 @@ def test_legacy_json_only_gets_default_fleet_state(tmp_path):
     (path / "STATE.json").write_text(json.dumps({"feature": "feature", "tasks": ["legacy"]}))
     state = PDState(path)
     assert state.state["tasks"] == ["legacy"]
-    assert set(("schema_version", "agents", "waves", "tasks", "gates", "reports", "attempts", "blockers", "evidence", "updated_at")) <= set(state.state["fleet_state"])
+    assert {"schema_version", "agents", "waves", "tasks", "gates", "reports", "attempts", "blockers", "evidence", "updated_at"} <= set(state.state["fleet_state"])
 
 
 def test_partial_json_and_unknown_fields_are_preserved(tmp_path):

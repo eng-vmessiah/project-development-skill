@@ -4,6 +4,7 @@ from __future__ import annotations
 import ast
 import sys
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -23,7 +24,7 @@ from pd_fleet.hermes_existing_adapter import (
 
 
 class Client:
-    capabilities = {"session_snapshot", "session_replay", "session_heartbeat"}
+    capabilities: ClassVar[set[str]] = {"session_snapshot", "session_replay", "session_heartbeat"}
 
     def __init__(self):
         self.calls = []

@@ -6,6 +6,7 @@ import json
 import sys
 from collections.abc import Mapping
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -166,7 +167,7 @@ def test_runner_bridge_passes_sandbox_contract_without_typeerror() -> None:
     envelope = _envelope()
     seen = {}
     class Runner:
-        env = {"SAFE": "1"}
+        env: ClassVar[dict[str, str]] = {"SAFE": "1"}
         tool_root = "/safe/root"
         def run(self, argv, *, cwd, env, timeout, output_limits):
             seen.update(cwd=cwd, env=env, timeout=timeout, output_limits=output_limits)

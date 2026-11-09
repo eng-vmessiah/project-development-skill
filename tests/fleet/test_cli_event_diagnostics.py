@@ -45,7 +45,7 @@ def test_missing_log_does_not_create_store(tmp_path, capsys):
 @pytest.mark.parametrize("option", ["--owner-epoch", "--limit"])
 def test_invalid_bounds_fail_closed_without_creating_store(tmp_path, option, capsys):
     store = tmp_path / option[2:]
-    with pytest.raises(SystemExit) if option == "--owner-epoch" else pytest.raises(SystemExit):
+    with pytest.raises(SystemExit):
         PD().run(["fleet-supervisor-events", "--store", str(store), "--run-id", "run", option, "-1"])
     assert not store.exists()
 

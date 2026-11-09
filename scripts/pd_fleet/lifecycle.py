@@ -253,9 +253,7 @@ class GatePolicy:
             return False
         if present("decision") and not _has(get("decision")):
             return False
-        if present("blockers") and _has(get("blockers")):
-            return False
-        return True
+        return not (present("blockers") and _has(get("blockers")))
 
     def require_ready(self, lifecycle: TaskLifecycle, gates: Mapping[str, Any] | Iterable[Any] = ()) -> TaskLifecycle:
         if lifecycle.state == LifecycleState.PENDING:
