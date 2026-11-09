@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `scripts/release_preflight.sh` runs the CI/release gates locally: pytest,
+  flake8, skill validation, validator/installer regressions, release archive,
+  Markdown links, V2 documentation paths, and shell syntax. `--release` also
+  checks a clean tree and that the tag points at `HEAD`.
+- `scripts/check_markdown_links.py` is the single Markdown-link checker used by
+  both GitHub workflows and the preflight.
+
 ## [1.3.3] - 2026-11-08
 
 Third fix-forward release for `v1.3.0`. `v1.3.2`'s tests passed, but the release

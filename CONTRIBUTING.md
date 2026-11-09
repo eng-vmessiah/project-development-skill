@@ -198,6 +198,11 @@ How you tested the changes.
 - [ ] Size under 20k chars
 ```
 
+## Releases
+
+See [docs/RELEASING.md](docs/RELEASING.md) for the preflight, release checklist,
+and fix-forward policy. Never move or delete a failed release tag.
+
 ## Code of Conduct
 
 - Be respectful

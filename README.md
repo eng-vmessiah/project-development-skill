@@ -9,6 +9,9 @@ must exactly match that value; the release workflow reruns the repository checks
 and publishes a reproducible `project-development-skill-<version>.tar.gz` source
 archive with its `.sha256` checksum as GitHub release assets.
 
+Before tagging, run [`scripts/release_preflight.sh`](scripts/release_preflight.sh);
+the full checklist and fix-forward policy live in [docs/RELEASING.md](docs/RELEASING.md).
+
 ## What's Included
 
 The repository currently contains **27 skills** (`SKILL.md` files), including the nested `engineering/` category:

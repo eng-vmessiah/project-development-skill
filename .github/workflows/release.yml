@@ -53,53 +53,7 @@ jobs:
         run: find scripts tests -type f -name '*.sh' -print0 | xargs -0 -r -n1 bash -n
 
       - name: Check tracked Markdown relative links
-        run: |
-          python - <<'PY'
-          import re
-          import subprocess
-          from pathlib import Path
-
-          root = Path.cwd().resolve()
-          files = [Path(item) for item in subprocess.check_output(
-              ['git', 'ls-files', '-z', '--', '*.md']
-          ).decode().split('\0') if item]
-          link_re = re.compile(r'!?\[[^]]*\]\(([^)\n]+)\)')
-          heading_re = re.compile(r'^\s*#{1,6}\s+(.+?)\s*#*\s*$', re.MULTILINE)
-
-          def slug(value):
-              value = re.sub(r'<[^>]+>', '', value).strip().lower()
-              value = re.sub(r'[^\w\s-]', '', value)
-              return re.sub(r'[-\s]+', '-', value).strip('-')
-
-          failures = []
-          for source in sorted(files, key=lambda path: path.as_posix()):
-              text = (root / source).read_text(encoding='utf-8')
-              for raw in link_re.findall(text):
-                  target = raw.strip().split()[0].strip('<>')
-                  if (not target or target.startswith(('#', '/')) or
-                          target.startswith(('mailto:', '//')) or
-                          re.match(r'^[A-Za-z][A-Za-z0-9+.-]*://', target)):
-                      continue
-                  target_path, _, fragment = target.partition('#')
-                  destination = root / source if not target_path else (root / source).parent / target_path
-                  try:
-                      destination = destination.resolve()
-                      destination.relative_to(root)
-                  except ValueError:
-                      failures.append(f'{source}: escapes repository: {target}')
-                      continue
-                  if not destination.exists():
-                      failures.append(f'{source}: missing target: {target}')
-                      continue
-                  if fragment and destination.is_file() and destination.suffix.lower() == '.md':
-                      headings = {slug(match.group(1)) for match in heading_re.finditer(destination.read_text(encoding='utf-8'))}
-                      if slug(fragment) not in headings:
-                          failures.append(f'{source}: missing anchor: {target}')
-          if failures:
-              print('\n'.join(sorted(failures)))
-              raise SystemExit(1)
-          print(f'Markdown relative-link check: PASS ({len(files)} tracked files)')
-          PY
+        run: python scripts/check_markdown_links.py
 
       - name: Check V2 documentation paths
         run: python scripts/pd_fleet/v2_doc_paths.py .
