@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Python plugins can observe advance, checkpoint, and verify lifecycle hooks; see
+  `docs/PLUGINS.md`.
 - `pd init --template-dir` accepts custom `SPEC.md`, `PLAN.md`, and/or `CONTEXT.md`
   templates with a `{{feature}}` placeholder and per-file fallback; invalid or
   symlinked templates fail before the feature directory is created.

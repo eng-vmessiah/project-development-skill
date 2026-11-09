@@ -41,7 +41,7 @@ not inherit any restriction from the PD gates.
 
 ## What this does not do
 
-- It does not provide a Python plugin API.
+- Python plugins are documented separately in [PLUGINS.md](PLUGINS.md).
 - It does not make a failed hook block delivery; use a gate or a required test for
   that.
 - It does not ship hook scripts; keep them in your repository and reference them

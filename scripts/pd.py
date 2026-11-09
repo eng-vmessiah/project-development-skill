@@ -7,6 +7,7 @@ Manages state, validates progress, and enforces the PD pipeline.
 """
 
 import argparse
+import importlib
 import json
 import os
 import re
@@ -19,8 +20,10 @@ import time
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from copy import deepcopy
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 from pd_fleet.checkpoint import Checkpoint
@@ -194,12 +197,53 @@ def load_feature_templates(feature_name: str, template_dir: str | None = None) -
 # ─────────────────────────────────────────────────────────────────────────────
 # Configuration
 # ─────────────────────────────────────────────────────────────────────────────
+PLUGIN_HOOKS = (
+    "before_advance", "after_advance", "before_checkpoint", "after_checkpoint",
+    "before_verify", "after_verify",
+)
+
+
+@dataclass(frozen=True)
+class PluginContext:
+    """A detached snapshot of the feature at a lifecycle hook."""
+
+    feature: str
+    feature_dir: Path
+    phase: int
+    phase_name: str
+    state: Mapping[str, Any]
+
+
 class PDConfig:
     """PD configuration manager."""
 
     def __init__(self, project_dir: Path):
         self.project_dir = project_dir
         self.config: dict[str, Any] = self._load_config()
+        self.plugin_hooks = self._load_plugins()
+
+    def _load_plugins(self) -> dict[str, list[tuple[str, Any]]]:
+        names = self.config.get("plugins", [])
+        if not isinstance(names, list) or any(
+            not isinstance(name, str) or not name or
+            any(not part.isidentifier() for part in name.split(".")) for name in names
+        ):
+            raise ConfigError("plugins must be a list of importable module names")
+        hooks: dict[str, list[tuple[str, Any]]] = {name: [] for name in PLUGIN_HOOKS}
+        for name in names:
+            try:
+                module = importlib.import_module(name)
+                for hook_name in PLUGIN_HOOKS:
+                    if hasattr(module, hook_name):
+                        hook = getattr(module, hook_name)
+                        if not callable(hook):
+                            raise ConfigError(f"Plugin {name}: {hook_name} must be callable")
+                        hooks[hook_name].append((name, hook))
+            except ConfigError:
+                raise
+            except Exception as e:
+                raise ConfigError(f"Could not load plugin {name}: {e}") from e
+        return hooks
 
     def _load_config(self) -> dict[str, Any]:
         """Load configuration from pd.yaml."""
@@ -219,6 +263,7 @@ class PDConfig:
                 "5": ["tests/"],
                 "6": ["VERIFICATION.md"],
             },
+            "plugins": [],
             "hooks": {
                 "before_advance": [],
                 "after_advance": [],
@@ -704,6 +749,18 @@ class PDState:
             except subprocess.CalledProcessError as e:
                 print(_yellow(f"⚠️  Hook failed: {hook}"))
                 print(f"   Error: {e}")
+
+        for name, hook in self.config.plugin_hooks[hook_type]:
+            phase = self.state["phase"]
+            context = PluginContext(
+                feature=self.state["feature"], feature_dir=self.feature_dir,
+                phase=phase, phase_name=self.config.get_phases()[phase]["name"],
+                state=MappingProxyType(deepcopy(self.state)),
+            )
+            try:
+                hook(context)
+            except Exception as e:  # noqa: BLE001 - plugin failures are advisory
+                print(_yellow(f"⚠️  Plugin {name} hook {hook_type} failed: {e}"))
 
     # ── helpers ──────────────────────────────────────────────────────────
 

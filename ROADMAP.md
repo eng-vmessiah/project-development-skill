@@ -57,8 +57,8 @@ claimed by this document; release metadata remains a separate decision.
 
 ## Phase 2: Expansion — deferred
 
-Specialized skills already present in the tree are not future work. Remaining
-roadmap work includes a first-class plugin hook API. Potential future domains
+Specialized skills already present in the tree are not future work. The first-class
+Python plugin hook API is implemented. Potential future domains
 include monitoring improvements, deployment recipes, and other community-requested
 skills; no release versions are assigned here.
 

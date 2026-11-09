@@ -113,7 +113,8 @@ For feature templates, `pd init --template-dir <dir>` can override `SPEC.md`,
 
 `pd.yaml` can run shell commands around advance, checkpoint, and verify. Hooks are
 bounded (30 s), warn on failure, and never replace a PD gate. See
-[docs/HOOKS.md](docs/HOOKS.md) for the contract and trust boundary.
+[docs/HOOKS.md](docs/HOOKS.md) for the contract and trust boundary. Python
+plugins can also observe lifecycle events; see [docs/PLUGINS.md](docs/PLUGINS.md).
 
 ## Fleet Orchestration Evolution
 
